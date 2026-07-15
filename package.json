@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev:client": "vite",
-    "build:client": "tsc -p tsconfig.json && vite build",
+    "copy:static": "cp static dist/web -r -Force",
+    "build:client": "tsc -p tsconfig.json && vite build && npm run copy:static",
     "electron": "tsc -p electron/tsconfig.json && electron dist/electron/main.js",
     "electron:rebuild": "electron-rebuild -f -w ."
   },

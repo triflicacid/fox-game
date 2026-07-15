@@ -4,6 +4,14 @@ if (!ctx) {
     throw new Error("Could not acquire 2D canvas context");
 }
 
+const foxImage = new Image();
+let foxImageLoaded = false;
+foxImage.onload = () => {
+    foxImageLoaded = true;
+    draw();
+};
+foxImage.src = "./static/fox.png";
+
 function resize(): void {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -19,6 +27,17 @@ function draw(): void {
     ctx!.textAlign = "center";
     ctx!.textBaseline = "middle";
     ctx!.fillText("Hello, fox", canvas.width / 2, canvas.height / 2);
+
+    if (foxImageLoaded) {
+        const size = 128;
+        ctx!.drawImage(
+            foxImage,
+            canvas.width / 2 - size / 2,
+            canvas.height / 2 + 32,
+            size,
+            size,
+        );
+    }
 }
 
 window.addEventListener("resize", resize);
