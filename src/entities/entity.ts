@@ -139,7 +139,18 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
 
         ctx.strokeStyle = DEBUG_CONFIG.boundingBoxColor;
         ctx.lineWidth = DEBUG_CONFIG.boundingBoxWidth;
-        ctx.strokeRect(centerX + bounds.offsetX, centerY + bounds.offsetY, bounds.width, bounds.height);
+        ctx.beginPath();
+        bounds.points.forEach((point, i) => {
+            const x = centerX + point.x;
+            const y = centerY + point.y;
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        });
+        ctx.closePath();
+        ctx.stroke();
     }
 
     /**

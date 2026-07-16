@@ -10,21 +10,21 @@ export interface SpriteRect {
     h: number;
 }
 
+/** A point relative to a sprite cell's centre, in pixels. */
+export interface SpritePoint {
+    x: number;
+    y: number;
+}
+
 /**
- * A collision bounding box for a sprite frame, , expressed relative to the
- * cell's centre.
- * Shared by every phase of a given animation (see {@link SpriteRowDescriptor.bounds})
- * rather than per-frame as bounding box stays the same throughout.
+ * A collision bounding shape for a sprite frame: a convex polygon (its
+ * vertices, relative to the cell's centre, in clockwise order as seen in
+ * the sheet's own pixel space, where y increases downward, same as
+ * {@link SpriteRect}).
  */
 export interface SpriteBounds {
-    /** Left edge's horizontal offset from the cell centre, in pixels (negative extends left). */
-    offsetX: number;
-    /** Top edge's vertical offset from the cell centre, in pixels (negative extends up). */
-    offsetY: number;
-    /** Width, in pixels. */
-    width: number;
-    /** Height, in pixels. */
-    height: number;
+    /** This shape's vertices, relative to the cell centre, in clockwise order (see above). */
+    points: SpritePoint[];
 }
 
 /**

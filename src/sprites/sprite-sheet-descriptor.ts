@@ -23,7 +23,7 @@ export interface SpriteTileDescriptor<TType extends string = string> {
     /** Pixel y (top edge) of this entry's cell. */
     y: number;
     /**
-     * Collision bounding box relative to the cell's centre. One box per
+     * Collision bounding shape relative to the cell's centre. One shape per
      * entry, shared across every phase, for an animated row.
      */
     bounds: SpriteBounds;
