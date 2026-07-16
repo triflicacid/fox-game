@@ -57,6 +57,40 @@ const BASE_STYLE: ResolvedStyle = {
 /** {@link BASE_STYLE} as a canvas font string, for the title and for buttons. */
 const BASE_FONT = `${BASE_STYLE.fontSize}px ${BASE_STYLE.fontFamily}`;
 
+/** Thickness of the Windows-98-style border drawn by {@link drawWin98Border}, in canvas pixels. */
+const BORDER_WIDTH = 2;
+
+/**
+ * Draws a two-tone bevel edge: `topLeft` along the top and left sides of the
+ * `w`×`h` box at `x, y`, `bottomRight` along its bottom and right, each 1
+ * canvas pixel thick.
+ */
+function drawBevelEdge(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    topLeft: string,
+    bottomRight: string,
+): void {
+    ctx.fillStyle = topLeft;
+    ctx.fillRect(x, y, w, 1);
+    ctx.fillRect(x, y, 1, h);
+    ctx.fillStyle = bottomRight;
+    ctx.fillRect(x, y + h - 1, w, 1);
+    ctx.fillRect(x + w - 1, y, 1, h);
+}
+
+/**
+ * Draws a classic Windows 98 "raised" border, {@link BORDER_WIDTH} pixels
+ * thick, around the `w` x `h` box at `x, y`.
+ */
+function drawWin98Border(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+    drawBevelEdge(ctx, x, y, w, h, POPUP_CONFIG.borderHighlightColor, POPUP_CONFIG.borderDarkShadowColor);
+    drawBevelEdge(ctx, x + 1, y + 1, w - 2, h - 2, POPUP_CONFIG.borderLightColor, POPUP_CONFIG.borderShadowColor);
+}
+
 /**
  * Resolves `style` against `inherited`, falling back to `inherited`'s fields
  * for whichever ones `style` leaves unset.
@@ -276,6 +310,7 @@ export class Popup {
 
         ctx.fillStyle = POPUP_CONFIG.backgroundColor;
         ctx.fillRect(x, y, width, height);
+        drawWin98Border(ctx, x - BORDER_WIDTH, y - BORDER_WIDTH, width + BORDER_WIDTH * 2, height + BORDER_WIDTH * 2);
 
         let lineY = y + POPUP_CONFIG.padding;
         if (this.title) {
@@ -299,11 +334,12 @@ export class Popup {
                 const labelWidth = buttonWidths[i];
                 const rect: Rect = {x: buttonX - 2, y: lineY - 2, w: labelWidth + 4, h: POPUP_CONFIG.lineHeight};
                 bounds.push(rect);
-                if (i === this.cursor) {
+                const highlighted = i === this.cursor;
+                if (highlighted) {
                     ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
                     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
                 }
-                ctx.fillStyle = POPUP_CONFIG.textColor;
+                ctx.fillStyle = highlighted ? POPUP_CONFIG.highlightTextColor : POPUP_CONFIG.textColor;
                 ctx.fillText(label, buttonX, lineY);
                 buttonX += labelWidth + POPUP_CONFIG.buttonGap;
             });
