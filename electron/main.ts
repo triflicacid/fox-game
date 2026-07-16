@@ -7,9 +7,14 @@ const __dirname = path.dirname(__filename);
 const isDev: boolean = process.env.NODE_ENV === "development";
 
 function createWindow(): void {
+    const icon = isDev
+        ? path.join(__dirname, "..", "..", "static", "fox.png")
+        : path.join(__dirname, "..", "web", "static", "fox.png");
+
     const window: BrowserWindow = new BrowserWindow({
         width: 1280,
         height: 800,
+        icon,
         webPreferences: {
             contextIsolation: true,
         },
