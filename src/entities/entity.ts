@@ -1,17 +1,17 @@
-import {SpriteSheet} from "../sprites/sprite-sheet";
+import {AnimatedSpriteSheet} from "../sprites/AnimatedSpriteSheet";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 
 /**
  * Base class for a rendered thing in the world: something with an attached
- * {@link SpriteSheet}, a position, and a behavioural status that determines
- * which sprite it's currently showing.
+ * {@link AnimatedSpriteSheet}, a position, and a behavioural status that
+ * determines which sprite it's currently showing.
  *
- * @typeParam TArgs - Argument tuple this entity's sprite sheet's `locateSprite` accepts.
+ * @typeParam TSpriteType - Union of sprite type values this entity's sprite sheet's `locateSprite` accepts.
  * @typeParam TStatus - Union of behavioural states this entity can be in (e.g. `"walking"`, `"idle"`).
  */
-export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extends string = string> {
+export abstract class Entity<TSpriteType extends string = string, TStatus extends string = string> {
     private position: Vector2d;
     private currentFrame: SpriteFrame;
     private currentBitmap: ImageBitmap | null = null;
@@ -25,7 +25,7 @@ export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extend
      * @param position - Initial position. Defaults to {@link Vector2d.ZERO}.
      */
     protected constructor(
-        protected readonly spriteSheet: SpriteSheet<TArgs>,
+        protected readonly spriteSheet: AnimatedSpriteSheet<TSpriteType>,
         protected status: TStatus,
         initialFrame: SpriteFrame,
         private readonly frameIntervalMs: number,
@@ -125,18 +125,21 @@ export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extend
     }
 
     /**
-     * Draws this entity's bounding box, for debug rendering mode. Subclasses
-     * that overlay extra debug info (e.g. {@link MovableEntity}'s facing
-     * arrow) extend this rather than replacing it.
+     * Draws this entity's collision bounding box, for debug rendering mode.
+     * Uses {@link SpriteFrame.bounds}.
      *
      * @param ctx - Canvas context to draw into.
      * @param viewX - Camera's view left edge, in world pixels.
      * @param viewY - Camera's view top edge, in world pixels.
      */
     public drawDebugOverlay(ctx: CanvasRenderingContext2D, viewX: number, viewY: number): void {
+        const {bounds} = this.currentFrame;
+        const centerX = this.position.x - viewX + this.currentFrame.w / 2;
+        const centerY = this.position.y - viewY + this.currentFrame.h / 2;
+
         ctx.strokeStyle = DEBUG_CONFIG.boundingBoxColor;
         ctx.lineWidth = DEBUG_CONFIG.boundingBoxWidth;
-        ctx.strokeRect(this.position.x - viewX, this.position.y - viewY, this.currentFrame.w, this.currentFrame.h);
+        ctx.strokeRect(centerX + bounds.offsetX, centerY + bounds.offsetY, bounds.width, bounds.height);
     }
 
     /**

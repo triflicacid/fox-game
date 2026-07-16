@@ -1,5 +1,5 @@
 import {Entity} from "./entity";
-import {SpriteSheet} from "../sprites/sprite-sheet";
+import {AnimatedSpriteSheet} from "../sprites/AnimatedSpriteSheet";
 import {SpriteFrame} from "../sprites/sprite";
 import {CompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
@@ -11,10 +11,10 @@ import {drawArrow} from "../debug/debug-renderer";
  * velocity, and moves itself by that velocity each tick. Bind a
  * {@link MovementController} to one to drive it from arrow-key input.
  *
- * @typeParam TArgs - Argument tuple this entity's sprite sheet's `locateSprite` accepts.
+ * @typeParam TSpriteType - Union of sprite type values this entity's sprite sheet's `locateSprite` accepts.
  * @typeParam TStatus - Union of behavioural states this entity can be in.
  */
-export abstract class MovableEntity<TArgs extends unknown[] = unknown[], TStatus extends string = string> extends Entity<TArgs, TStatus> {
+export abstract class MovableEntity<TSpriteType extends string = string, TStatus extends string = string> extends Entity<TSpriteType, TStatus> {
     private velocity: Vector2d;
 
     /**
@@ -27,7 +27,7 @@ export abstract class MovableEntity<TArgs extends unknown[] = unknown[], TStatus
      * @param velocity - Initial velocity. Defaults to {@link Vector2d.ZERO}.
      */
     protected constructor(
-        spriteSheet: SpriteSheet<TArgs>,
+        spriteSheet: AnimatedSpriteSheet<TSpriteType>,
         status: TStatus,
         protected facing: CompassDirection,
         initialFrame: SpriteFrame,

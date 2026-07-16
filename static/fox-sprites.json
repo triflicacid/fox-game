@@ -1,0 +1,157 @@
+{
+  "cellWidth": 120,
+  "cellHeight": 120,
+  "rows": [
+    {
+      "type": "N",
+      "x": 120,
+      "y": 0,
+      "phases": 8,
+      "loops": true,
+      "idleX": 0,
+      "bounds": {
+        "offsetX": -25,
+        "offsetY": -55,
+        "width": 50,
+        "height": 110
+      }
+    },
+    {
+      "type": "NE",
+      "x": 120,
+      "y": 120,
+      "phases": 8,
+      "loops": true,
+      "idleX": 0,
+      "bounds": {
+        "offsetX": -50,
+        "offsetY": -40,
+        "width": 90,
+        "height": 90
+      }
+    },
+    {
+      "type": "E",
+      "x": 120,
+      "y": 240,
+      "phases": 8,
+      "loops": true,
+      "idleX": 0,
+      "bounds": {
+        "offsetX": -55,
+        "offsetY": -25,
+        "width": 110,
+        "height": 50
+      }
+    },
+    {
+      "type": "SE",
+      "x": 120,
+      "y": 360,
+      "phases": 8,
+      "loops": true,
+      "idleX": 0,
+      "bounds": {
+        "offsetX": -50,
+        "offsetY": -50,
+        "width": 90,
+        "height": 90
+      }
+    },
+    {
+      "type": "S",
+      "x": 120,
+      "y": 480,
+      "phases": 8,
+      "loops": true,
+      "idleX": 0,
+      "bounds": {
+        "offsetX": -25,
+        "offsetY": -55,
+        "width": 50,
+        "height": 110
+      }
+    },
+    {
+      "type": "SW",
+      "x": 120,
+      "y": 600,
+      "phases": 8,
+      "loops": true,
+      "idleX": 0,
+      "bounds": {
+        "offsetX": -40,
+        "offsetY": -50,
+        "width": 90,
+        "height": 90
+      }
+    },
+    {
+      "type": "W",
+      "x": 120,
+      "y": 720,
+      "phases": 8,
+      "loops": true,
+      "idleX": 0,
+      "bounds": {
+        "offsetX": -55,
+        "offsetY": -25,
+        "width": 110,
+        "height": 50
+      }
+    },
+    {
+      "type": "NW",
+      "x": 120,
+      "y": 840,
+      "phases": 8,
+      "loops": true,
+      "idleX": 0,
+      "bounds": {
+        "offsetX": -40,
+        "offsetY": -40,
+        "width": 90,
+        "height": 90
+      }
+    },
+    {
+      "type": "curl",
+      "x": 0,
+      "y": 960,
+      "phases": 8,
+      "loops": false,
+      "bounds": {
+        "offsetX": -35,
+        "offsetY": -30,
+        "width": 60,
+        "height": 65
+      }
+    },
+    {
+      "type": "uncurl",
+      "x": 0,
+      "y": 1080,
+      "phases": 8,
+      "loops": false,
+      "bounds": {
+        "offsetX": -40,
+        "offsetY": -40,
+        "width": 90,
+        "height": 85
+      }
+    },
+    {
+      "type": "sleepTurn",
+      "x": 0,
+      "y": 1200,
+      "phases": 8,
+      "loops": true,
+      "bounds": {
+        "offsetX": -40,
+        "offsetY": -40,
+        "width": 80,
+        "height": 80
+      }
+    }
+  ]
+}
