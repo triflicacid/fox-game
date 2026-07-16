@@ -18,7 +18,7 @@ export class DebugController {
     }
 
     /**
-     * Sets debug rendering mode directly (e.g. from the settings checkbox).
+     * Sets debug rendering mode.
      *
      * @param enabled - Whether debug rendering mode should be on.
      */

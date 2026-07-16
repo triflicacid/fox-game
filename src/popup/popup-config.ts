@@ -6,7 +6,7 @@ import {COLORS} from "./colors";
 export const POPUP_CONFIG = {
     /** Colour of the dimming layer drawn behind the popup. */
     dimColor: "rgba(0, 0, 0, 0.4)",
-    /** Background colour of the popup itself - classic Windows 98 "button face" grey. */
+    /** Background colour of the popup itself. */
     backgroundColor: "#c0c0c0",
 
     /** Outer bevel edge colour (top/left), the lightest tone. */
