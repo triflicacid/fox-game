@@ -5,6 +5,7 @@
   "main": "dist/electron/main.js",
   "type": "module",
   "scripts": {
+    "lint": "eslint .",
     "dev:client": "vite",
     "copy:static": "cp static dist/web -r -Force",
     "build:client": "tsc -p tsconfig.json && vite build && npm run copy:static",
@@ -13,8 +14,11 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.1",
+    "eslint": "^10.7.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.64.0",
     "vite": "^8.1.4",
     "vite-plugin-singlefile": "^2.3.3"
   },
