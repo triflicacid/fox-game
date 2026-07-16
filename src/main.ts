@@ -3,6 +3,7 @@ import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";
 import {Vector2d} from "./geometry/vector2d";
+import {DebugController} from "./debug/debug-controller";
 
 function requireContext(context: CanvasRenderingContext2D | null): CanvasRenderingContext2D {
     if (!context) {
@@ -20,6 +21,7 @@ const world = new World(TILE_SIZE);
 const camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
 new CameraDragController(canvas, camera);
 const movementController = new MovementController(world.getMainEntity(), {camera, mode: "edge"});
+const debugController = new DebugController();
 
 function resize(): void {
     canvas.width = window.innerWidth;
@@ -29,7 +31,7 @@ function resize(): void {
 }
 
 function draw(): void {
-    world.draw(ctx, camera);
+    world.draw(ctx, camera, debugController.isEnabled());
 }
 
 let lastTickTime = performance.now();

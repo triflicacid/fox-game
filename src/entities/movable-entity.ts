@@ -3,6 +3,8 @@ import {SpriteSheet} from "../sprites/sprite-sheet";
 import {SpriteFrame} from "../sprites/sprite";
 import {CompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
+import {DEBUG_CONFIG} from "../debug/debug-config";
+import {drawArrow} from "../debug/debug-renderer";
 
 /**
  * An {@link Entity} that can move: it has a facing direction and a
@@ -114,6 +116,29 @@ export abstract class MovableEntity<TArgs extends unknown[] = unknown[], TStatus
      * @returns The located frame.
      */
     protected abstract locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame;
+
+    /**
+     * Draws this entity's bounding box (via the base {@link Entity}
+     * implementation), plus an arrow anchored to its centre pointing in
+     * {@link facing}'s direction, for debug rendering mode.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param viewX - Camera's view left edge, in world pixels.
+     * @param viewY - Camera's view top edge, in world pixels.
+     */
+    public override drawDebugOverlay(ctx: CanvasRenderingContext2D, viewX: number, viewY: number): void {
+        super.drawDebugOverlay(ctx, viewX, viewY);
+
+        const frame = this.getCurrentFrame();
+        const center = new Vector2d(
+            this.getPosition().x - viewX + frame.w / 2,
+            this.getPosition().y - viewY + frame.h / 2,
+        );
+        const facing = this.getFacingVector();
+        const tip = new Vector2d(center.x + facing.x * (frame.w / 2), center.y + facing.y * (frame.h / 2));
+
+        drawArrow(ctx, center, tip, DEBUG_CONFIG.facingArrowColor, DEBUG_CONFIG.facingArrowWidth);
+    }
 
     /**
      * Moves this entity by {@link velocity}, then steps its animation frame

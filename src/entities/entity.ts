@@ -1,6 +1,7 @@
 import {SpriteSheet} from "../sprites/sprite-sheet";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
+import {DEBUG_CONFIG} from "../debug/debug-config";
 
 /**
  * Base class for a rendered thing in the world: something with an attached
@@ -121,6 +122,21 @@ export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extend
         this.animationElapsedMs -= this.frameIntervalMs;
         this.currentFrame = this.spriteSheet.next(this.currentFrame);
         this.refreshBitmap();
+    }
+
+    /**
+     * Draws this entity's bounding box, for debug rendering mode. Subclasses
+     * that overlay extra debug info (e.g. {@link MovableEntity}'s facing
+     * arrow) extend this rather than replacing it.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param viewX - Camera's view left edge, in world pixels.
+     * @param viewY - Camera's view top edge, in world pixels.
+     */
+    public drawDebugOverlay(ctx: CanvasRenderingContext2D, viewX: number, viewY: number): void {
+        ctx.strokeStyle = DEBUG_CONFIG.boundingBoxColor;
+        ctx.lineWidth = DEBUG_CONFIG.boundingBoxWidth;
+        ctx.strokeRect(this.position.x - viewX, this.position.y - viewY, this.currentFrame.w, this.currentFrame.h);
     }
 
     /**
