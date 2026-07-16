@@ -4,16 +4,10 @@ import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";
 import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
-
-function requireContext(context: CanvasRenderingContext2D | null): CanvasRenderingContext2D {
-    if (!context) {
-        throw new Error("Could not acquire 2D canvas context");
-    }
-    return context;
-}
+import {requireNonNull} from "./util";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
-const ctx = requireContext(canvas.getContext("2d"));
+const ctx = requireNonNull(canvas.getContext("2d"));
 
 const TILE_SIZE = 32;
 
@@ -31,7 +25,7 @@ function resize(): void {
 }
 
 function draw(): void {
-    world.draw(ctx, camera, debugController.isEnabled());
+    world.draw(ctx, camera, debugController.isEnabled(), movementController.isSpectating());
 }
 
 let lastTickTime = performance.now();
@@ -40,7 +34,7 @@ function tick(now: number): void {
     const deltaMs = now - lastTickTime;
     lastTickTime = now;
     world.update(deltaMs, camera);
-    movementController.updateCamera();
+    movementController.update(deltaMs);
     draw();
     requestAnimationFrame(tick);
 }
