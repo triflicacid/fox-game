@@ -1,17 +1,14 @@
 import {SpriteFrame} from "./sprite";
 import {SpriteSheet} from "./sprite-sheet";
+import {COMPASS_DIRECTIONS, CompassDirection} from "../geometry/direction";
 
-export type FoxDirection = "N" | "S" | "E" | "W" | "NE" | "NW" | "SE" | "SW";
-export type FoxSpriteType = FoxDirection | "curl" | "uncurl" | "sleepTurn";
+export type FoxSpriteType = CompassDirection | "curl" | "uncurl" | "sleepTurn";
 
 const CELL_SIZE = 120;
 const PHASES = 8;
 
-// The 8 compass directions, in the sheet's row order.
-const DIRECTIONS: FoxDirection[] = ["S", "SW", "W", "NW", "N", "NE", "E", "SE"];
-
 // Row order in the sheet, top to bottom.
-const ROW_ORDER: FoxSpriteType[] = [...DIRECTIONS, "curl", "uncurl", "sleepTurn"];
+const ROW_ORDER: FoxSpriteType[] = [...COMPASS_DIRECTIONS, "curl", "uncurl", "sleepTurn"];
 
 /** The fox spritesheet at `./static/fox-sprites.png`. */
 export class FoxSpriteSheet extends SpriteSheet<[type: FoxSpriteType, phase?: number]> {
@@ -57,16 +54,5 @@ export class FoxSpriteSheet extends SpriteSheet<[type: FoxSpriteType, phase?: nu
      */
     public override getSpriteTypes(): FoxSpriteType[] {
         return [...ROW_ORDER];
-    }
-
-    /**
-     * The 8 compass directions this sheet has a walk-cycle row for - a
-     * narrower view of {@link getSpriteTypes} that excludes the curl-family
-     * rows, for callers that specifically want a direction to walk in.
-     *
-     * @returns Every compass direction.
-     */
-    public getDirections(): FoxDirection[] {
-        return [...DIRECTIONS];
     }
 }

@@ -1,5 +1,7 @@
 import {Chunk, CHUNK_SIZE} from "./chunk";
 import {Tile} from "./tile";
+import {Entity} from "../entities/entity";
+import {Fox} from "../entities/fox";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -15,11 +17,15 @@ export interface ChunkCoordinate {
  */
 export class World {
     private readonly chunks = new Map<string, Chunk>();
+    private readonly entities: Entity[] = [];
+    private readonly fox: Fox;
 
     /**
      * @param tileSize - Width/height of a single tile, in canvas pixels.
      */
     public constructor(public readonly tileSize: number) {
+        this.fox = new Fox();
+        this.entities.push(this.fox);
     }
 
     /**
@@ -106,8 +112,38 @@ export class World {
     }
 
     /**
-     * Draws every chunk that overlaps the given view rectangle, loading
-     * (and caching) any of those chunks that aren't already loaded.
+     * Every entity currently in the world. Just the fox for now.
+     *
+     * @returns The world's entities.
+     */
+    public getEntities(): readonly Entity[] {
+        return this.entities;
+    }
+
+    /**
+     * The world's fox.
+     *
+     * @returns The fox entity.
+     */
+    public getFox(): Fox {
+        return this.fox;
+    }
+
+    /**
+     * Advances every entity in the world by one simulation tick.
+     *
+     * @param deltaMs - Time elapsed since the last update, in milliseconds.
+     */
+    public update(deltaMs: number): void {
+        for (const entity of this.entities) {
+            entity.update(deltaMs);
+        }
+    }
+
+    /**
+     * Draws every chunk that overlaps the given view rectangle (loading and
+     * caching any of those chunks that aren't already loaded), then every
+     * entity whose sprite overlaps it.
      *
      * @param ctx - Canvas context to draw into.
      * @param viewX - Left edge of the visible view, in world pixels (tile units * {@link tileSize}).
@@ -128,6 +164,40 @@ export class World {
                 const chunk = this.getChunk(chunkX, chunkY);
                 chunk.draw(ctx, chunkX * chunkPixelSize - viewX, chunkY * chunkPixelSize - viewY, this.tileSize);
             }
+        }
+
+        this.drawEntities(ctx, viewX, viewY, viewWidth, viewHeight);
+    }
+
+    /**
+     * Draws every entity whose sprite overlaps the given view rectangle.
+     * Entities entirely outside the view are skipped.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param viewX - Left edge of the visible view, in world pixels.
+     * @param viewY - Top edge of the visible view, in world pixels.
+     * @param viewWidth - Width of the visible view, in canvas pixels.
+     * @param viewHeight - Height of the visible view, in canvas pixels.
+     */
+    private drawEntities(ctx: CanvasRenderingContext2D, viewX: number, viewY: number, viewWidth: number, viewHeight: number): void {
+        for (const entity of this.entities) {
+            const bitmap = entity.getCurrentBitmap();
+            if (!bitmap) {
+                continue;
+            }
+
+            const frame = entity.getCurrentFrame();
+            const position = entity.getPosition();
+            const screenX = position.x - viewX;
+            const screenY = position.y - viewY;
+
+            const onScreen = screenX + frame.w > 0 && screenX < viewWidth
+                && screenY + frame.h > 0 && screenY < viewHeight;
+            if (!onScreen) {
+                continue;
+            }
+
+            ctx.drawImage(bitmap, screenX, screenY, frame.w, frame.h);
         }
     }
 }
