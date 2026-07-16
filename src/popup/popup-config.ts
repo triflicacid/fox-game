@@ -55,6 +55,11 @@ export const POPUP_CONFIG = {
     /** Gap between a checkbox's box and its label, in canvas pixels. */
     checkboxGap: 6,
 
+    /** Width of a number input's box, in canvas pixels - fixed, regardless of the value's length. */
+    numberInputWidth: 48,
+    /** Horizontal padding inside a number input's box, in canvas pixels. */
+    numberInputPadding: 4,
+
     /** Padding around the popup's content, in canvas pixels. */
     padding: 12,
 } as const;

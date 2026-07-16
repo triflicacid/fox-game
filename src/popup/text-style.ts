@@ -81,11 +81,30 @@ export interface CheckboxInput {
 }
 
 /**
+ * A single numeric text field, usable as an item within a {@link PopupLine}
+ * alongside plain {@link TextSegment}s. The displayed cursor is always at
+ * the end of the typed digits - there's no moving through or inserting
+ * within them. `ArrowUp`/`ArrowDown` change `value` by `step` instead of
+ * navigating between focusable elements while this input is focused.
+ */
+export interface NumberInput {
+    kind: "number";
+    /** Current value. */
+    value: number;
+    /** Amount `ArrowUp`/`ArrowDown` change `value` by. Defaults to `1`. */
+    step?: number;
+    /** Whether typing a decimal point is allowed. Defaults to `false` (integers only). */
+    allowDecimal?: boolean;
+    /** Invoked with the new value once an edit commits (`Enter`, or focus moving away) or after an `ArrowUp`/`ArrowDown` step. */
+    onChange: (value: number) => void;
+}
+
+/**
  * Every kind of interactive input a {@link PopupLine} can embed alongside
  * plain text. Add further input kinds to this union as they're introduced,
  * each with its own `kind` literal.
  */
-export type Input = RadioInput | CheckboxInput;
+export type Input = RadioInput | CheckboxInput | NumberInput;
 
 /** A single item within a {@link PopupLine}: styled text, or an interactive input. */
 export type PopupLineItem = TextSegment | Input;

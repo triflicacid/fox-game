@@ -18,6 +18,9 @@ export class WorldController {
     /** Width/height of a single tile, in canvas pixels. */
     private static readonly TILE_SIZE = 32;
 
+    /** Value the settings popup's target-FPS field shows when uncapped (i.e. {@link getTargetFps} returns `undefined`). */
+    private static readonly DEFAULT_TARGET_FPS = 60;
+
     private readonly canvas: HTMLCanvasElement;
     private readonly ctx: CanvasRenderingContext2D;
     private readonly world: World;
@@ -52,6 +55,8 @@ export class WorldController {
             (spectating) => this.movementController.setSpectating(spectating),
             () => this.debugController.isEnabled(),
             (enabled) => this.debugController.setEnabled(enabled),
+            () => this.getTargetFps() ?? WorldController.DEFAULT_TARGET_FPS,
+            (fps) => this.setTargetFps(fps),
         );
         this.popupSources = [this.helpController, this.settingsController];
         this.frameLoop = new FrameLoopController(this.onFrame, targetFps);

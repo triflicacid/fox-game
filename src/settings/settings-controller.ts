@@ -21,6 +21,8 @@ export class SettingsController implements PopupSource {
      * @param setSpectating - Invoked when the user toggles the spectator mode checkbox.
      * @param getDebugEnabled - Called on every {@link draw} to read whether debug mode is on.
      * @param setDebugEnabled - Invoked when the user toggles the debug mode checkbox.
+     * @param getTargetFps - Called on every {@link draw} to read the current target FPS.
+     * @param setTargetFps - Invoked when the user edits the target FPS field.
      */
     public constructor(
         private readonly getCameraFollowMode: () => CameraFollowMode | undefined,
@@ -29,6 +31,8 @@ export class SettingsController implements PopupSource {
         private readonly setSpectating: (spectating: boolean) => void,
         private readonly getDebugEnabled: () => boolean,
         private readonly setDebugEnabled: (enabled: boolean) => void,
+        private readonly getTargetFps: () => number,
+        private readonly setTargetFps: (fps: number) => void,
     ) {
         window.addEventListener("keydown", this.handleKeyDown);
     }
@@ -70,8 +74,8 @@ export class SettingsController implements PopupSource {
 
     /**
      * Builds this popup's content: the camera follow mode as a radio choice
-     * between {@link CameraFollowMode}'s two values, plus a checkbox each
-     * for spectator mode and debug mode.
+     * between {@link CameraFollowMode}'s two values, a checkbox each for
+     * spectator mode and debug mode, and a number field for the target FPS.
      *
      * @returns The lines to show in the settings popup.
      */
@@ -94,6 +98,10 @@ export class SettingsController implements PopupSource {
             ],
             [
                 {kind: "checkbox", checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: [{content: "Debug mode"}]},
+            ],
+            [
+                {content: "Target FPS: "},
+                {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
             ],
         ];
     }
