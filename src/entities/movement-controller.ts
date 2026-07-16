@@ -43,6 +43,9 @@ export class MovementController {
     /** Speed a bound entity moves at, in world pixels per second. */
     private static readonly SPEED = 150;
 
+    /** Speed the camera pans at in spectator mode, in world pixels per second. */
+    private static readonly SPECTATOR_SPEED = 300;
+
     /** Default {@link CameraFollowOptions.edgeMargin} for `"edge"` follow mode. */
     private static readonly DEFAULT_EDGE_MARGIN = 200;
 
@@ -60,6 +63,7 @@ export class MovementController {
     private entity: MovableEntity | null;
     private debounceTimeoutId: ReturnType<typeof setTimeout> | null = null;
     private readonly cameraFollow: CameraFollowOptions | null;
+    private spectating = false;
 
     /**
      * @param entity - Entity to bind to initially. Defaults to unbound (`null`).
@@ -83,28 +87,114 @@ export class MovementController {
     public bind(entity: MovableEntity | null): void {
         this.entity = entity;
         this.applyMovement();
-        this.updateCamera();
+        this.update(0);
     }
 
     /**
-     * Repositions the bound {@link CameraFollowOptions.camera}, if any,
-     * around the bound entity's current position, per {@link
-     * CameraFollowOptions.mode}. The entity moves continuously (driven by
-     * its velocity each simulation tick, not just on key events), so callers
-     * should invoke this once per animation frame - e.g. alongside {@link
-     * World.update} - rather than only after a key event.
+     * Whether spectator mode is currently active (toggled via the `s` key).
+     *
+     * @returns `true` if the camera is currently detached from the bound entity.
      */
-    public updateCamera(): void {
-        if (!this.entity || !this.cameraFollow) {
+    public isSpectating(): boolean {
+        return this.spectating;
+    }
+
+    /**
+     * Advances this controller by one animation frame. In spectator mode,
+     * pans the bound {@link CameraFollowOptions.camera} directly from the
+     * currently held arrow keys; otherwise repositions it around the bound
+     * entity per {@link CameraFollowOptions.mode}. The entity moves
+     * continuously (driven by its velocity each simulation tick, not just on
+     * key events), so callers should invoke this once per animation frame -
+     * e.g. alongside {@link World.update} - rather than only after a key event.
+     *
+     * @param deltaMs - Time elapsed since the last update, in milliseconds.
+     */
+    public update(deltaMs: number): void {
+        if (!this.cameraFollow) {
             return;
         }
 
-        const entityCenter = this.getEntityCenter(this.entity);
-        if (this.cameraFollow.mode === "center") {
-            this.cameraFollow.camera.setCenter(entityCenter);
-        } else {
-            this.dragCameraToEdge(this.cameraFollow.camera, entityCenter);
+        if (this.spectating) {
+            this.panCamera(this.cameraFollow.camera, deltaMs);
+        } else if (this.entity) {
+            this.followEntity(this.cameraFollow, this.entity);
         }
+    }
+
+    /**
+     * Repositions `cameraFollow`'s camera around `entity`'s current
+     * position, per {@link CameraFollowOptions.mode}.
+     *
+     * @param cameraFollow - Camera-follow options to reposition the camera per.
+     * @param entity - Entity to follow.
+     */
+    private followEntity(cameraFollow: CameraFollowOptions, entity: MovableEntity): void {
+        const entityCenter = this.getEntityCenter(entity);
+        if (cameraFollow.mode === "center") {
+            cameraFollow.camera.setCenter(entityCenter);
+        } else {
+            this.dragCameraToEdge(cameraFollow.camera, entityCenter);
+        }
+    }
+
+    /**
+     * Pans `camera` from the currently held arrow keys, at
+     * {@link SPECTATOR_SPEED}, scaled by the elapsed frame time.
+     *
+     * @param camera - Camera to pan.
+     * @param deltaMs - Time elapsed since the last update, in milliseconds.
+     */
+    private panCamera(camera: Camera, deltaMs: number): void {
+        const direction = this.resolveDirection();
+        if (!direction) {
+            return;
+        }
+        const distance = MovementController.SPECTATOR_SPEED * (deltaMs / 1000);
+        camera.pan(Vector2d.fromDirection(direction).scale(distance));
+    }
+
+    /**
+     * Toggles spectator mode in response to the `s` key: detaches the
+     * camera from the bound entity (or reattaches it), and resets any
+     * in-flight arrow-key state so it isn't misread by the other mode. The
+     * bound entity is stopped when entering spectator mode, since arrow keys
+     * drive the camera instead of it while active.
+     */
+    private toggleSpectatorMode(): void {
+        this.spectating = !this.spectating;
+        this.pressedDirections.clear();
+        if (this.debounceTimeoutId !== null) {
+            clearTimeout(this.debounceTimeoutId);
+            this.debounceTimeoutId = null;
+        }
+        if (this.spectating) {
+            this.entity?.setVelocity(Vector2d.ZERO);
+        }
+    }
+
+    /**
+     * In spectator mode, snaps {@link CameraFollowOptions.camera} straight
+     * to the bound entity's centre, in response to the `f` key. A no-op if
+     * there's no bound entity or camera.
+     */
+    private focusOnEntity(): void {
+        if (!this.cameraFollow || !this.entity) {
+            return;
+        }
+        this.cameraFollow.camera.setCenter(this.getEntityCenter(this.entity));
+    }
+
+    /**
+     * In spectator mode, snaps {@link CameraFollowOptions.camera} straight
+     * to the world origin, in response to the `o` key. A no-op if there's no
+     * bound camera.
+     */
+    private moveCameraToOrigin(): void {
+        if (!this.cameraFollow) {
+            return;
+        }
+        this.cameraFollow.camera.setCenter(Vector2d.ZERO);
     }
 
     /**
@@ -153,12 +243,27 @@ export class MovementController {
     }
 
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
+        if (event.key === "s" || event.key === "S") {
+            this.toggleSpectatorMode();
+            return;
+        }
+        if (this.spectating && (event.key === "f" || event.key === "F")) {
+            this.focusOnEntity();
+            return;
+        }
+        if (this.spectating && (event.key === "o" || event.key === "O")) {
+            this.moveCameraToOrigin();
+            return;
+        }
+
         const direction = KEY_DIRECTIONS[event.key];
         if (!direction) {
             return;
         }
         this.pressedDirections.add(direction);
-        this.scheduleApplyMovement();
+        if (!this.spectating) {
+            this.scheduleApplyMovement();
+        }
     };
 
     private readonly handleKeyUp = (event: KeyboardEvent): void => {
@@ -167,7 +272,9 @@ export class MovementController {
             return;
         }
         this.pressedDirections.delete(direction);
-        this.scheduleApplyMovement();
+        if (!this.spectating) {
+            this.scheduleApplyMovement();
+        }
     };
 
     /**

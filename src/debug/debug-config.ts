@@ -32,6 +32,8 @@ export const DEBUG_CONFIG = {
 
     /** Text colour for the HUD (camera/viewport/entity readout). */
     hudTextColor: "#ffffff",
+    /** Text colour for the HUD's spectator-mode indicator. */
+    hudSpectatorColor: "#ffff00",
     /** Background colour behind the HUD text. */
     hudBackgroundColor: "rgba(0, 0, 0, 0.5)",
     /** Font for the HUD text. */
