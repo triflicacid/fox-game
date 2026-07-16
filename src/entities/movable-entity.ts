@@ -5,6 +5,7 @@ import {CompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {drawArrow} from "../debug/debug-renderer";
+import {KeyBinding} from "../help/key-binding";
 
 /**
  * An {@link Entity} that can move: it has a facing direction and a
@@ -135,6 +136,14 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * @param key - `KeyboardEvent.key` of the pressed key.
      */
     public handleKeyPress?(key: string): void;
+
+    /**
+     * Optional hook exposing the key binding(s) {@link handleKeyPress} itself
+     * responds to, so the game's help popup can list them.
+     *
+     * @returns This entity's key bindings.
+     */
+    public getKeyBindings?(): KeyBinding[];
 
     /**
      * Draws this entity's bounding box (via the base {@link Entity}
