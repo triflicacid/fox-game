@@ -1,6 +1,9 @@
-import {SpriteFrame} from "./sprites/sprite";
-import {FoxSpriteSheet} from "./sprites/fox";
-import {randomElement} from "./util";
+import {World} from "./world/world";
+import {Camera} from "./camera/camera";
+import {CameraDragController} from "./camera/camera-drag-controller";
+import {MovementController} from "./entities/movement-controller";
+import {Vector2d} from "./geometry/vector2d";
+import {DebugController} from "./debug/debug-controller";
 
 function requireContext(context: CanvasRenderingContext2D | null): CanvasRenderingContext2D {
     if (!context) {
@@ -12,52 +15,36 @@ function requireContext(context: CanvasRenderingContext2D | null): CanvasRenderi
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const ctx = requireContext(canvas.getContext("2d"));
 
-const WALK_FRAME_MS = 120;
+const TILE_SIZE = 32;
 
-const foxSheet = new FoxSpriteSheet();
-const directions = foxSheet.getDirections();
-const walkDirection = randomElement(directions);
-let walkFrame: SpriteFrame = foxSheet.locateSprite(walkDirection);
-let walkBitmap: ImageBitmap | null = null;
-
-async function showWalkFrame(frame: SpriteFrame): Promise<void> {
-    walkBitmap = await foxSheet.extractSprite(frame);
-    draw();
-}
-showWalkFrame(walkFrame);
-
-setInterval(() => {
-    walkFrame = foxSheet.next(walkFrame);
-    showWalkFrame(walkFrame);
-}, WALK_FRAME_MS);
+const world = new World(TILE_SIZE);
+const camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
+new CameraDragController(canvas, camera);
+const movementController = new MovementController(world.getMainEntity(), {camera, mode: "edge"});
+const debugController = new DebugController();
 
 function resize(): void {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    camera.setViewportSize(canvas.width, canvas.height);
     draw();
 }
 
 function draw(): void {
-    ctx.fillStyle = "#10140f";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    world.draw(ctx, camera, debugController.isEnabled());
+}
 
-    ctx.fillStyle = "#f2a65a";
-    ctx.font = "48px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Hello, fox", canvas.width / 2, canvas.height / 2);
+let lastTickTime = performance.now();
 
-    if (walkBitmap) {
-        const size = 128;
-        ctx.drawImage(
-            walkBitmap,
-            canvas.width / 2 - size / 2,
-            canvas.height / 2 + 32,
-            size,
-            size,
-        );
-    }
+function tick(now: number): void {
+    const deltaMs = now - lastTickTime;
+    lastTickTime = now;
+    world.update(deltaMs, camera);
+    movementController.updateCamera();
+    draw();
+    requestAnimationFrame(tick);
 }
 
 window.addEventListener("resize", resize);
 resize();
+requestAnimationFrame(tick);
