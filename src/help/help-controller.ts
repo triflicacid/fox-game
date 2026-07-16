@@ -2,6 +2,7 @@ import {KeyBinding} from "./key-binding";
 import {Popup} from "../popup/popup";
 import {PopupLine, TextFormat} from "../popup/text-style";
 import {COLORS} from "../popup/colors";
+import {PopupSource} from "../popup/popup-source";
 
 /** Title shown atop the help popup. */
 const TITLE = "Keys";
@@ -13,10 +14,15 @@ const KEY_DESCRIPTION_GAP = 2;
  * Shows the game's key bindings in a {@link Popup}, opened with `?` and
  * closed with `Esc` or `?` again (or by selecting its `Close` button).
  */
-export class HelpController {
+export class HelpController implements PopupSource {
     private readonly popup = new Popup({closeKeys: ["Escape", "?"]});
 
-    public constructor() {
+    /**
+     * @param getBindings - Called on every {@link draw} to fetch every key
+     * binding currently in effect across the game, since this controller
+     * doesn't own the other controllers that contribute them.
+     */
+    public constructor(private readonly getBindings: () => KeyBinding[]) {
         window.addEventListener("keydown", this.handleKeyDown);
     }
 
@@ -36,21 +42,20 @@ export class HelpController {
      */
     public getKeyBindings(): KeyBinding[] {
         return [
-            {key: "?", description: "Toggle this help window"},
-            {key: "Esc", description: "Close this help window"},
+            {key: "?", description: "Toggle the help window"},
+            {key: "Esc", description: "Close this popup"},
         ];
     }
 
     /**
-     * Draws the help popup, refreshing its content from `bindings` first.
+     * Draws the help popup, refreshing its content from {@link getBindings} first.
      *
      * @param ctx - Canvas context to draw into.
      * @param canvasWidth - Canvas width, in canvas pixels.
      * @param canvasHeight - Canvas height, in canvas pixels.
-     * @param bindings - Every key binding currently in effect, to list.
      */
-    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, bindings: KeyBinding[]): void {
-        this.popup.setContent(TITLE, this.formatLines(bindings), [
+    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+        this.popup.setContent(TITLE, this.formatLines(this.getBindings()), [
             {label: "Close", onClick: () => this.popup.close()},
         ]);
         this.popup.draw(ctx, canvasWidth, canvasHeight);
