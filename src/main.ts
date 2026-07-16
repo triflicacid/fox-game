@@ -1,6 +1,7 @@
 import {World} from "./world/world";
 import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
+import {MovementController} from "./entities/movement-controller";
 import {Vector2d} from "./geometry/vector2d";
 
 function requireContext(context: CanvasRenderingContext2D | null): CanvasRenderingContext2D {
@@ -18,6 +19,7 @@ const TILE_SIZE = 32;
 const world = new World(TILE_SIZE);
 const camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
 new CameraDragController(canvas, camera);
+new MovementController(world.getMainEntity());
 
 function resize(): void {
     canvas.width = window.innerWidth;
