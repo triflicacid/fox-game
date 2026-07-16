@@ -1,4 +1,7 @@
 import {World} from "./world/world";
+import {Camera} from "./camera/camera";
+import {CameraDragController} from "./camera/camera-drag-controller";
+import {Vector2d} from "./geometry/vector2d";
 
 function requireContext(context: CanvasRenderingContext2D | null): CanvasRenderingContext2D {
     if (!context) {
@@ -13,15 +16,18 @@ const ctx = requireContext(canvas.getContext("2d"));
 const TILE_SIZE = 32;
 
 const world = new World(TILE_SIZE);
+const camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
+new CameraDragController(canvas, camera);
 
 function resize(): void {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    camera.setViewportSize(canvas.width, canvas.height);
     draw();
 }
 
 function draw(): void {
-    world.draw(ctx, 0, 0, canvas.width, canvas.height);
+    world.draw(ctx, camera);
 
     ctx.fillStyle = "#f2a65a";
     ctx.font = "48px sans-serif";
@@ -35,7 +41,7 @@ let lastTickTime = performance.now();
 function tick(now: number): void {
     const deltaMs = now - lastTickTime;
     lastTickTime = now;
-    world.update(deltaMs);
+    world.update(deltaMs, camera);
     draw();
     requestAnimationFrame(tick);
 }

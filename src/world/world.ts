@@ -2,11 +2,20 @@ import {Chunk, CHUNK_SIZE} from "./chunk";
 import {Tile} from "./tile";
 import {Entity} from "../entities/entity";
 import {Fox} from "../entities/fox";
+import {Camera} from "../camera/camera";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
     chunkX: number;
     chunkY: number;
+}
+
+/** A rectangular range of chunk coordinates, inclusive of both ends. */
+interface ChunkRange {
+    startChunkX: number;
+    startChunkY: number;
+    endChunkX: number;
+    endChunkY: number;
 }
 
 /**
@@ -16,6 +25,9 @@ export interface ChunkCoordinate {
  * aren't persisted yet; see `initial-plan.md` for the planned storage design.
  */
 export class World {
+    /** How many extra chunks to keep loaded beyond the camera's visible view, in every direction. */
+    private static readonly CHUNK_BUFFER = 2;
+
     private readonly chunks = new Map<string, Chunk>();
     private readonly entities: Entity[] = [];
     private readonly fox: Fox;
@@ -130,34 +142,79 @@ export class World {
     }
 
     /**
-     * Advances every entity in the world by one simulation tick.
+     * Advances every entity in the world by one simulation tick, and streams
+     * chunks in/out around the camera (see {@link updateLoadedChunks}).
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
+     * @param camera - Camera the world is currently being viewed through.
      */
-    public update(deltaMs: number): void {
+    public update(deltaMs: number, camera: Camera): void {
         for (const entity of this.entities) {
             entity.update(deltaMs);
+        }
+        this.updateLoadedChunks(camera);
+    }
+
+    /**
+     * The range of chunk coordinates that overlap the camera's view.
+     *
+     * @param camera - Camera to compute the visible chunk range for.
+     * @returns The visible chunk range.
+     */
+    private getVisibleChunkRange(camera: Camera): ChunkRange {
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        return {
+            startChunkX: Math.floor(camera.getViewX() / chunkPixelSize),
+            startChunkY: Math.floor(camera.getViewY() / chunkPixelSize),
+            endChunkX: Math.floor((camera.getViewX() + camera.getWidth()) / chunkPixelSize),
+            endChunkY: Math.floor((camera.getViewY() + camera.getHeight()) / chunkPixelSize),
+        };
+    }
+
+    /**
+     * Generates/loads every chunk within the camera's view plus a buffer of
+     * {@link CHUNK_BUFFER} chunks, then unloads any loaded chunk that's
+     * drifted further than that buffer outside the view. Keeps memory
+     * bounded as the camera pans, while still keeping a margin of chunks
+     * pre-generated just outside the visible area.
+     *
+     * @param camera - Camera to load/unload chunks around.
+     */
+    private updateLoadedChunks(camera: Camera): void {
+        const visible = this.getVisibleChunkRange(camera);
+        const bufferedStartX = visible.startChunkX - World.CHUNK_BUFFER;
+        const bufferedStartY = visible.startChunkY - World.CHUNK_BUFFER;
+        const bufferedEndX = visible.endChunkX + World.CHUNK_BUFFER;
+        const bufferedEndY = visible.endChunkY + World.CHUNK_BUFFER;
+
+        for (let chunkY = bufferedStartY; chunkY <= bufferedEndY; chunkY++) {
+            for (let chunkX = bufferedStartX; chunkX <= bufferedEndX; chunkX++) {
+                this.getChunk(chunkX, chunkY);
+            }
+        }
+
+        for (const chunk of this.chunks.values()) {
+            const outsideBuffer = chunk.chunkX < bufferedStartX || chunk.chunkX > bufferedEndX
+                || chunk.chunkY < bufferedStartY || chunk.chunkY > bufferedEndY;
+            if (outsideBuffer) {
+                this.unloadChunk(chunk.chunkX, chunk.chunkY);
+            }
         }
     }
 
     /**
-     * Draws every chunk that overlaps the given view rectangle (loading and
-     * caching any of those chunks that aren't already loaded), then every
-     * entity whose sprite overlaps it.
+     * Draws every chunk that overlaps the camera's view (loading and caching
+     * any of those chunks that aren't already loaded), then every entity
+     * whose sprite overlaps it.
      *
      * @param ctx - Canvas context to draw into.
-     * @param viewX - Left edge of the visible view, in world pixels (tile units * {@link tileSize}).
-     * @param viewY - Top edge of the visible view, in world pixels.
-     * @param viewWidth - Width of the visible view, in canvas pixels.
-     * @param viewHeight - Height of the visible view, in canvas pixels.
+     * @param camera - Camera to render the world through.
      */
-    public draw(ctx: CanvasRenderingContext2D, viewX: number, viewY: number, viewWidth: number, viewHeight: number): void {
+    public draw(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-
-        const startChunkX = Math.floor(viewX / chunkPixelSize);
-        const startChunkY = Math.floor(viewY / chunkPixelSize);
-        const endChunkX = Math.floor((viewX + viewWidth) / chunkPixelSize);
-        const endChunkY = Math.floor((viewY + viewHeight) / chunkPixelSize);
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
 
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
@@ -166,20 +223,20 @@ export class World {
             }
         }
 
-        this.drawEntities(ctx, viewX, viewY, viewWidth, viewHeight);
+        this.drawEntities(ctx, camera);
     }
 
     /**
-     * Draws every entity whose sprite overlaps the given view rectangle.
-     * Entities entirely outside the view are skipped.
+     * Draws every entity whose sprite overlaps the camera's view. Entities
+     * entirely outside the view are skipped.
      *
      * @param ctx - Canvas context to draw into.
-     * @param viewX - Left edge of the visible view, in world pixels.
-     * @param viewY - Top edge of the visible view, in world pixels.
-     * @param viewWidth - Width of the visible view, in canvas pixels.
-     * @param viewHeight - Height of the visible view, in canvas pixels.
+     * @param camera - Camera to render entities through.
      */
-    private drawEntities(ctx: CanvasRenderingContext2D, viewX: number, viewY: number, viewWidth: number, viewHeight: number): void {
+    private drawEntities(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
+
         for (const entity of this.entities) {
             const bitmap = entity.getCurrentBitmap();
             if (!bitmap) {
@@ -188,16 +245,11 @@ export class World {
 
             const frame = entity.getCurrentFrame();
             const position = entity.getPosition();
-            const screenX = position.x - viewX;
-            const screenY = position.y - viewY;
-
-            const onScreen = screenX + frame.w > 0 && screenX < viewWidth
-                && screenY + frame.h > 0 && screenY < viewHeight;
-            if (!onScreen) {
+            if (!camera.isRectVisible(position.x, position.y, frame.w, frame.h)) {
                 continue;
             }
 
-            ctx.drawImage(bitmap, screenX, screenY, frame.w, frame.h);
+            ctx.drawImage(bitmap, position.x - viewX, position.y - viewY, frame.w, frame.h);
         }
     }
 }
