@@ -101,6 +101,40 @@ export class MovementController {
     }
 
     /**
+     * Sets spectator mode.
+     *
+     * @param spectating - Whether spectator mode should be active.
+     */
+    public setSpectating(spectating: boolean): void {
+        if (spectating !== this.spectating) {
+            this.toggleSpectatorMode();
+        }
+    }
+
+    /**
+     * The bound camera's current follow mode, or `undefined` if this
+     * controller has no {@link CameraFollowOptions} (i.e. it's not
+     * following any camera).
+     *
+     * @returns The current {@link CameraFollowMode}, if any.
+     */
+    public getCameraFollowMode(): CameraFollowMode | undefined {
+        return this.cameraFollow?.mode;
+    }
+
+    /**
+     * Changes how the bound camera follows the controlled entity. A no-op
+     * if this controller has no {@link CameraFollowOptions}.
+     *
+     * @param mode - The {@link CameraFollowMode} to switch to.
+     */
+    public setCameraFollowMode(mode: CameraFollowMode): void {
+        if (this.cameraFollow) {
+            this.cameraFollow.mode = mode;
+        }
+    }
+
+    /**
      * This controller's key bindings, for the help popup.
      *
      * @returns This controller's key bindings.

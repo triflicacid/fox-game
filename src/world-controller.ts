@@ -8,6 +8,8 @@ import {FrameLoopController} from "./frames/FrameLoopController";
 import {requireNonNull} from "./util";
 import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
+import {SettingsController} from "./settings/settings-controller";
+import {PopupSource} from "./popup/popup-source";
 
 /**
  * Owns everything needed to run the game against a canvas.
@@ -16,6 +18,9 @@ export class WorldController {
     /** Width/height of a single tile, in canvas pixels. */
     private static readonly TILE_SIZE = 32;
 
+    /** Value the settings popup's target-FPS field shows when uncapped (i.e. {@link getTargetFps} returns `undefined`). */
+    private static readonly DEFAULT_TARGET_FPS = 60;
+
     private readonly canvas: HTMLCanvasElement;
     private readonly ctx: CanvasRenderingContext2D;
     private readonly world: World;
@@ -23,6 +28,8 @@ export class WorldController {
     private readonly movementController: MovementController;
     private readonly debugController: DebugController;
     private readonly helpController: HelpController;
+    private readonly settingsController: SettingsController;
+    private readonly popupSources: PopupSource[];
     private readonly frameLoop: FrameLoopController;
 
     private lastTickTime = 0;
@@ -40,7 +47,18 @@ export class WorldController {
         new CameraDragController(canvas, this.camera);
         this.movementController = new MovementController(this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
         this.debugController = new DebugController();
-        this.helpController = new HelpController();
+        this.helpController = new HelpController(() => this.getKeyBindings());
+        this.settingsController = new SettingsController(
+            () => this.movementController.getCameraFollowMode(),
+            (mode) => this.movementController.setCameraFollowMode(mode),
+            () => this.movementController.isSpectating(),
+            (spectating) => this.movementController.setSpectating(spectating),
+            () => this.debugController.isEnabled(),
+            (enabled) => this.debugController.setEnabled(enabled),
+            () => this.getTargetFps() ?? WorldController.DEFAULT_TARGET_FPS,
+            (fps) => this.setTargetFps(fps),
+        );
+        this.popupSources = [this.helpController, this.settingsController];
         this.frameLoop = new FrameLoopController(this.onFrame, targetFps);
 
         window.addEventListener("resize", this.resize);
@@ -109,21 +127,30 @@ export class WorldController {
             this.frameLoop.getTargetFps(),
         );
 
-        if (this.helpController.isOpen()) {
-            this.helpController.draw(this.ctx, this.canvas.width, this.canvas.height, this.getKeyBindings());
-        }
+        const openPopupSource = this.popupSources.find((source) => source.isOpen());
+        openPopupSource?.draw(this.ctx, this.canvas.width, this.canvas.height);
     }
 
     /**
      * Every key binding in the game, gathered from every controller (and the
-     * main entity) that exposes one, for the help popup to list.
+     * main entity) that exposes one, for the help popup to list. Where
+     * multiple controllers bind the same key (e.g. `Esc` closing whichever
+     * popup is open), only the first one encountered is kept.
      */
     private getKeyBindings(): KeyBinding[] {
-        return [
+        const all = [
             ...this.movementController.getKeyBindings(),
             ...this.debugController.getKeyBindings(),
-            ...this.helpController.getKeyBindings(),
+            ...this.popupSources.flatMap((source) => source.getKeyBindings()),
             ...(this.world.getMainEntity().getKeyBindings?.() ?? []),
         ];
+        const seenKeys = new Set<string>();
+        return all.filter((binding) => {
+            if (seenKeys.has(binding.key)) {
+                return false;
+            }
+            seenKeys.add(binding.key);
+            return true;
+        });
     }
 }
