@@ -30,12 +30,6 @@ function resize(): void {
 
 function draw(): void {
     world.draw(ctx, camera);
-
-    ctx.fillStyle = "#f2a65a";
-    ctx.font = "48px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Hello, fox", canvas.width / 2, canvas.height / 2);
 }
 
 let lastTickTime = performance.now();
