@@ -118,6 +118,26 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     protected abstract locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame;
 
     /**
+     * Whether this entity's animation should keep stepping even while
+     * stationary (velocity zero). `false` by default, since a stationary
+     * entity normally just shows a single-frame idle pose.
+     *
+     * @returns `true` if the animation should keep advancing despite no movement.
+     */
+    protected shouldAnimateWhileStationary(): boolean {
+        return false;
+    }
+
+    /**
+     * Requests that this entity manually enter a rest/sleep state, e.g. from
+     * a dedicated keybind. No-op by default; subclasses that support such a
+     * state (e.g. {@link Fox}) override it.
+     */
+    public requestManualSleep(): void {
+        // No-op by default: only entities with a sleep state override this.
+    }
+
+    /**
      * Draws this entity's bounding box (via the base {@link Entity}
      * implementation), plus an arrow anchored to its centre pointing in
      * {@link facing}'s direction, for debug rendering mode.
@@ -142,15 +162,16 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
 
     /**
      * Moves this entity by {@link velocity}, then steps its animation frame
-     * as the base {@link Entity.update} does - only while moving, so a
-     * stationary entity's (single-frame) idle sprite doesn't get stepped
-     * through pointlessly.
+     * as the base {@link Entity.update} does - while moving, or while
+     * {@link shouldAnimateWhileStationary} says to keep animating anyway - so
+     * a stationary entity's (usually single-frame) idle sprite doesn't get
+     * stepped through pointlessly.
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
     public override update(deltaMs: number): void {
         this.setPosition(this.getPosition().add(this.velocity.scale(deltaMs / 1000)));
-        if (this.isMoving()) {
+        if (this.isMoving() || this.shouldAnimateWhileStationary()) {
             super.update(deltaMs);
         }
     }

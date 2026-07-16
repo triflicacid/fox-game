@@ -122,7 +122,16 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
         this.animationElapsedMs -= this.frameIntervalMs;
         this.currentFrame = this.spriteSheet.next(this.currentFrame);
         this.refreshBitmap();
+        this.onFrameAdvanced?.(this.currentFrame);
     }
+
+    /**
+     * Optional hook called whenever {@link updateAnimation} steps to a new
+     * frame.
+     *
+     * @param frame - The frame just stepped to.
+     */
+    protected onFrameAdvanced?(frame: SpriteFrame): void;
 
     /**
      * Draws this entity's collision bounding box, for debug rendering mode.

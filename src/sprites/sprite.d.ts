@@ -47,6 +47,16 @@ export interface SpriteFrame extends SpriteRect {
     readonly loops: boolean;
     /** This frame's collision bounding box (shared across its whole animation). */
     readonly bounds: SpriteBounds;
+    /**
+     * Extra clockwise rotation, in radians, to draw this frame with around
+     * its own centre - on top of whatever direction the underlying art was
+     * drawn for. Lets a sheet reuse a single fixed-facing row (e.g. the fox's
+     * `curl`/`uncurl` rows, drawn once at a fixed facing) for any actual
+     * facing, instead of needing a drawn variant per direction. `undefined`/
+     * `0` for frames whose art is already correctly oriented (i.e. every
+     * frame except a rotated fixed-facing one).
+     */
+    readonly rotation?: number;
 }
 
 /**
