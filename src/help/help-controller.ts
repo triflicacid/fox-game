@@ -1,6 +1,5 @@
 import {KeyBinding} from "./key-binding";
 import {Popup} from "../popup/popup";
-import {drawPopup} from "../popup/popup-renderer";
 import {PopupLine, TextFormat} from "../popup/text-style";
 
 /** Title shown atop the help popup. */
@@ -53,7 +52,7 @@ export class HelpController {
         this.popup.setContent(TITLE, this.formatLines(bindings), [
             {label: "Close", onClick: () => this.popup.close()},
         ]);
-        drawPopup(ctx, canvasWidth, canvasHeight, this.popup);
+        this.popup.draw(ctx, canvasWidth, canvasHeight);
     }
 
     /**
