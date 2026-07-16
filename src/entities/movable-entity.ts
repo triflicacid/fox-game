@@ -129,13 +129,12 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     }
 
     /**
-     * Requests that this entity manually enter a rest/sleep state, e.g. from
-     * a dedicated keybind. No-op by default; subclasses that support such a
-     * state (e.g. {@link Fox}) override it.
+     * Optional handler for a key press that {@link MovementController} didn't
+     * already handle itself.
+     *
+     * @param key - `KeyboardEvent.key` of the pressed key.
      */
-    public requestManualSleep(): void {
-        // No-op by default: only entities with a sleep state override this.
-    }
+    public handleKeyPress?(key: string): void;
 
     /**
      * Draws this entity's bounding box (via the base {@link Entity}

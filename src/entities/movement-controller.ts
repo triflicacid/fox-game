@@ -255,13 +255,10 @@ export class MovementController {
             this.moveCameraToOrigin();
             return;
         }
-        if (event.key === "z" || event.key === "Z") {
-            this.entity?.requestManualSleep();
-            return;
-        }
 
         const direction = KEY_DIRECTIONS[event.key];
         if (!direction) {
+            this.entity?.handleKeyPress?.(event.key);
             return;
         }
         this.pressedDirections.add(direction);

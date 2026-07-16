@@ -44,10 +44,13 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     /**
-     * Manually puts the fox to sleep.
+     * `Z` manually puts the fox to sleep. No-op if it's already curling,
+     * asleep, or waking up.
+     *
+     * @param key - `KeyboardEvent.key` of the pressed key.
      */
-    public override requestManualSleep(): void {
-        if (this.isRestState()) {
+    public override handleKeyPress(key: string): void {
+        if ((key !== "z" && key !== "Z") || this.isRestState()) {
             return;
         }
         this.setVelocity(Vector2d.ZERO);
