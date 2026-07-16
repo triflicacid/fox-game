@@ -45,7 +45,10 @@ export class WorldController {
         this.movementController = new MovementController(this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
         this.debugController = new DebugController();
         this.helpController = new HelpController(() => this.getKeyBindings());
-        this.settingsController = new SettingsController();
+        this.settingsController = new SettingsController(
+            () => this.movementController.getCameraFollowMode(),
+            (mode) => this.movementController.setCameraFollowMode(mode),
+        );
         this.popupSources = [this.helpController, this.settingsController];
         this.frameLoop = new FrameLoopController(this.onFrame, targetFps);
 

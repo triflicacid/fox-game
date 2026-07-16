@@ -41,5 +41,39 @@ export interface TextSegment {
     style?: TextStyle;
 }
 
-/** A single line in a {@link Popup}, made of one or more top-level segments. */
-export type PopupLine = TextSegment[];
+/** A single selectable option within a {@link RadioInput}. */
+export interface RadioOption {
+    /** Uniquely identifies this option; passed to the owning {@link RadioInput}'s `onSelect`. */
+    key: string;
+    /** Content shown as this option's label. */
+    content: TextSegment[];
+}
+
+/**
+ * An interactive radio-button group, usable as an item within a {@link
+ * PopupLine} alongside plain {@link TextSegment}s. Exactly one of `options`
+ * is selected at a time; clicking a different one invokes `onSelect` with
+ * that option's `key`.
+ */
+export interface RadioInput {
+    kind: "radio";
+    /** The options to choose between. */
+    options: RadioOption[];
+    /** `key` of the currently selected option. */
+    selected: string;
+    /** Invoked with an option's `key` when the user selects it. */
+    onSelect: (key: string) => void;
+}
+
+/**
+ * Every kind of interactive input a {@link PopupLine} can embed alongside
+ * plain text. Currently just {@link RadioInput} - add further input kinds to
+ * this union as they're introduced, each with its own `kind` literal.
+ */
+export type Input = RadioInput;
+
+/** A single item within a {@link PopupLine}: styled text, or an interactive input. */
+export type PopupLineItem = TextSegment | Input;
+
+/** A single line in a {@link Popup}, made of one or more top-level items. */
+export type PopupLine = PopupLineItem[];

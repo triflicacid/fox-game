@@ -1,5 +1,5 @@
-import {PopupLine, TextFormat, TextSegment, TextStyle} from "./text-style";
-import {Rect, pointInRect} from "../geometry/rect";
+import {Input, PopupLine, PopupLineItem, RadioInput, TextFormat, TextSegment, TextStyle} from "./text-style";
+import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
 import {POPUP_CONFIG} from "./popup-config";
 
 /** A single button in a {@link Popup}'s button row. */
@@ -38,11 +38,61 @@ interface ResolvedRun {
     underline: boolean;
 }
 
-/** A flattened line's runs, plus its measured layout. */
+/** A resolved, measured run within a line, alongside its measured width. */
+interface MeasuredRun {
+    run: ResolvedRun;
+    width: number;
+}
+
+/** A resolved, measured plain-text item within a line. */
+interface ResolvedTextElement {
+    kind: "text";
+    runs: MeasuredRun[];
+    width: number;
+}
+
+/** A single resolved, measured option within a resolved radio input. */
+interface ResolvedRadioOption {
+    key: string;
+    selected: boolean;
+    labelRuns: MeasuredRun[];
+    labelWidth: number;
+    onSelect: (key: string) => void;
+}
+
+/** A resolved, measured radio input within a line. */
+interface ResolvedRadioElement {
+    kind: "radio";
+    options: ResolvedRadioOption[];
+    width: number;
+}
+
+/**
+ * Every kind of resolved, measured input element a line can contain -
+ * mirrors {@link Input}.
+ */
+type ResolvedInputElement = ResolvedRadioElement;
+
+type ResolvedElement = ResolvedTextElement | ResolvedInputElement;
+
+/** A line's resolved items, plus its measured layout. */
 interface MeasuredLine {
-    runs: {run: ResolvedRun; width: number}[];
+    elements: ResolvedElement[];
     width: number;
     height: number;
+}
+
+/**
+ * Anything a {@link Popup}'s keyboard cursor can land on and activate.
+ */
+interface FocusableElement {
+    rect: Rect;
+    activate: () => void;
+}
+
+/** Determines if `item` is an {@link Input} (any kind - they all carry a `kind` field). */
+function isInput(item: PopupLineItem): item is Input {
+    return "kind" in item;
 }
 
 /** Style a top-level segment falls back to, built from {@link POPUP_CONFIG}. */
@@ -145,18 +195,11 @@ function flattenSegment(segment: TextSegment, inherited: ResolvedStyle): Resolve
     return segment.content.flatMap((child) => flattenSegment(child, style));
 }
 
-/** Flattens every top-level segment in `line` against {@link BASE_STYLE}. */
-function flattenLine(line: PopupLine): ResolvedRun[] {
-    return line.flatMap((segment) => flattenSegment(segment, BASE_STYLE));
-}
-
 /**
  * Measures each of `runs`' widths (setting `ctx.font` per run first, since
- * they may each use a different font) and the line's overall width/height -
- * height is at least {@link POPUP_CONFIG.lineHeight}, but grows to fit a run
- * using a larger font.
+ * they may each use a different font).
  */
-function measureLine(ctx: CanvasRenderingContext2D, runs: ResolvedRun[]): MeasuredLine {
+function measureRuns(ctx: CanvasRenderingContext2D, runs: ResolvedRun[]): {measured: MeasuredRun[]; width: number; maxFontSize: number} {
     let width = 0;
     let maxFontSize = 0;
     const measured = runs.map((run) => {
@@ -166,19 +209,92 @@ function measureLine(ctx: CanvasRenderingContext2D, runs: ResolvedRun[]): Measur
         maxFontSize = Math.max(maxFontSize, run.fontSize);
         return {run, width: runWidth};
     });
-    return {runs: measured, width, height: Math.max(POPUP_CONFIG.lineHeight, maxFontSize + 6)};
+    return {measured, width, maxFontSize};
 }
 
-/** Draws a measured line's runs left-to-right from `x`, each with its own styles applied. */
-function drawRuns(ctx: CanvasRenderingContext2D, line: MeasuredLine, x: number, y: number): void {
+/** Width a radio option's marker, marker/label gap, and label together occupy - excludes any gap to a sibling option. */
+function radioOptionContentWidth(labelWidth: number): number {
+    return POPUP_CONFIG.radioMarkerSize + POPUP_CONFIG.radioMarkerGap + labelWidth;
+}
+
+/**
+ * Resolves and measures a {@link RadioInput}'s options, separated by {@link
+ * POPUP_CONFIG.radioOptionGap} (none before the first or after the last).
+ * The `width` this returns is what {@link layoutRadioElement}/{@link
+ * paintRadioElement} actually walk through, so the two stay in agreement.
+ */
+function resolveRadioElement(ctx: CanvasRenderingContext2D, item: RadioInput): {element: ResolvedRadioElement; maxFontSize: number} {
+    let width = 0;
+    let maxFontSize = 0;
+    const options: ResolvedRadioOption[] = item.options.map((option, i) => {
+        const runs = option.content.flatMap((segment) => flattenSegment(segment, BASE_STYLE));
+        const {measured, width: labelWidth, maxFontSize: labelFontSize} = measureRuns(ctx, runs);
+        maxFontSize = Math.max(maxFontSize, labelFontSize);
+
+        width += (i > 0 ? POPUP_CONFIG.radioOptionGap : 0) + radioOptionContentWidth(labelWidth);
+
+        return {key: option.key, selected: option.key === item.selected, labelRuns: measured, labelWidth, onSelect: item.onSelect};
+    });
+    return {element: {kind: "radio", options, width}, maxFontSize};
+}
+
+/**
+ * Resolves and measures an {@link Input} into its {@link
+ * ResolvedInputElement}, dispatching on `kind`. Add a case here (and a
+ * matching `resolve*Element` function) for each new input kind - TypeScript
+ * flags a missing case on its own once `Input` has more than one kind
+ * (leaving this function without a return on every path).
+ */
+function resolveInputElement(ctx: CanvasRenderingContext2D, item: Input): {element: ResolvedInputElement; maxFontSize: number} {
+    switch (item.kind) {
+        case "radio":
+            return resolveRadioElement(ctx, item);
+    }
+}
+
+/**
+ * Resolves and measures every item in `line` - plain text segments flatten
+ * to styled runs as before; inputs resolve via {@link resolveInputElement}.
+ * The line's overall height is at least {@link POPUP_CONFIG.lineHeight}, but
+ * grows to fit whichever run uses the largest font.
+ */
+function resolveLine(ctx: CanvasRenderingContext2D, line: PopupLine): MeasuredLine {
+    let width = 0;
+    let maxFontSize = 0;
+
+    const elements: ResolvedElement[] = line.map((item) => {
+        if (isInput(item)) {
+            const {element, maxFontSize: inputFontSize} = resolveInputElement(ctx, item);
+            maxFontSize = Math.max(maxFontSize, inputFontSize);
+            width += element.width;
+            return element;
+        }
+
+        const runs = flattenSegment(item, BASE_STYLE);
+        const {measured, width: textWidth, maxFontSize: textFontSize} = measureRuns(ctx, runs);
+        maxFontSize = Math.max(maxFontSize, textFontSize);
+        width += textWidth;
+        return {kind: "text", runs: measured, width: textWidth};
+    });
+
+    return {elements, width, height: Math.max(POPUP_CONFIG.lineHeight, maxFontSize + 6)};
+}
+
+/**
+ * Draws a run of measured text left-to-right from `x`, each run with its own
+ * styles applied - except `colorOverride`, if given, replaces every run's
+ * own foreground colour (used to draw a focused input option's label in
+ * {@link POPUP_CONFIG.highlightTextColor}).
+ */
+function drawRuns(ctx: CanvasRenderingContext2D, runs: MeasuredRun[], x: number, y: number, height: number, colorOverride?: string): void {
     let runX = x;
-    for (const {run, width} of line.runs) {
+    for (const {run, width} of runs) {
         ctx.font = run.font;
         if (run.background) {
             ctx.fillStyle = run.background;
-            ctx.fillRect(runX, y - line.height / 4, width, line.height);
+            ctx.fillRect(runX, y - height / 4, width, height);
         }
-        ctx.fillStyle = run.foreground;
+        ctx.fillStyle = colorOverride ?? run.foreground;
         ctx.fillText(run.text, runX, y);
         if (run.underline) {
             const underlineY = y + run.fontSize + 2;
@@ -194,6 +310,160 @@ function drawRuns(ctx: CanvasRenderingContext2D, line: MeasuredLine, x: number, 
 }
 
 /**
+ * Draws a classic Windows 98 "sunken" radio marker at `(cx, cy)`: a white
+ * circle with a shadow/dark-shadow bevel on its upper-left half and a
+ * highlight/light bevel on its lower-right half (the inverse of {@link
+ * drawWin98Border}'s raised look), with a solid dot in the centre when
+ * `selected`.
+ */
+function drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean): void {
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius - 0.5, Math.PI * 0.75, Math.PI * 1.75);
+    ctx.strokeStyle = POPUP_CONFIG.borderShadowColor;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius - 0.5, Math.PI * -0.25, Math.PI * 0.75);
+    ctx.strokeStyle = POPUP_CONFIG.borderHighlightColor;
+    ctx.stroke();
+
+    if (selected) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 0.45, 0, Math.PI * 2);
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+    }
+}
+
+/**
+ * Computes a resolved radio element's options' on-screen rects, walking
+ * left-to-right from `x` exactly as {@link paintRadioElement} draws them.
+ * Each option activates by invoking its own `onSelect` with its `key`.
+ */
+function layoutRadioElement(element: ResolvedRadioElement, x: number, y: number, height: number): FocusableElement[] {
+    const focusables: FocusableElement[] = [];
+    let elemX = x;
+    element.options.forEach((option, i) => {
+        if (i > 0) {
+            elemX += POPUP_CONFIG.radioOptionGap;
+        }
+        const optionWidth = radioOptionContentWidth(option.labelWidth);
+        focusables.push({rect: {x: elemX, y, w: optionWidth, h: height}, activate: () => option.onSelect(option.key)});
+        elemX += optionWidth;
+    });
+    return focusables;
+}
+
+/**
+ * Draws a resolved radio element's marker circle plus label per option,
+ * walking left-to-right from `x`.
+ */
+function paintRadioElement(
+    ctx: CanvasRenderingContext2D,
+    element: ResolvedRadioElement,
+    x: number,
+    y: number,
+    height: number,
+    focusedRect: Rect | null,
+): void {
+    let elemX = x;
+    element.options.forEach((option, i) => {
+        if (i > 0) {
+            elemX += POPUP_CONFIG.radioOptionGap;
+        }
+        const optionWidth = radioOptionContentWidth(option.labelWidth);
+        const rect: Rect = {x: elemX, y, w: optionWidth, h: height};
+        const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+
+        if (focused) {
+            ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
+            ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        }
+
+        const markerRadius = POPUP_CONFIG.radioMarkerSize / 2;
+        drawRadioMarker(ctx, elemX + markerRadius, y + height / 2, markerRadius, option.selected);
+
+        const labelX = elemX + POPUP_CONFIG.radioMarkerSize + POPUP_CONFIG.radioMarkerGap;
+        drawRuns(ctx, option.labelRuns, labelX, y, height, focused ? POPUP_CONFIG.highlightTextColor : undefined);
+
+        elemX += optionWidth;
+    });
+}
+
+/**
+ * Computes a resolved input element's focusable rects, dispatching on
+ * `kind`.
+ */
+function layoutInputElement(element: ResolvedInputElement, x: number, y: number, height: number): FocusableElement[] {
+    switch (element.kind) {
+        case "radio":
+            return layoutRadioElement(element, x, y, height);
+    }
+}
+
+/**
+ * Draws a resolved input element, dispatching on `kind`.
+ */
+function paintInputElement(
+    ctx: CanvasRenderingContext2D,
+    element: ResolvedInputElement,
+    x: number,
+    y: number,
+    height: number,
+    focusedRect: Rect | null,
+): void {
+    switch (element.kind) {
+        case "radio":
+            paintRadioElement(ctx, element, x, y, height, focusedRect);
+            break;
+    }
+}
+
+/**
+ * Walks `lineRows` left-to-right within each line, top-down across lines,
+ * exactly as {@link paintElements} draws them, computing every input
+ * element's focusable rects (and what activating each one does) in
+ * the order the user can navigate them.
+ */
+function layoutLines(lineRows: MeasuredLine[], startX: number, startY: number): FocusableElement[] {
+    const focusables: FocusableElement[] = [];
+    let lineY = startY;
+    for (const line of lineRows) {
+        let elemX = startX;
+        for (const element of line.elements) {
+            if (element.kind !== "text") {
+                focusables.push(...layoutInputElement(element, elemX, lineY, line.height));
+            }
+            elemX += element.width;
+        }
+        lineY += line.height;
+    }
+    return focusables;
+}
+
+/**
+ * Draws a resolved line's elements left-to-right from `x`: plain text runs
+ * as-is, inputs via {@link paintInputElement}.
+ */
+function paintElements(ctx: CanvasRenderingContext2D, line: MeasuredLine, x: number, y: number, focusedRect: Rect | null): void {
+    let elemX = x;
+    for (const element of line.elements) {
+        if (element.kind === "text") {
+            drawRuns(ctx, element.runs, elemX, y, line.height);
+        } else {
+            paintInputElement(ctx, element, elemX, y, line.height, focusedRect);
+        }
+        elemX += element.width;
+    }
+}
+
+/**
  * A generic modal popup: a title, some lines of text, and a row of buttons
  * navigated by a keyboard cursor or clicked directly. While open, it takes
  * over the keyboard and mouse entirely (see {@link handleKeyDown}/{@link
@@ -205,7 +475,8 @@ export class Popup {
     private title = "";
     private lines: PopupLine[] = [];
     private buttons: PopupButton[] = [];
-    private buttonBounds: Rect[] = [];
+    /** Every button and input option currently on screen, sorted top-down then left-to-right; rebuilt each {@link draw}. */
+    private focusables: FocusableElement[] = [];
     private cursor: number | null = 0;
     private readonly closeKeys: ReadonlySet<string>;
 
@@ -229,7 +500,7 @@ export class Popup {
     }
 
     /**
-     * Opens this popup, resetting its button cursor to the first button.
+     * Opens this popup, resetting its cursor to the first focusable element.
      */
     public show(): void {
         this.open = true;
@@ -245,30 +516,20 @@ export class Popup {
 
     /**
      * Sets the content this popup displays. Safe to call every frame while
-     * open, e.g. to keep dynamic text (like key bindings that vary by mode)
-     * up to date.
+     * open.
      *
      * @param title - Title shown above the popup's lines of text.
-     * @param lines - Lines of styled segments shown below the title.
+     * @param lines - Lines of styled segments (and/or inputs) shown below the title.
      * @param buttons - Buttons shown in a row at the bottom, navigated by the cursor.
      */
     public setContent(title: string, lines: PopupLine[], buttons: PopupButton[]): void {
         this.title = title;
         this.lines = lines;
         this.buttons = buttons;
-        if (buttons.length === 0) {
-            this.cursor = null;
-        } else if (this.cursor !== null && this.cursor >= buttons.length) {
-            this.cursor = buttons.length - 1;
-        }
     }
 
     /**
-     * Draws a dimming layer plus this popup, centred on the canvas: its
-     * title, lines, and button row (with whichever button the cursor is on
-     * highlighted - white text on a dark blue background). Also records each
-     * button's on-screen bounds for {@link handleClick} to hit-test against.
-     * A no-op if the popup isn't open.
+     * Draws a dimming layer plus this popup, centred on the canvas.
      *
      * @param ctx - Canvas context to draw into.
      * @param canvasWidth - Canvas width, in canvas pixels.
@@ -287,7 +548,7 @@ export class Popup {
         ctx.font = POPUP_CONFIG.titleFont;
         const titleWidth = this.title ? ctx.measureText(this.title).width : 0;
 
-        const lineRows = this.lines.map((line) => measureLine(ctx, flattenLine(line)));
+        const lineRows = this.lines.map((line) => resolveLine(ctx, line));
 
         ctx.font = BASE_FONT;
         const buttonWidths = buttonLabels.map((label) => ctx.measureText(label).width);
@@ -305,6 +566,32 @@ export class Popup {
         const x = (canvasWidth - width) / 2;
         const y = (canvasHeight - height) / 2;
 
+        // Layout pass: resolve every focusable element's on-screen rect
+        // before painting anything, so we know which one (if any) is
+        // focused, and so a click can be hit-tested against the same rects.
+        const linesStartY = y + POPUP_CONFIG.padding + titleHeight;
+        const inputFocusables = layoutLines(lineRows, x + POPUP_CONFIG.padding, linesStartY);
+
+        const buttonRowY = linesStartY + linesHeight + (this.buttons.length > 0 ? POPUP_CONFIG.buttonRowGap : 0);
+        const buttonRects: Rect[] = [];
+        let buttonLayoutX = x + POPUP_CONFIG.padding;
+        buttonLabels.forEach((label, i) => {
+            const labelWidth = buttonWidths[i];
+            buttonRects.push({x: buttonLayoutX - 2, y: buttonRowY - 2, w: labelWidth + 4, h: POPUP_CONFIG.lineHeight});
+            buttonLayoutX += labelWidth + POPUP_CONFIG.buttonGap;
+        });
+
+        this.focusables = [
+            ...inputFocusables,
+            ...buttonRects.map((rect, i): FocusableElement => ({rect, activate: () => this.buttons[i].onClick()})),
+        ].sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
+
+        if (this.cursor !== null && this.cursor >= this.focusables.length) {
+            this.cursor = this.focusables.length > 0 ? this.focusables.length - 1 : null;
+        }
+        const focusedRect = this.cursor !== null ? this.focusables[this.cursor].rect : null;
+
+        // Paint pass.
         ctx.fillStyle = POPUP_CONFIG.dimColor;
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
@@ -312,53 +599,45 @@ export class Popup {
         ctx.fillRect(x, y, width, height);
         drawWin98Border(ctx, x - BORDER_WIDTH, y - BORDER_WIDTH, width + BORDER_WIDTH * 2, height + BORDER_WIDTH * 2);
 
-        let lineY = y + POPUP_CONFIG.padding;
         if (this.title) {
             ctx.fillStyle = POPUP_CONFIG.titleColor;
             ctx.font = POPUP_CONFIG.titleFont;
-            ctx.fillText(this.title, x + POPUP_CONFIG.padding, lineY);
-            lineY += titleHeight;
+            ctx.fillText(this.title, x + POPUP_CONFIG.padding, y + POPUP_CONFIG.padding);
         }
 
+        let lineY = linesStartY;
         for (const row of lineRows) {
-            drawRuns(ctx, row, x + POPUP_CONFIG.padding, lineY);
+            paintElements(ctx, row, x + POPUP_CONFIG.padding, lineY, focusedRect);
             lineY += row.height;
         }
 
         if (this.buttons.length > 0) {
-            lineY += POPUP_CONFIG.buttonRowGap;
             ctx.font = BASE_FONT;
             let buttonX = x + POPUP_CONFIG.padding;
-            const bounds: Rect[] = [];
             buttonLabels.forEach((label, i) => {
                 const labelWidth = buttonWidths[i];
-                const rect: Rect = {x: buttonX - 2, y: lineY - 2, w: labelWidth + 4, h: POPUP_CONFIG.lineHeight};
-                bounds.push(rect);
-                const highlighted = i === this.cursor;
-                if (highlighted) {
+                const rect = buttonRects[i];
+                const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+                if (focused) {
                     ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
                     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
                 }
-                ctx.fillStyle = highlighted ? POPUP_CONFIG.highlightTextColor : POPUP_CONFIG.textColor;
-                ctx.fillText(label, buttonX, lineY);
+                ctx.fillStyle = focused ? POPUP_CONFIG.highlightTextColor : POPUP_CONFIG.textColor;
+                ctx.fillText(label, buttonX, buttonRowY);
                 buttonX += labelWidth + POPUP_CONFIG.buttonGap;
             });
-            this.buttonBounds = bounds;
-        } else {
-            this.buttonBounds = [];
         }
     }
 
     /**
-     * Moves the cursor one step left/right through {@link buttons}, treating
-     * "nothing selected" (`null`) as one extra stop between the last button
-     * and the first, so repeatedly pressing the same arrow key cycles
-     * through every button and back to no selection.
+     * Moves the cursor one step through {@link focusables},
+     * treating "nothing selected" (`null`) as one extra stop between the
+     * last element and the first.
      *
-     * @param delta - `1` to move right, `-1` to move left.
+     * @param delta - `1` to move to the next element, `-1` to move to the previous one.
      */
     private moveCursor(delta: 1 | -1): void {
-        const stopCount = this.buttons.length + 1;
+        const stopCount = this.focusables.length + 1;
         const currentStop = this.cursor === null ? 0 : this.cursor + 1;
         const nextStop = (currentStop + delta + stopCount) % stopCount;
         this.cursor = nextStop === 0 ? null : nextStop - 1;
@@ -367,8 +646,9 @@ export class Popup {
     /**
      * While open, intercepts every key press before any other key-driven
      * controller sees it: a configured close key shuts the popup; otherwise
-     * `ArrowLeft`/`ArrowRight` move the cursor between buttons,
-     * and `Enter`/`Space` activates whichever button the cursor is currently on (if any).
+     * `ArrowLeft`/`ArrowRight` move the cursor between {@link focusables}
+     * (buttons and input options alike), and `Enter`/`Space` activates
+     * whichever one the cursor is currently on (if any).
      *
      * @param event - The keyboard event.
      */
@@ -383,7 +663,7 @@ export class Popup {
             this.close();
             return;
         }
-        if (this.buttons.length === 0) {
+        if (this.focusables.length === 0) {
             return;
         }
         if (event.key === "ArrowLeft") {
@@ -391,7 +671,7 @@ export class Popup {
         } else if (event.key === "ArrowRight") {
             this.moveCursor(1);
         } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null) {
-            this.buttons[this.cursor].onClick();
+            this.focusables[this.cursor].activate();
         }
     };
 
@@ -409,10 +689,11 @@ export class Popup {
     };
 
     /**
-     * While open, hit-tests a click against {@link buttonBounds} (as last
-     * recorded by {@link draw}): a hit moves the cursor to that button and
-     * activates it. Registered on the capture phase and stops propagation
-     * while open, for the same reason as {@link handleMouseDown}.
+     * While open, hit-tests a click against {@link focusables} (as last laid
+     * out by {@link draw}): a hit moves the cursor to that element and
+     * activates it, same as pressing `Enter` while it's focused. Registered
+     * on the capture phase and stops propagation while open, for the same
+     * reason as {@link handleMouseDown}.
      *
      * @param event - The mouse event.
      */
@@ -422,11 +703,11 @@ export class Popup {
         }
         event.stopPropagation();
 
-        const index = this.buttonBounds.findIndex((bounds) => pointInRect(event.clientX, event.clientY, bounds));
+        const index = this.focusables.findIndex((focusable) => pointInRect(event.clientX, event.clientY, focusable.rect));
         if (index === -1) {
             return;
         }
         this.cursor = index;
-        this.buttons[index].onClick();
+        this.focusables[index].activate();
     };
 }
