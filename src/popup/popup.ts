@@ -1,24 +1,10 @@
-import {CheckboxInput, Input, NumberInput, PopupLine, PopupLineItem, RadioInput, TextFormat, TextSegment, TextStyle} from "./text-style";
+import {
+    ButtonInput,
+    CheckboxInput,
+    HighlightStyle, Input, NumberInput, PopupLine, PopupLineItem, RadioInput, TextFormat, TextSegment, TextStyle
+} from "./text-style";
 import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
 import {POPUP_CONFIG} from "./popup-config";
-
-/**
- * Background/foreground colours to highlight a focused button with.
- */
-export interface ButtonHighlight {
-    background: string;
-    foreground: string;
-}
-
-/** A single button in a {@link Popup}'s button row. */
-export interface PopupButton {
-    /** Text shown for the button, wrapped in `[...]` when drawn. */
-    label: string;
-    /** Invoked when the button is selected (via {@link Popup}'s keyboard cursor, or a mouse click). */
-    onClick: () => void;
-    /** Colours to highlight this button with while focused. Defaults to navy/white. */
-    highlightStyle?: ButtonHighlight;
-}
 
 /** Configures a {@link Popup} at construction. */
 export interface PopupOptions {
@@ -104,7 +90,7 @@ interface ResolvedButtonElement {
     kind: "button";
     text: string;
     onClick: () => void;
-    highlight: ButtonHighlight;
+    highlightStyle: HighlightStyle;
     width: number;
 }
 
@@ -324,20 +310,29 @@ function resolveNumberElement(item: NumberInput): {element: ResolvedNumberElemen
 }
 
 /**
+ * Back-fill a {@link HighlightStyle} with default options if they are not provided.
+ *
+ * @param highlightStyle The input highlight style
+ * @returns The fully populated highlight style
+ */
+function fillHighlightStyle(highlightStyle: Partial<HighlightStyle> | null | undefined): HighlightStyle {
+    return {
+        background: highlightStyle?.background ?? POPUP_CONFIG.highlightBackgroundColor,
+        foreground: highlightStyle?.foreground ?? POPUP_CONFIG.highlightTextColor
+    };
+}
+
+/**
  * Resolves a bracket-wrapped button label's width under {@link BASE_FONT},
  * and its highlight colours.
  */
 function resolveButtonElement(
     ctx: CanvasRenderingContext2D,
-    button: {label: string; onClick: () => void; highlightStyle?: Partial<ButtonHighlight>},
+    button: ButtonInput,
 ): ResolvedButtonElement {
     ctx.font = BASE_FONT;
     const text = `[${button.label}]`;
-    const highlight = {
-        background: button.highlightStyle?.background ?? POPUP_CONFIG.highlightBackgroundColor,
-        foreground: button.highlightStyle?.foreground ?? POPUP_CONFIG.highlightTextColor
-    } as ButtonHighlight;
-    return {kind: "button", text, onClick: button.onClick, highlight, width: ctx.measureText(text).width};
+    return {kind: "button", text, onClick: button.onClick, highlightStyle: fillHighlightStyle(button.highlightStyle), width: ctx.measureText(text).width};
 }
 
 /**
@@ -625,12 +620,12 @@ function paintButtonElement(
     const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
 
     if (focused) {
-        ctx.fillStyle = element.highlight.background;
+        ctx.fillStyle = element.highlightStyle.background;
         ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
 
     ctx.font = BASE_FONT;
-    ctx.fillStyle = focused ? element.highlight.foreground : POPUP_CONFIG.textColor;
+    ctx.fillStyle = focused ? element.highlightStyle.foreground : POPUP_CONFIG.textColor;
     ctx.fillText(element.text, x, y);
 }
 
@@ -736,7 +731,7 @@ export class Popup {
     private open = false;
     private title = "";
     private lines: PopupLine[] = [];
-    private buttons: PopupButton[] = [];
+    private buttons: ButtonInput[] = [];
     /** Every button and input option currently on screen, sorted top-down then left-to-right; rebuilt each {@link draw}. */
     private focusables: FocusableElement[] = [];
     private cursor: number | null = 0;
@@ -792,7 +787,7 @@ export class Popup {
      * @param lines - Lines of styled segments (and/or inputs) shown below the title.
      * @param buttons - Buttons shown in a row at the bottom, navigated by the cursor.
      */
-    public setContent(title: string, lines: PopupLine[], buttons: PopupButton[]): void {
+    public setContent(title: string, lines: PopupLine[], buttons: ButtonInput[]): void {
         this.title = title;
         this.lines = lines;
         this.buttons = buttons;
