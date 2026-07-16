@@ -19,7 +19,7 @@ const TILE_SIZE = 32;
 const world = new World(TILE_SIZE);
 const camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
 new CameraDragController(canvas, camera);
-new MovementController(world.getMainEntity());
+const movementController = new MovementController(world.getMainEntity(), {camera, mode: "edge"});
 
 function resize(): void {
     canvas.width = window.innerWidth;
@@ -44,6 +44,7 @@ function tick(now: number): void {
     const deltaMs = now - lastTickTime;
     lastTickTime = now;
     world.update(deltaMs, camera);
+    movementController.updateCamera();
     draw();
     requestAnimationFrame(tick);
 }
