@@ -1,6 +1,7 @@
 import {Chunk, CHUNK_SIZE} from "./chunk";
 import {Tile} from "./tile";
 import {Entity} from "../entities/entity";
+import {MovableEntity} from "../entities/movable-entity";
 import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
 
@@ -30,14 +31,14 @@ export class World {
 
     private readonly chunks = new Map<string, Chunk>();
     private readonly entities: Entity[] = [];
-    private readonly fox: Fox;
+    private mainEntity: MovableEntity;
 
     /**
      * @param tileSize - Width/height of a single tile, in canvas pixels.
      */
     public constructor(public readonly tileSize: number) {
-        this.fox = new Fox();
-        this.entities.push(this.fox);
+        this.mainEntity = new Fox();
+        this.entities.push(this.mainEntity);
     }
 
     /**
@@ -133,12 +134,24 @@ export class World {
     }
 
     /**
-     * The world's fox.
+     * The entity currently under player control, e.g. for binding a
+     * {@link MovementController} to.
      *
-     * @returns The fox entity.
+     * @returns The main entity.
      */
-    public getFox(): Fox {
-        return this.fox;
+    public getMainEntity(): MovableEntity {
+        return this.mainEntity;
+    }
+
+    /**
+     * Switches which entity is under player control. Doesn't add `entity`
+     * to {@link getEntities} itself - callers should do that first if it
+     * isn't already in the world.
+     *
+     * @param entity - Entity to make the new main entity.
+     */
+    public setMainEntity(entity: MovableEntity): void {
+        this.mainEntity = entity;
     }
 
     /**

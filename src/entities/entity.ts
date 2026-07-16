@@ -1,20 +1,17 @@
 import {SpriteSheet} from "../sprites/sprite-sheet";
 import {SpriteFrame} from "../sprites/sprite";
-import {CompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
 
 /**
- * Base class for a living/movable thing in the world: something with an
- * attached {@link SpriteSheet}, a position and velocity, a facing direction,
- * and a behavioural status that determines which sprite it's currently
- * showing.
+ * Base class for a rendered thing in the world: something with an attached
+ * {@link SpriteSheet}, a position, and a behavioural status that determines
+ * which sprite it's currently showing.
  *
  * @typeParam TArgs - Argument tuple this entity's sprite sheet's `locateSprite` accepts.
  * @typeParam TStatus - Union of behavioural states this entity can be in (e.g. `"walking"`, `"idle"`).
  */
 export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extends string = string> {
     private position: Vector2d;
-    private velocity: Vector2d;
     private currentFrame: SpriteFrame;
     private currentBitmap: ImageBitmap | null = null;
     private animationElapsedMs = 0;
@@ -22,24 +19,19 @@ export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extend
     /**
      * @param spriteSheet - Sprite sheet this entity is rendered from.
      * @param status - Initial behavioural status.
-     * @param facing - Initial facing direction.
      * @param initialFrame - Initial sprite frame to render, typically obtained from `spriteSheet.locateSprite(...)`.
      * @param frameIntervalMs - How long, in milliseconds, each animation frame is shown before advancing to the next.
      * @param position - Initial position. Defaults to {@link Vector2d.ZERO}.
-     * @param velocity - Initial velocity. Defaults to {@link Vector2d.ZERO}.
      */
     protected constructor(
         protected readonly spriteSheet: SpriteSheet<TArgs>,
         protected status: TStatus,
-        protected facing: CompassDirection,
         initialFrame: SpriteFrame,
         private readonly frameIntervalMs: number,
         position: Vector2d = Vector2d.ZERO,
-        velocity: Vector2d = Vector2d.ZERO,
     ) {
         this.currentFrame = initialFrame;
         this.position = position;
-        this.velocity = velocity;
         this.refreshBitmap();
     }
 
@@ -53,25 +45,6 @@ export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extend
     }
 
     /**
-     * This entity's current facing direction.
-     *
-     * @returns The current facing.
-     */
-    public getFacing(): CompassDirection {
-        return this.facing;
-    }
-
-    /**
-     * This entity's facing direction as a unit vector, e.g. for driving
-     * movement in the direction it's facing.
-     *
-     * @returns Unit vector pointing in {@link facing}'s direction.
-     */
-    public getFacingVector(): Vector2d {
-        return Vector2d.fromDirection(this.facing);
-    }
-
-    /**
      * This entity's current position.
      *
      * @returns The current position.
@@ -81,12 +54,13 @@ export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extend
     }
 
     /**
-     * This entity's current velocity.
+     * Sets this entity's position. Intended for subclasses (e.g.
+     * {@link MovableEntity}) that need to move themselves.
      *
-     * @returns The current velocity.
+     * @param position - New position.
      */
-    public getVelocity(): Vector2d {
-        return this.velocity;
+    protected setPosition(position: Vector2d): void {
+        this.position = position;
     }
 
     /**
@@ -99,6 +73,21 @@ export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extend
     }
 
     /**
+     * Sets this entity's current sprite frame directly (resetting the
+     * animation timer), instead of waiting for {@link updateAnimation} to
+     * step to it. Intended for subclasses (e.g. {@link MovableEntity}
+     * switching to a new direction's sprite) that need to jump to a
+     * specific frame outside the normal animation cycle.
+     *
+     * @param frame - Frame to switch to.
+     */
+    protected setCurrentFrame(frame: SpriteFrame): void {
+        this.currentFrame = frame;
+        this.animationElapsedMs = 0;
+        this.refreshBitmap();
+    }
+
+    /**
      * The currently loaded bitmap for {@link getCurrentFrame}.
      *
      * @returns The bitmap, or `null` if it's still being extracted from the sprite sheet.
@@ -108,13 +97,13 @@ export abstract class Entity<TArgs extends unknown[] = unknown[], TStatus extend
     }
 
     /**
-     * Advances this entity's simulation by one tick: moves it by
-     * {@link velocity} and steps its animation frame.
+     * Advances this entity's simulation by one tick. The base implementation
+     * just steps the animation frame; subclasses extend this to add their
+     * own behaviour (e.g. {@link MovableEntity} moving by its velocity).
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
     public update(deltaMs: number): void {
-        this.position = this.position.add(this.velocity.scale(deltaMs / 1000));
         this.updateAnimation(deltaMs);
     }
 
