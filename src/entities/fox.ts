@@ -13,12 +13,12 @@ const WALK_FRAME_MS = 120;
 const INITIAL_FACING: CompassDirection = "N";
 
 /** The fox entity: a {@link MovableEntity} that can be driven around by a {@link MovementController}. */
-export class Fox extends MovableEntity<[type: FoxSpriteType, phase?: number], FoxStatus> {
+export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     /**
      * Same sheet instance as the base class's `spriteSheet` field, kept here
      * too so {@link locateFrameForFacing} can reach `FoxSpriteSheet`-specific
      * methods (like {@link FoxSpriteSheet.locateIdleSprite}) that aren't part
-     * of the generic `SpriteSheet` type that field is declared with.
+     * of the generic `AnimatedSpriteSheet` type that field is declared with.
      */
     private readonly foxSpriteSheet: FoxSpriteSheet;
 
