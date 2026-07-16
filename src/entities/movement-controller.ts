@@ -2,6 +2,7 @@ import {MovableEntity} from "./movable-entity";
 import {CompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
 import {Camera} from "../camera/camera";
+import {KeyBinding} from "../help/key-binding";
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {
@@ -97,6 +98,25 @@ export class MovementController {
      */
     public isSpectating(): boolean {
         return this.spectating;
+    }
+
+    /**
+     * This controller's key bindings, for the help popup.
+     *
+     * @returns This controller's key bindings.
+     */
+    public getKeyBindings(): KeyBinding[] {
+        const bindings: KeyBinding[] = [
+            {key: "Arrow Keys", description: this.spectating ? "Pan camera" : "Move"},
+            {key: "S", description: "Toggle spectator mode"},
+        ];
+        if (this.spectating) {
+            bindings.push(
+                {key: "F", description: "Focus camera on entity"},
+                {key: "O", description: "Move camera to world origin"},
+            );
+        }
+        return bindings;
     }
 
     /**

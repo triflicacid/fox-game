@@ -3,6 +3,7 @@ import {FoxSpriteSheet, FoxSpriteType} from "../sprites/fox";
 import {CompassDirection} from "../geometry/direction";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
+import {KeyBinding} from "../help/key-binding";
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling";
@@ -67,6 +68,17 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
         this.setVelocity(Vector2d.ZERO);
         this.status = "curling";
         this.setCurrentFrame({...this.foxSpriteSheet.locateSprite("curl"), rotation: this.rotationFor(this.facing)});
+    }
+
+    /**
+     * `Z`'s key binding, for the help popup.
+     *
+     * @returns This entity's key bindings.
+     */
+    public override getKeyBindings(): KeyBinding[] {
+        return [
+            {key: "Z", description: "Sleep, or turn over while sleeping"},
+        ];
     }
 
     /**
