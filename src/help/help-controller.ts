@@ -1,7 +1,7 @@
 import {KeyBinding} from "./key-binding";
 import {Popup} from "../popup/popup";
 import {drawPopup} from "../popup/popup-renderer";
-import {PopupLine, TextFormat, TextSegment} from "../popup/text-style";
+import {PopupLine, TextFormat} from "../popup/text-style";
 
 /** Title shown atop the help popup. */
 const TITLE = "Keys";

@@ -1,10 +1,11 @@
 import {PopupLine} from "./text-style";
+import {Rect, pointInRect} from "../geometry/rect";
 
 /** A single button in a {@link Popup}'s button row. */
 export interface PopupButton {
     /** Text shown for the button, wrapped in `[...]` when drawn. */
     label: string;
-    /** Invoked when the button is selected (via {@link Popup}'s keyboard cursor). */
+    /** Invoked when the button is selected (via {@link Popup}'s keyboard cursor, or a mouse click). */
     onClick: () => void;
 }
 
@@ -29,6 +30,7 @@ export class Popup {
     private title = "";
     private lines: PopupLine[] = [];
     private buttons: PopupButton[] = [];
+    private buttonBounds: Rect[] = [];
     private cursor: number | null = 0;
     private readonly closeKeys: ReadonlySet<string>;
 
@@ -38,6 +40,8 @@ export class Popup {
     public constructor(options: PopupOptions = {}) {
         this.closeKeys = new Set(options.closeKeys ?? ["Escape"]);
         window.addEventListener("keydown", this.handleKeyDown, {capture: true});
+        window.addEventListener("mousedown", this.handleMouseDown, {capture: true});
+        window.addEventListener("click", this.handleClick, {capture: true});
     }
 
     /**
@@ -112,6 +116,17 @@ export class Popup {
     }
 
     /**
+     * Records each button's last-drawn on-screen bounds, so a mouse click
+     * can be hit-tested against them. Called by {@link drawPopup} after it
+     * lays the button row out; not meant to be called directly.
+     *
+     * @param bounds - One rect per button, in the same order as {@link getButtons}.
+     */
+    public setButtonBounds(bounds: Rect[]): void {
+        this.buttonBounds = bounds;
+    }
+
+    /**
      * Index into {@link getButtons} of the button the keyboard cursor is
      * currently on, or `null` if the cursor has been moved off every button
      * (deselecting all of them).
@@ -168,5 +183,40 @@ export class Popup {
         } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null) {
             this.buttons[this.cursor].onClick();
         }
+    };
+
+    /**
+     * While open, swallows every `mousedown` before it reaches anything
+     * behind the popup (e.g. {@link CameraDragController}'s canvas
+     * listener), so clicking a button can't also start a camera drag.
+     *
+     * @param event - The mouse event.
+     */
+    private readonly handleMouseDown = (event: MouseEvent): void => {
+        if (this.open) {
+            event.stopPropagation();
+        }
+    };
+
+    /**
+     * While open, hit-tests a click against {@link buttonBounds}: a hit
+     * moves the cursor to that button and activates it. Registered on the
+     * capture phase and stops propagation while open, for the same reason
+     * as {@link handleMouseDown}.
+     *
+     * @param event - The mouse event.
+     */
+    private readonly handleClick = (event: MouseEvent): void => {
+        if (!this.open) {
+            return;
+        }
+        event.stopPropagation();
+
+        const index = this.buttonBounds.findIndex((bounds) => pointInRect(event.clientX, event.clientY, bounds));
+        if (index === -1) {
+            return;
+        }
+        this.cursor = index;
+        this.buttons[index].onClick();
     };
 }

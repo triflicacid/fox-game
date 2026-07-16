@@ -1,6 +1,7 @@
 import {Popup} from "./popup";
 import {POPUP_CONFIG} from "./popup-config";
 import {PopupLine, TextFormat, TextSegment, TextStyle} from "./text-style";
+import {Rect} from "../geometry/rect";
 
 /** A {@link TextStyle} with every field resolved to a concrete value. */
 interface ResolvedStyle {
@@ -99,16 +100,22 @@ export function drawPopup(ctx: CanvasRenderingContext2D, canvasWidth: number, ca
         lineY += POPUP_CONFIG.buttonRowGap;
         ctx.font = BASE_FONT;
         let buttonX = x + POPUP_CONFIG.padding;
+        const bounds: Rect[] = [];
         buttonLabels.forEach((label, i) => {
             const labelWidth = buttonWidths[i];
+            const rect: Rect = {x: buttonX - 2, y: lineY - 2, w: labelWidth + 4, h: POPUP_CONFIG.lineHeight};
+            bounds.push(rect);
             if (i === cursor) {
                 ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
-                ctx.fillRect(buttonX - 2, lineY - 2, labelWidth + 4, POPUP_CONFIG.lineHeight);
+                ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
             }
             ctx.fillStyle = POPUP_CONFIG.textColor;
             ctx.fillText(label, buttonX, lineY);
             buttonX += labelWidth + POPUP_CONFIG.buttonGap;
         });
+        popup.setButtonBounds(bounds);
+    } else {
+        popup.setButtonBounds([]);
     }
 }
 

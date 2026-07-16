@@ -1,14 +1,7 @@
+import {Rect} from "../geometry/rect";
+
 /** A rectangular region within a sprite sheet image, in pixels. */
-export interface SpriteRect {
-    /** Left edge, in pixels from the sheet's left edge. */
-    x: number;
-    /** Top edge, in pixels from the sheet's top edge. */
-    y: number;
-    /** Width, in pixels. */
-    w: number;
-    /** Height, in pixels. */
-    h: number;
-}
+export type SpriteRect = Rect;
 
 /** A point relative to a sprite cell's centre, in pixels. */
 export interface SpritePoint {
