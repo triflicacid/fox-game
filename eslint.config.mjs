@@ -10,4 +10,7 @@ export default defineConfig({
     tseslint.configs.strict,
     tseslint.configs.stylistic,
   ],
+  rules: {
+    '@typescript-eslint/no-inferrable-types': 'error',
+  },
 });
