@@ -1,6 +1,7 @@
 import {Tile} from "./tile";
 import {PASTEL_TILE_COLORS} from "./pastel-colors";
 import {randomElement} from "../util";
+import {DEBUG_CONFIG} from "../debug/debug-config";
 
 /** Number of tiles along each edge of a chunk. */
 export const CHUNK_SIZE = 16;
@@ -70,5 +71,32 @@ export class Chunk {
                 this.tiles[y][x].draw(ctx, originX + x * tileSize, originY + y * tileSize, tileSize);
             }
         }
+    }
+
+    /**
+     * Draws every tile's outline, then this chunk's own (thicker) outline
+     * over the top, for debug rendering mode.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X position of this chunk's top-left corner.
+     * @param originY - Canvas Y position of this chunk's top-left corner.
+     * @param tileSize - Width/height of each tile, in canvas pixels.
+     */
+    public drawDebug(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
+        for (let y = 0; y < CHUNK_SIZE; y++) {
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+                this.tiles[y][x].drawDebugOutline(ctx, originX + x * tileSize, originY + y * tileSize, tileSize);
+            }
+        }
+
+        ctx.strokeStyle = DEBUG_CONFIG.chunkOutlineColor;
+        ctx.lineWidth = DEBUG_CONFIG.chunkOutlineWidth;
+        ctx.strokeRect(originX, originY, CHUNK_SIZE * tileSize, CHUNK_SIZE * tileSize);
+
+        ctx.fillStyle = DEBUG_CONFIG.chunkLabelColor;
+        ctx.font = DEBUG_CONFIG.chunkLabelFont;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillText(`(${this.chunkX}, ${this.chunkY})`, originX + DEBUG_CONFIG.chunkLabelPadding, originY + DEBUG_CONFIG.chunkLabelPadding);
     }
 }

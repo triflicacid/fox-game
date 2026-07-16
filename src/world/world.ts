@@ -4,6 +4,7 @@ import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
 import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
+import {DEBUG_CONFIG} from "../debug/debug-config";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -222,8 +223,9 @@ export class World {
      *
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera to render the world through.
+     * @param debugEnabled - Whether to also draw the debug overlay (chunk/tile outlines, entity bounding boxes/facing arrows, and the camera/entity HUD). Defaults to `false`.
      */
-    public draw(ctx: CanvasRenderingContext2D, camera: Camera): void {
+    public draw(ctx: CanvasRenderingContext2D, camera: Camera, debugEnabled = false): void {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
@@ -237,6 +239,10 @@ export class World {
         }
 
         this.drawEntities(ctx, camera);
+
+        if (debugEnabled) {
+            this.drawDebugOverlay(ctx, camera);
+        }
     }
 
     /**
@@ -264,5 +270,76 @@ export class World {
 
             ctx.drawImage(bitmap, position.x - viewX, position.y - viewY, frame.w, frame.h);
         }
+    }
+
+    /**
+     * Draws the debug rendering overlay: every visible chunk/tile's outline,
+     * every visible entity's bounding box and (for a {@link MovableEntity})
+     * facing arrow, and the HUD readout (see {@link drawDebugHud}).
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param camera - Camera to render the overlay through.
+     */
+    private drawDebugOverlay(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
+
+        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
+            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+                const chunk = this.getChunk(chunkX, chunkY);
+                chunk.drawDebug(ctx, chunkX * chunkPixelSize - viewX, chunkY * chunkPixelSize - viewY, this.tileSize);
+            }
+        }
+
+        for (const entity of this.entities) {
+            const position = entity.getPosition();
+            const frame = entity.getCurrentFrame();
+            if (!camera.isRectVisible(position.x, position.y, frame.w, frame.h)) {
+                continue;
+            }
+            entity.drawDebugOverlay(ctx, viewX, viewY);
+        }
+
+        this.drawDebugHud(ctx, camera);
+    }
+
+    /**
+     * Draws a top-left HUD showing the camera's centre point and viewport
+     * size, plus the main entity's position and current speed.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param camera - Camera to read position/viewport info from.
+     */
+    private drawDebugHud(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const center = camera.getCenter();
+        const position = this.mainEntity.getPosition();
+        const velocity = this.mainEntity.getVelocity();
+        const speed = Math.hypot(velocity.x, velocity.y);
+
+        const lines = [
+            `camera: (${center.x.toFixed(1)}, ${center.y.toFixed(1)})`,
+            `viewport: ${camera.getWidth()} x ${camera.getHeight()}`,
+            `entity: (${position.x.toFixed(1)}, ${position.y.toFixed(1)}), facing: ${this.mainEntity.getFacing()}`,
+            `velocity: (${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}), speed: ${speed.toFixed(1)} px/s`,
+        ];
+
+        ctx.font = DEBUG_CONFIG.hudFont;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+
+        const padding = DEBUG_CONFIG.hudPadding;
+        const lineHeight = DEBUG_CONFIG.hudLineHeight;
+        const width = Math.max(...lines.map((line) => ctx.measureText(line).width)) + padding * 2;
+        const height = lines.length * lineHeight + padding * 2;
+
+        ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.fillStyle = DEBUG_CONFIG.hudTextColor;
+        lines.forEach((line, i) => {
+            ctx.fillText(line, padding, padding + i * lineHeight);
+        });
     }
 }
