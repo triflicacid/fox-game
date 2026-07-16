@@ -5,7 +5,7 @@ import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 
 /** Behavioural states a {@link Fox} entity can be in. */
-export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "uncurling";
+export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling";
 
 /** How long, in milliseconds, any of the fox's animations show each frame before advancing. */
 const WALK_FRAME_MS = 120;
@@ -37,6 +37,9 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     private pendingWakeFacing: CompassDirection | null = null;
     private pendingWakeVelocity: Vector2d | null = null;
 
+    /** Phases left to step through before a triggered `sleepTurn` returns to a static `sleeping` hold. */
+    private sleepTurnPhasesRemaining = 0;
+
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
         super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), WALK_FRAME_MS);
@@ -44,13 +47,21 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     /**
-     * `Z` manually puts the fox to sleep. No-op if it's already curling,
-     * asleep, or waking up.
+     * `Z` manually puts the fox to sleep, or - if it's already asleep -
+     * triggers a one-off `sleepTurn`. No-op while `curling`, `uncurling`, or
+     * already mid-`sleepTurn`.
      *
      * @param key - `KeyboardEvent.key` of the pressed key.
      */
     public override handleKeyPress(key: string): void {
-        if ((key !== "z" && key !== "Z") || this.isRestState()) {
+        if (key !== "z" && key !== "Z") {
+            return;
+        }
+        if (this.status === "sleeping") {
+            this.beginSleepTurn();
+            return;
+        }
+        if (this.isRestState()) {
             return;
         }
         this.setVelocity(Vector2d.ZERO);
@@ -93,11 +104,11 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     /**
-     * Only `curling`/`uncurling` need continued frame-stepping while
-     * stationary.
+     * `curling`/`uncurling`/`sleepTurning` all need continued frame-stepping
+     * while stationary; `sleeping` itself is a static held pose.
      */
     protected override shouldAnimateWhileStationary(): boolean {
-        return this.status === "curling" || this.status === "uncurling";
+        return this.status === "curling" || this.status === "uncurling" || this.status === "sleepTurning";
     }
 
     protected override locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame {
@@ -116,6 +127,13 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      * @param frame - The frame just stepped to.
      */
     protected override onFrameAdvanced(frame: SpriteFrame): void {
+        if (this.status === "sleepTurning") {
+            this.sleepTurnPhasesRemaining--;
+            if (this.sleepTurnPhasesRemaining <= 0) {
+                this.status = "sleeping";
+            }
+            return;
+        }
         if (frame.loops || frame.frameIndex !== frame.frameCount - 1) {
             return;
         }
@@ -127,7 +145,23 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     private isRestState(): boolean {
-        return this.status === "curling" || this.status === "sleeping" || this.status === "uncurling";
+        return this.status === "curling" || this.status === "sleeping"
+            || this.status === "uncurling" || this.status === "sleepTurning";
+    }
+
+    /**
+     * Triggers a one-off `sleepTurn` in response to `Z` while `sleeping`:
+     * one full lap of the row (it's designed to loop cleanly, per
+     * `docs/fox-sprite-design.md`), starting from - and, since a full lap
+     * ends where it began, also finishing back at - the fox's current
+     * sleeping rotation, rather than resetting to {@link CURL_ART_FACING}.
+     */
+    private beginSleepTurn(): void {
+        const rotation = this.getCurrentFrame().rotation ?? 0;
+        const frame = this.foxSpriteSheet.locateSprite("sleepTurn");
+        this.sleepTurnPhasesRemaining = frame.frameCount;
+        this.status = "sleepTurning";
+        this.setCurrentFrame({...frame, rotation});
     }
 
     /**
