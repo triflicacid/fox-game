@@ -101,8 +101,7 @@ export class MovementController {
     }
 
     /**
-     * Sets spectator mode directly (e.g. from the settings checkbox), rather
-     * than toggling it. A no-op if already in the requested state.
+     * Sets spectator mode.
      *
      * @param spectating - Whether spectator mode should be active.
      */

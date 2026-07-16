@@ -68,8 +68,7 @@ export interface RadioOption {
 }
 
 /**
- * An interactive radio-button group, usable as an item within a {@link
- * PopupLine} alongside plain {@link TextSegment}s. Exactly one of `options`
+ * An interactive radio-button group. Exactly one of `options`
  * is selected at a time; clicking a different one invokes `onSelect` with
  * that option's `key`.
  */
@@ -84,8 +83,7 @@ export interface RadioInput extends InputBase {
 }
 
 /**
- * A single checkbox, usable as an item within a {@link PopupLine} alongside
- * plain {@link TextSegment}s. Toggling it invokes `onToggle` with its new
+ * A single checkbox. Toggling it invokes `onToggle` with its new
  * checked state.
  */
 export interface CheckboxInput extends InputBase {
@@ -99,11 +97,8 @@ export interface CheckboxInput extends InputBase {
 }
 
 /**
- * A single numeric text field, usable as an item within a {@link PopupLine}
- * alongside plain {@link TextSegment}s. The displayed cursor is always at
- * the end of the typed digits - there's no moving through or inserting
- * within them. `ArrowUp`/`ArrowDown` change `value` by `step` instead of
- * navigating between focusable elements while this input is focused.
+ * A single numeric text field. Un-focusing from the input
+ * triggers `onChange` if the inputted value is a valid number.
  */
 export interface NumberInput extends InputBase {
     kind: "number";
