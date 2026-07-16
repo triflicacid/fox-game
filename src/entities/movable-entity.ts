@@ -58,21 +58,9 @@ export abstract class MovableEntity<TArgs extends unknown[] = unknown[], TStatus
         if (facing === this.facing) {
             return;
         }
-        console.log("Set facing to", facing)
         this.facing = facing;
-        this.setCurrentFrame(this.locateFrameForDirection(facing));
+        this.setCurrentFrame(this.locateFrameForFacing(facing, this.isMoving()));
     }
-
-    /**
-     * Locates the sprite frame this entity should show when facing the
-     * given direction, at its first animation phase. Used by
-     * {@link setFacing} to keep the sprite in sync with the facing whenever
-     * it changes.
-     *
-     * @param direction - Direction to locate a frame for.
-     * @returns The located frame.
-     */
-    protected abstract locateFrameForDirection(direction: CompassDirection): SpriteFrame;
 
     /**
      * This entity's facing direction as a unit vector.
@@ -98,17 +86,47 @@ export abstract class MovableEntity<TArgs extends unknown[] = unknown[], TStatus
      * @param velocity - New velocity, in world pixels per second.
      */
     public setVelocity(velocity: Vector2d): void {
+        const wasMoving = this.isMoving();
         this.velocity = velocity;
+        const isMovingNow = this.isMoving();
+        if (isMovingNow !== wasMoving) {
+            this.setCurrentFrame(this.locateFrameForFacing(this.facing, isMovingNow));
+        }
     }
 
     /**
+     * Whether this entity currently has any velocity.
+     *
+     * @returns `true` if {@link getVelocity} is non-zero.
+     */
+    public isMoving(): boolean {
+        return this.velocity.x !== 0 || this.velocity.y !== 0;
+    }
+
+    /**
+     * Locates the sprite frame this entity should show for the given facing
+     * and moving state, at its first animation phase. Used by
+     * {@link setFacing}/{@link setVelocity} to keep the sprite in sync
+     * whenever either changes.
+     *
+     * @param direction - Direction to locate a frame for.
+     * @param moving - Whether the entity is currently moving (as opposed to standing still facing that direction).
+     * @returns The located frame.
+     */
+    protected abstract locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame;
+
+    /**
      * Moves this entity by {@link velocity}, then steps its animation frame
-     * as the base {@link Entity.update} does.
+     * as the base {@link Entity.update} does - only while moving, so a
+     * stationary entity's (single-frame) idle sprite doesn't get stepped
+     * through pointlessly.
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
     public override update(deltaMs: number): void {
         this.setPosition(this.getPosition().add(this.velocity.scale(deltaMs / 1000)));
-        super.update(deltaMs);
+        if (this.isMoving()) {
+            super.update(deltaMs);
+        }
     }
 }
