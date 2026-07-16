@@ -1,3 +1,5 @@
+import {PopupLine} from "./text-style";
+
 /** A single button in a {@link Popup}'s button row. */
 export interface PopupButton {
     /** Text shown for the button, wrapped in `[...]` when drawn. */
@@ -25,7 +27,7 @@ export interface PopupOptions {
 export class Popup {
     private open = false;
     private title = "";
-    private lines: string[] = [];
+    private lines: PopupLine[] = [];
     private buttons: PopupButton[] = [];
     private cursor: number | null = 0;
     private readonly closeKeys: ReadonlySet<string>;
@@ -68,10 +70,10 @@ export class Popup {
      * up to date.
      *
      * @param title - Title shown above the popup's lines of text.
-     * @param lines - Lines of plain text shown below the title.
+     * @param lines - Lines of styled segments shown below the title.
      * @param buttons - Buttons shown in a row at the bottom, navigated by the cursor.
      */
-    public setContent(title: string, lines: string[], buttons: PopupButton[]): void {
+    public setContent(title: string, lines: PopupLine[], buttons: PopupButton[]): void {
         this.title = title;
         this.lines = lines;
         this.buttons = buttons;
@@ -92,11 +94,11 @@ export class Popup {
     }
 
     /**
-     * This popup's lines of text, as last set via {@link setContent}.
+     * This popup's lines, as last set via {@link setContent}.
      *
-     * @returns The current lines of text.
+     * @returns The current lines.
      */
-    public getLines(): readonly string[] {
+    public getLines(): readonly PopupLine[] {
         return this.lines;
     }
 

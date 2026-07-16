@@ -1,6 +1,7 @@
 import {KeyBinding} from "./key-binding";
 import {Popup} from "../popup/popup";
 import {drawPopup} from "../popup/popup-renderer";
+import {PopupLine, TextFormat, TextSegment} from "../popup/text-style";
 
 /** Title shown atop the help popup. */
 const TITLE = "Keys";
@@ -62,10 +63,13 @@ export class HelpController {
      * @param bindings - Key bindings to format.
      * @returns One formatted line per binding.
      */
-    private formatLines(bindings: KeyBinding[]): string[] {
+    private formatLines(bindings: KeyBinding[]): PopupLine[] {
         const sorted = [...bindings].sort((a, b) => a.key.localeCompare(b.key));
         const keyWidth = Math.max(...sorted.map((binding) => binding.key.length)) + KEY_DESCRIPTION_GAP;
-        return sorted.map((binding) => binding.key.padEnd(keyWidth) + binding.description);
+        return sorted.map((binding) => [
+                {content: binding.key.padEnd(keyWidth), style: {foreground: '#ffea00', format: TextFormat.BOLD}},
+                {content: binding.description},
+        ]);
     }
 
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
