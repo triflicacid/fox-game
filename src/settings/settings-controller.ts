@@ -67,7 +67,7 @@ export class SettingsController implements PopupSource {
      */
     public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
         this.popup.setContent(TITLE, this.buildContent(), [
-            {label: "Close", onClick: () => this.popup.close()},
+            {kind: "button", label: "Close", onClick: () => this.popup.close()},
         ]);
         this.popup.draw(ctx, canvasWidth, canvasHeight);
     }
@@ -102,9 +102,6 @@ export class SettingsController implements PopupSource {
             [
                 {content: "Target FPS: "},
                 {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
-            ],
-            [
-                {kind: "button", label: "GUESS WHAT", onClick: () => console.log("Hax"), highlightStyle: {background: 'red'}},
             ],
         ];
     }

@@ -54,6 +54,7 @@ interface ResolvedRadioOption {
     labelRuns: MeasuredRun[];
     labelWidth: number;
     onSelect: (key: string) => void;
+    highlightStyle: HighlightStyle;
 }
 
 /** A resolved, measured radio input within a line. */
@@ -70,6 +71,7 @@ interface ResolvedCheckboxElement {
     labelRuns: MeasuredRun[];
     labelWidth: number;
     onToggle: (checked: boolean) => void;
+    highlightStyle: HighlightStyle;
     width: number;
 }
 
@@ -80,6 +82,7 @@ interface ResolvedNumberElement {
     step: number;
     allowDecimal: boolean;
     onChange: (value: number) => void;
+    highlightStyle: HighlightStyle;
     width: number;
 }
 
@@ -272,7 +275,14 @@ function resolveRadioElement(ctx: CanvasRenderingContext2D, item: RadioInput): {
 
         width += (i > 0 ? POPUP_CONFIG.radioOptionGap : 0) + radioOptionContentWidth(labelWidth);
 
-        return {key: option.key, selected: option.key === item.selected, labelRuns: measured, labelWidth, onSelect: item.onSelect};
+        return {
+            key: option.key,
+            selected: option.key === item.selected,
+            labelRuns: measured,
+            labelWidth,
+            onSelect: item.onSelect,
+            highlightStyle: fillHighlightStyle(option.highlightStyle ?? item.highlightStyle),
+        };
     });
     return {element: {kind: "radio", options, width}, maxFontSize};
 }
@@ -289,7 +299,18 @@ function resolveCheckboxElement(ctx: CanvasRenderingContext2D, item: CheckboxInp
     const runs = item.content.flatMap((segment) => flattenSegment(segment, BASE_STYLE));
     const {measured, width: labelWidth, maxFontSize} = measureRuns(ctx, runs);
     const width = checkboxContentWidth(labelWidth);
-    return {element: {kind: "checkbox", checked: item.checked, labelRuns: measured, labelWidth, onToggle: item.onToggle, width}, maxFontSize};
+    return {
+        element: {
+            kind: "checkbox",
+            checked: item.checked,
+            labelRuns: measured,
+            labelWidth,
+            onToggle: item.onToggle,
+            highlightStyle: fillHighlightStyle(item.highlightStyle),
+            width,
+        },
+        maxFontSize,
+    };
 }
 
 /**
@@ -303,6 +324,7 @@ function resolveNumberElement(item: NumberInput): {element: ResolvedNumberElemen
             step: item.step ?? 1,
             allowDecimal: item.allowDecimal ?? false,
             onChange: item.onChange,
+            highlightStyle: fillHighlightStyle(item.highlightStyle),
             width: POPUP_CONFIG.numberInputWidth,
         },
         maxFontSize: POPUP_CONFIG.fontSize,
@@ -511,7 +533,7 @@ function paintRadioElement(
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
 
         if (focused) {
-            ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
+            ctx.fillStyle = option.highlightStyle.background;
             ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
         }
 
@@ -519,7 +541,7 @@ function paintRadioElement(
         drawRadioMarker(ctx, elemX + markerRadius, y + height / 2, markerRadius, option.selected);
 
         const labelX = elemX + POPUP_CONFIG.radioMarkerSize + POPUP_CONFIG.radioMarkerGap;
-        drawRuns(ctx, option.labelRuns, labelX, y, height, focused ? POPUP_CONFIG.highlightTextColor : undefined);
+        drawRuns(ctx, option.labelRuns, labelX, y, height, focused ? option.highlightStyle.foreground : undefined);
 
         elemX += optionWidth;
     });
@@ -543,7 +565,7 @@ function paintCheckboxElement(
     const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
 
     if (focused) {
-        ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
+        ctx.fillStyle = element.highlightStyle.background;
         ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
 
@@ -551,7 +573,7 @@ function paintCheckboxElement(
     drawCheckboxBox(ctx, x, boxY, POPUP_CONFIG.checkboxSize, element.checked);
 
     const labelX = x + POPUP_CONFIG.checkboxSize + POPUP_CONFIG.checkboxGap;
-    drawRuns(ctx, element.labelRuns, labelX, y, height, focused ? POPUP_CONFIG.highlightTextColor : undefined);
+    drawRuns(ctx, element.labelRuns, labelX, y, height, focused ? element.highlightStyle.foreground : undefined);
 }
 
 /**
@@ -582,7 +604,7 @@ function paintNumberElement(
     const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
 
     if (focused) {
-        ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
+        ctx.fillStyle = element.highlightStyle.background;
         ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
 

@@ -41,12 +41,30 @@ export interface TextSegment {
     style?: TextStyle;
 }
 
+/**
+ * Background/foreground colours to highlight a focused element with.
+ */
+export interface HighlightStyle {
+    background: string;
+    foreground: string;
+}
+
+/**
+ * Fields shared by every {@link Input} kind.
+ */
+export interface InputBase {
+    kind: string;
+    highlightStyle?: Partial<HighlightStyle>;
+}
+
 /** A single selectable option within a {@link RadioInput}. */
 export interface RadioOption {
     /** Uniquely identifies this option; passed to the owning {@link RadioInput}'s `onSelect`. */
     key: string;
     /** Content shown as this option's label. */
     content: TextSegment[];
+    /** Background/foreground colours to highlight this option with while focused. Defaults to the owning {@link RadioInput}'s `highlightStyle`, then navy/white. */
+    highlightStyle?: Partial<HighlightStyle>;
 }
 
 /**
@@ -55,7 +73,7 @@ export interface RadioOption {
  * is selected at a time; clicking a different one invokes `onSelect` with
  * that option's `key`.
  */
-export interface RadioInput {
+export interface RadioInput extends InputBase {
     kind: "radio";
     /** The options to choose between. */
     options: RadioOption[];
@@ -70,7 +88,7 @@ export interface RadioInput {
  * plain {@link TextSegment}s. Toggling it invokes `onToggle` with its new
  * checked state.
  */
-export interface CheckboxInput {
+export interface CheckboxInput extends InputBase {
     kind: "checkbox";
     /** Whether the checkbox is currently checked. */
     checked: boolean;
@@ -87,7 +105,7 @@ export interface CheckboxInput {
  * within them. `ArrowUp`/`ArrowDown` change `value` by `step` instead of
  * navigating between focusable elements while this input is focused.
  */
-export interface NumberInput {
+export interface NumberInput extends InputBase {
     kind: "number";
     /** Current value. */
     value: number;
@@ -100,24 +118,14 @@ export interface NumberInput {
 }
 
 /**
- * Background/foreground colours to highlight a focused element with.
- */
-export interface HighlightStyle {
-    background: string;
-    foreground: string;
-}
-
-/**
  * A button input, clickable via Enter/Space.
  */
-export interface ButtonInput {
+export interface ButtonInput extends InputBase {
     kind: "button";
     /** Text shown for the button, wrapped in `[...]` when drawn. */
     label: string;
     /** Invoked when the button is activated. */
     onClick: () => void;
-    /** Background/foreground colours to highlight this button with while focused. Defaults to navy/white. */
-    highlightStyle?: Partial<HighlightStyle>;
 }
 
 /**

@@ -56,7 +56,7 @@ export class HelpController implements PopupSource {
      */
     public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
         this.popup.setContent(TITLE, this.formatLines(this.getBindings()), [
-            {label: "Close", onClick: () => this.popup.close()},
+            {kind: "button", label: "Close", onClick: () => this.popup.close()},
         ]);
         this.popup.draw(ctx, canvasWidth, canvasHeight);
     }
