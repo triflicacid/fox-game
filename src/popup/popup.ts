@@ -2,12 +2,22 @@ import {CheckboxInput, Input, NumberInput, PopupLine, PopupLineItem, RadioInput,
 import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
 import {POPUP_CONFIG} from "./popup-config";
 
+/**
+ * Background/foreground colours to highlight a focused button with.
+ */
+export interface ButtonHighlight {
+    background: string;
+    foreground: string;
+}
+
 /** A single button in a {@link Popup}'s button row. */
 export interface PopupButton {
     /** Text shown for the button, wrapped in `[...]` when drawn. */
     label: string;
     /** Invoked when the button is selected (via {@link Popup}'s keyboard cursor, or a mouse click). */
     onClick: () => void;
+    /** Colours to highlight this button with while focused. Defaults to navy/white. */
+    highlightStyle?: ButtonHighlight;
 }
 
 /** Configures a {@link Popup} at construction. */
@@ -88,10 +98,21 @@ interface ResolvedNumberElement {
 }
 
 /**
+ * A resolved, measured button - "[Label]"..
+ */
+interface ResolvedButtonElement {
+    kind: "button";
+    text: string;
+    onClick: () => void;
+    highlight: ButtonHighlight;
+    width: number;
+}
+
+/**
  * Every kind of resolved, measured input element a line can contain -
  * mirrors {@link Input}.
  */
-type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement | ResolvedNumberElement;
+type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement | ResolvedNumberElement | ResolvedButtonElement;
 
 type ResolvedElement = ResolvedTextElement | ResolvedInputElement;
 
@@ -303,6 +324,23 @@ function resolveNumberElement(item: NumberInput): {element: ResolvedNumberElemen
 }
 
 /**
+ * Resolves a bracket-wrapped button label's width under {@link BASE_FONT},
+ * and its highlight colours.
+ */
+function resolveButtonElement(
+    ctx: CanvasRenderingContext2D,
+    button: {label: string; onClick: () => void; highlightStyle?: Partial<ButtonHighlight>},
+): ResolvedButtonElement {
+    ctx.font = BASE_FONT;
+    const text = `[${button.label}]`;
+    const highlight = {
+        background: button.highlightStyle?.background ?? POPUP_CONFIG.highlightBackgroundColor,
+        foreground: button.highlightStyle?.foreground ?? POPUP_CONFIG.highlightTextColor
+    } as ButtonHighlight;
+    return {kind: "button", text, onClick: button.onClick, highlight, width: ctx.measureText(text).width};
+}
+
+/**
  * Resolves and measures an {@link Input} into its {@link
  * ResolvedInputElement}, dispatching on `kind`. Add a case here (and a
  * matching `resolve*Element` function) for each new input kind - TypeScript
@@ -317,6 +355,8 @@ function resolveInputElement(ctx: CanvasRenderingContext2D, item: Input): {eleme
             return resolveCheckboxElement(ctx, item);
         case "number":
             return resolveNumberElement(item);
+        case "button":
+            return {element: resolveButtonElement(ctx, item), maxFontSize: POPUP_CONFIG.fontSize};
     }
 }
 
@@ -562,6 +602,39 @@ function paintNumberElement(
 }
 
 /**
+ * Computes a resolved button's on-screen rect: its measured width, padded
+ * out by 2 canvas pixels on every side.
+ */
+function layoutButtonElement(element: ResolvedButtonElement, x: number, y: number, height: number): FocusableElement[] {
+    return [{rect: {x: x - 2, y: y - 2, w: element.width + 4, h: height}, activate: element.onClick}];
+}
+
+/**
+ * Draws a resolved button's bracket-wrapped label at `(x, y)`, highlighted
+ * per its own `element.highlight` when its rect matches `focusedRect`.
+ */
+function paintButtonElement(
+    ctx: CanvasRenderingContext2D,
+    element: ResolvedButtonElement,
+    x: number,
+    y: number,
+    height: number,
+    focusedRect: Rect | null,
+): void {
+    const rect: Rect = {x: x - 2, y: y - 2, w: element.width + 4, h: height};
+    const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+
+    if (focused) {
+        ctx.fillStyle = element.highlight.background;
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+
+    ctx.font = BASE_FONT;
+    ctx.fillStyle = focused ? element.highlight.foreground : POPUP_CONFIG.textColor;
+    ctx.fillText(element.text, x, y);
+}
+
+/**
  * Computes a resolved input element's focusable rects, dispatching on
  * `kind`.
  */
@@ -573,6 +646,8 @@ function layoutInputElement(element: ResolvedInputElement, x: number, y: number,
             return layoutCheckboxElement(element, x, y, height);
         case "number":
             return layoutNumberElement(element, x, y, height);
+        case "button":
+            return layoutButtonElement(element, x, y, height);
     }
 }
 
@@ -598,6 +673,9 @@ function paintInputElement(
             break;
         case "number":
             paintNumberElement(ctx, element, x, y, height, focusedRect, editText);
+            break;
+        case "button":
+            paintButtonElement(ctx, element, x, y, height, focusedRect);
             break;
     }
 }
@@ -732,8 +810,6 @@ export class Popup {
             return;
         }
 
-        const buttonLabels = this.buttons.map((button) => `[${button.label}]`);
-
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
 
@@ -742,9 +818,9 @@ export class Popup {
 
         const lineRows = this.lines.map((line) => resolveLine(ctx, line));
 
-        ctx.font = BASE_FONT;
-        const buttonWidths = buttonLabels.map((label) => ctx.measureText(label).width);
-        const buttonRowWidth = buttonWidths.reduce((sum, w) => sum + w, 0)
+        // Footer buttons
+        const resolvedButtons = this.buttons.map((button) => resolveButtonElement(ctx, button));
+        const buttonRowWidth = resolvedButtons.reduce((sum, button) => sum + button.width, 0)
             + POPUP_CONFIG.buttonGap * Math.max(this.buttons.length - 1, 0);
 
         const contentWidth = Math.max(titleWidth, buttonRowWidth, ...lineRows.map((row) => row.width), 0);
@@ -765,18 +841,14 @@ export class Popup {
         const inputFocusables = layoutLines(lineRows, x + POPUP_CONFIG.padding, linesStartY);
 
         const buttonRowY = linesStartY + linesHeight + (this.buttons.length > 0 ? POPUP_CONFIG.buttonRowGap : 0);
-        const buttonRects: Rect[] = [];
+        const buttonFocusables: FocusableElement[] = [];
         let buttonLayoutX = x + POPUP_CONFIG.padding;
-        buttonLabels.forEach((label, i) => {
-            const labelWidth = buttonWidths[i];
-            buttonRects.push({x: buttonLayoutX - 2, y: buttonRowY - 2, w: labelWidth + 4, h: POPUP_CONFIG.lineHeight});
-            buttonLayoutX += labelWidth + POPUP_CONFIG.buttonGap;
-        });
+        for (const button of resolvedButtons) {
+            buttonFocusables.push(...layoutButtonElement(button, buttonLayoutX, buttonRowY, POPUP_CONFIG.lineHeight));
+            buttonLayoutX += button.width + POPUP_CONFIG.buttonGap;
+        }
 
-        this.focusables = [
-            ...inputFocusables,
-            ...buttonRects.map((rect, i): FocusableElement => ({rect, activate: () => this.buttons[i].onClick()})),
-        ].sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
+        this.focusables = [...inputFocusables, ...buttonFocusables].sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
 
         if (this.cursor !== null && this.cursor >= this.focusables.length) {
             this.setCursor(this.focusables.length > 0 ? this.focusables.length - 1 : null);
@@ -804,21 +876,10 @@ export class Popup {
             lineY += row.height;
         }
 
-        if (this.buttons.length > 0) {
-            ctx.font = BASE_FONT;
-            let buttonX = x + POPUP_CONFIG.padding;
-            buttonLabels.forEach((label, i) => {
-                const labelWidth = buttonWidths[i];
-                const rect = buttonRects[i];
-                const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
-                if (focused) {
-                    ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
-                    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-                }
-                ctx.fillStyle = focused ? POPUP_CONFIG.highlightTextColor : POPUP_CONFIG.textColor;
-                ctx.fillText(label, buttonX, buttonRowY);
-                buttonX += labelWidth + POPUP_CONFIG.buttonGap;
-            });
+        let buttonX = x + POPUP_CONFIG.padding;
+        for (const button of resolvedButtons) {
+            paintButtonElement(ctx, button, buttonX, buttonRowY, POPUP_CONFIG.lineHeight, focusedRect);
+            buttonX += button.width + POPUP_CONFIG.buttonGap;
         }
     }
 
