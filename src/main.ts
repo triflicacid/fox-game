@@ -1,6 +1,7 @@
 import {SpriteFrame} from "./sprites/sprite";
 import {FoxSpriteSheet} from "./sprites/fox";
 import {randomElement} from "./util";
+import {World} from "./world/world";
 
 function requireContext(context: CanvasRenderingContext2D | null): CanvasRenderingContext2D {
     if (!context) {
@@ -13,7 +14,9 @@ const canvas = document.getElementById("game") as HTMLCanvasElement;
 const ctx = requireContext(canvas.getContext("2d"));
 
 const WALK_FRAME_MS = 120;
+const TILE_SIZE = 32;
 
+const world = new World(TILE_SIZE);
 const foxSheet = new FoxSpriteSheet();
 const directions = foxSheet.getDirections();
 const walkDirection = randomElement(directions);
@@ -38,8 +41,7 @@ function resize(): void {
 }
 
 function draw(): void {
-    ctx.fillStyle = "#10140f";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    world.draw(ctx, 0, 0, canvas.width, canvas.height);
 
     ctx.fillStyle = "#f2a65a";
     ctx.font = "48px sans-serif";
