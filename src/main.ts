@@ -1,16 +1,31 @@
+import {SpriteFrame} from "./sprites/sprite";
+import {FoxSpriteSheet} from "./sprites/fox";
+import {randomElement} from "./util";
+
 const canvas = document.getElementById("game") as HTMLCanvasElement;
-const ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d")!;
 if (!ctx) {
     throw new Error("Could not acquire 2D canvas context");
 }
 
-const foxImage = new Image();
-let foxImageLoaded = false;
-foxImage.onload = () => {
-    foxImageLoaded = true;
+const WALK_FRAME_MS = 120;
+
+const foxSheet = new FoxSpriteSheet();
+const directions = foxSheet.getDirections();
+const walkDirection = randomElement(directions);
+let walkFrame: SpriteFrame = foxSheet.locateSprite(walkDirection);
+let walkBitmap: ImageBitmap | null = null;
+
+async function showWalkFrame(frame: SpriteFrame): Promise<void> {
+    walkBitmap = await foxSheet.extractSprite(frame);
     draw();
-};
-foxImage.src = "./static/fox.png";
+}
+showWalkFrame(walkFrame);
+
+setInterval(() => {
+    walkFrame = foxSheet.next(walkFrame);
+    showWalkFrame(walkFrame);
+}, WALK_FRAME_MS);
 
 function resize(): void {
     canvas.width = window.innerWidth;
@@ -19,19 +34,19 @@ function resize(): void {
 }
 
 function draw(): void {
-    ctx!.fillStyle = "#10140f";
-    ctx!.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#10140f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx!.fillStyle = "#f2a65a";
-    ctx!.font = "48px sans-serif";
-    ctx!.textAlign = "center";
-    ctx!.textBaseline = "middle";
-    ctx!.fillText("Hello, fox", canvas.width / 2, canvas.height / 2);
+    ctx.fillStyle = "#f2a65a";
+    ctx.font = "48px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Hello, fox", canvas.width / 2, canvas.height / 2);
 
-    if (foxImageLoaded) {
+    if (walkBitmap) {
         const size = 128;
-        ctx!.drawImage(
-            foxImage,
+        ctx.drawImage(
+            walkBitmap,
             canvas.width / 2 - size / 2,
             canvas.height / 2 + 32,
             size,
