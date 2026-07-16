@@ -6,6 +6,8 @@ import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
 import {FrameLoopController} from "./frames/FrameLoopController";
 import {requireNonNull} from "./util";
+import {HelpController} from "./help/help-controller";
+import {KeyBinding} from "./help/key-binding";
 
 /**
  * Owns everything needed to run the game against a canvas.
@@ -20,6 +22,7 @@ export class WorldController {
     private readonly camera: Camera;
     private readonly movementController: MovementController;
     private readonly debugController: DebugController;
+    private readonly helpController: HelpController;
     private readonly frameLoop: FrameLoopController;
 
     private lastTickTime = 0;
@@ -37,6 +40,7 @@ export class WorldController {
         new CameraDragController(canvas, this.camera);
         this.movementController = new MovementController(this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
         this.debugController = new DebugController();
+        this.helpController = new HelpController();
         this.frameLoop = new FrameLoopController(this.onFrame, targetFps);
 
         window.addEventListener("resize", this.resize);
@@ -104,5 +108,22 @@ export class WorldController {
             this.frameLoop.getActualFps(),
             this.frameLoop.getTargetFps(),
         );
+
+        if (this.helpController.isOpen()) {
+            this.helpController.draw(this.ctx, this.canvas.width, this.canvas.height, this.getKeyBindings());
+        }
+    }
+
+    /**
+     * Every key binding in the game, gathered from every controller (and the
+     * main entity) that exposes one, for the help popup to list.
+     */
+    private getKeyBindings(): KeyBinding[] {
+        return [
+            ...this.movementController.getKeyBindings(),
+            ...this.debugController.getKeyBindings(),
+            ...this.helpController.getKeyBindings(),
+            ...(this.world.getMainEntity().getKeyBindings?.() ?? []),
+        ];
     }
 }
