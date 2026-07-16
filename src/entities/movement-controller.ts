@@ -258,6 +258,7 @@ export class MovementController {
 
         const direction = KEY_DIRECTIONS[event.key];
         if (!direction) {
+            this.entity?.handleKeyPress?.(event.key);
             return;
         }
         this.pressedDirections.add(direction);
