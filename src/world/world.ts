@@ -225,8 +225,10 @@ export class World {
      * @param camera - Camera to render the world through.
      * @param debugEnabled - Whether to also draw the debug overlay (chunk/tile outlines, entity bounding boxes/facing arrows, and the camera/entity HUD). Defaults to `false`.
      * @param spectating - Whether spectator mode is currently active, shown as an indicator in the debug HUD. Defaults to `false`.
+     * @param actualFps - Currently measured rendering FPS, shown in the debug HUD. Defaults to `0`.
+     * @param targetFps - Configured FPS cap, shown alongside `actualFps` in the debug HUD, or `undefined` when uncapped.
      */
-    public draw(ctx: CanvasRenderingContext2D, camera: Camera, debugEnabled = false, spectating = false): void {
+    public draw(ctx: CanvasRenderingContext2D, camera: Camera, debugEnabled = false, spectating = false, actualFps = 0, targetFps?: number): void {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
@@ -242,7 +244,7 @@ export class World {
         this.drawEntities(ctx, camera);
 
         if (debugEnabled) {
-            this.drawDebugOverlay(ctx, camera, spectating);
+            this.drawDebugOverlay(ctx, camera, spectating, actualFps, targetFps);
         }
     }
 
@@ -281,8 +283,10 @@ export class World {
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera to render the overlay through.
      * @param spectating - Whether spectator mode is currently active, shown as an indicator in the HUD.
+     * @param actualFps - Currently measured rendering FPS, shown in the HUD.
+     * @param targetFps - Configured FPS cap, shown alongside `actualFps`, or `undefined` when uncapped.
      */
-    private drawDebugOverlay(ctx: CanvasRenderingContext2D, camera: Camera, spectating: boolean): void {
+    private drawDebugOverlay(ctx: CanvasRenderingContext2D, camera: Camera, spectating: boolean, actualFps: number, targetFps: number | undefined): void {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
@@ -304,19 +308,21 @@ export class World {
             entity.drawDebugOverlay(ctx, viewX, viewY);
         }
 
-        this.drawDebugHud(ctx, camera, spectating);
+        this.drawDebugHud(ctx, camera, spectating, actualFps, targetFps);
     }
 
     /**
      * Draws a top-left HUD showing the camera's centre point and viewport
-     * size, plus the main entity's position and current speed, plus a
-     * spectator-mode indicator when active.
+     * size, plus the main entity's position and current speed, plus the
+     * current/target FPS, plus a spectator-mode indicator when active.
      *
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera to read position/viewport info from.
      * @param spectating - Whether spectator mode is currently active.
+     * @param actualFps - Currently measured rendering FPS.
+     * @param targetFps - Configured FPS cap, or `undefined` when uncapped.
      */
-    private drawDebugHud(ctx: CanvasRenderingContext2D, camera: Camera, spectating: boolean): void {
+    private drawDebugHud(ctx: CanvasRenderingContext2D, camera: Camera, spectating: boolean, actualFps: number, targetFps: number | undefined): void {
         const center = camera.getCenter();
         const position = this.mainEntity.getPosition();
         const velocity = this.mainEntity.getVelocity();
@@ -327,6 +333,7 @@ export class World {
             {text: `viewport: ${camera.getWidth()} x ${camera.getHeight()}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `entity: (${position.x.toFixed(1)}, ${position.y.toFixed(1)}), facing: ${this.mainEntity.getFacing()}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `velocity: (${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}), speed: ${speed.toFixed(1)} px/s`, color: DEBUG_CONFIG.hudTextColor},
+            {text: `FPS: ${actualFps.toFixed(0)}/${targetFps !== undefined ? targetFps.toFixed(0) : "uncapped"}`, color: DEBUG_CONFIG.hudTextColor},
         ];
         if (spectating) {
             lines.push({text: "SPECTATOR MODE", color: DEBUG_CONFIG.hudSpectatorColor});
