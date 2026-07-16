@@ -710,13 +710,13 @@ export class Popup {
     }
 
     /**
-     * Moves the cursor one step through {@link focusables},
-     * treating "nothing selected" (`null`) as one extra stop between the
-     * last element and the first.
+     * Moves the cursor one step through {@link focusables} in their sorted
+     * (top-down, left-to-right) order, treating "nothing selected" (`null`)
+     * as one extra stop between the last element and the first.
      *
      * @param delta - `1` to move to the next element, `-1` to move to the previous one.
      */
-    private moveCursor(delta: 1 | -1): void {
+    private moveCursorHorizontal(delta: 1 | -1): void {
         const stopCount = this.focusables.length + 1;
         const currentStop = this.cursor === null ? 0 : this.cursor + 1;
         const nextStop = (currentStop + delta + stopCount) % stopCount;
@@ -724,10 +724,64 @@ export class Popup {
     }
 
     /**
+     * Groups {@link focusables} (already sorted top-down, left-to-right)
+     * into rows sharing the same `y`, preserving left-to-right order within
+     * each row.
+     *
+     * @returns Every row of focusable elements, top to bottom.
+     */
+    private groupFocusablesByRow(): FocusableElement[][] {
+        const rows: FocusableElement[][] = [];
+        for (const focusable of this.focusables) {
+            const lastRow = rows[rows.length - 1];
+            if (lastRow && lastRow[0].rect.y === focusable.rect.y) {
+                lastRow.push(focusable);
+            } else {
+                rows.push([focusable]);
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * Moves the cursor to the next/previous row of {@link focusables} (by
+     * `y`), landing on whichever element in that row is horizontally
+     * closest to the currently focused one.
+     *
+     * @param delta - `1` to move to the next row down, `-1` to move to the previous row up.
+     */
+    private moveCursorVertical(delta: 1 | -1): void {
+        const rows = this.groupFocusablesByRow();
+        if (rows.length === 0) {
+            return;
+        }
+
+        const currentRect = this.cursor !== null ? this.focusables[this.cursor].rect : null;
+        const currentRowIndex = currentRect === null ? -1 : rows.findIndex((row) => row[0].rect.y === currentRect.y);
+
+        const stopCount = rows.length + 1;
+        const currentStop = currentRowIndex === -1 ? 0 : currentRowIndex + 1;
+        const nextStop = (currentStop + delta + stopCount) % stopCount;
+
+        if (nextStop === 0) {
+            this.cursor = null;
+            return;
+        }
+
+        const targetRow = rows[nextStop - 1];
+        const targetX = currentRect?.x ?? targetRow[0].rect.x;
+        const closest = targetRow.reduce((best, candidate) =>
+            Math.abs(candidate.rect.x - targetX) < Math.abs(best.rect.x - targetX) ? candidate : best);
+        this.cursor = this.focusables.indexOf(closest);
+    }
+
+    /**
      * While open, intercepts every key press before any other key-driven
      * controller sees it: a configured close key shuts the popup; otherwise
-     * `ArrowLeft`/`ArrowRight` move the cursor between {@link focusables}
-     * (buttons and input options alike), and `Enter`/`Space` activates
+     * `ArrowLeft`/`ArrowRight` move the cursor between {@link focusables} in
+     * their sorted order (buttons and input options alike), `ArrowUp`/
+     * `ArrowDown` move it to the closest element in the row above/below
+     * (see {@link moveCursorVertical}), and `Enter`/`Space` activates
      * whichever one the cursor is currently on (if any).
      *
      * @param event - The keyboard event.
@@ -747,9 +801,13 @@ export class Popup {
             return;
         }
         if (event.key === "ArrowLeft") {
-            this.moveCursor(-1);
+            this.moveCursorHorizontal(-1);
         } else if (event.key === "ArrowRight") {
-            this.moveCursor(1);
+            this.moveCursorHorizontal(1);
+        } else if (event.key === "ArrowUp") {
+            this.moveCursorVertical(-1);
+        } else if (event.key === "ArrowDown") {
+            this.moveCursorVertical(1);
         } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null) {
             this.focusables[this.cursor].activate();
         }
