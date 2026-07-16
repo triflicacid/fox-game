@@ -2,11 +2,15 @@ import {SpriteFrame} from "./sprites/sprite";
 import {FoxSpriteSheet} from "./sprites/fox";
 import {randomElement} from "./util";
 
-const canvas = document.getElementById("game") as HTMLCanvasElement;
-const ctx = canvas.getContext("2d")!;
-if (!ctx) {
-    throw new Error("Could not acquire 2D canvas context");
+function requireContext(context: CanvasRenderingContext2D | null): CanvasRenderingContext2D {
+    if (!context) {
+        throw new Error("Could not acquire 2D canvas context");
+    }
+    return context;
 }
+
+const canvas = document.getElementById("game") as HTMLCanvasElement;
+const ctx = requireContext(canvas.getContext("2d"));
 
 const WALK_FRAME_MS = 120;
 
