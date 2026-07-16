@@ -48,6 +48,10 @@ export class WorldController {
         this.settingsController = new SettingsController(
             () => this.movementController.getCameraFollowMode(),
             (mode) => this.movementController.setCameraFollowMode(mode),
+            () => this.movementController.isSpectating(),
+            (spectating) => this.movementController.setSpectating(spectating),
+            () => this.debugController.isEnabled(),
+            (enabled) => this.debugController.setEnabled(enabled),
         );
         this.popupSources = [this.helpController, this.settingsController];
         this.frameLoop = new FrameLoopController(this.onFrame, targetFps);

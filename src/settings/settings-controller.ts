@@ -17,10 +17,18 @@ export class SettingsController implements PopupSource {
     /**
      * @param getCameraFollowMode - Called on every {@link draw} to read the current camera follow mode.
      * @param setCameraFollowMode - Invoked when the user selects a different camera follow mode.
+     * @param getSpectating - Called on every {@link draw} to read whether spectator mode is on.
+     * @param setSpectating - Invoked when the user toggles the spectator mode checkbox.
+     * @param getDebugEnabled - Called on every {@link draw} to read whether debug mode is on.
+     * @param setDebugEnabled - Invoked when the user toggles the debug mode checkbox.
      */
     public constructor(
         private readonly getCameraFollowMode: () => CameraFollowMode | undefined,
         private readonly setCameraFollowMode: (mode: CameraFollowMode) => void,
+        private readonly getSpectating: () => boolean,
+        private readonly setSpectating: (spectating: boolean) => void,
+        private readonly getDebugEnabled: () => boolean,
+        private readonly setDebugEnabled: (enabled: boolean) => void,
     ) {
         window.addEventListener("keydown", this.handleKeyDown);
     }
@@ -61,8 +69,9 @@ export class SettingsController implements PopupSource {
     }
 
     /**
-     * Builds this popup's content: currently just the camera follow mode,
-     * as a radio choice between {@link CameraFollowMode}'s two values.
+     * Builds this popup's content: the camera follow mode as a radio choice
+     * between {@link CameraFollowMode}'s two values, plus a checkbox each
+     * for spectator mode and debug mode.
      *
      * @returns The lines to show in the settings popup.
      */
@@ -79,6 +88,12 @@ export class SettingsController implements PopupSource {
                         {key: "center", content: [{content: "Centre"}]},
                     ],
                 },
+            ],
+            [
+                {kind: "checkbox", checked: this.getSpectating(), onToggle: this.setSpectating, content: [{content: "Spectator mode"}]},
+            ],
+            [
+                {kind: "checkbox", checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: [{content: "Debug mode"}]},
             ],
         ];
     }

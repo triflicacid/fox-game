@@ -101,6 +101,18 @@ export class MovementController {
     }
 
     /**
+     * Sets spectator mode directly (e.g. from the settings checkbox), rather
+     * than toggling it. A no-op if already in the requested state.
+     *
+     * @param spectating - Whether spectator mode should be active.
+     */
+    public setSpectating(spectating: boolean): void {
+        if (spectating !== this.spectating) {
+            this.toggleSpectatorMode();
+        }
+    }
+
+    /**
      * The bound camera's current follow mode, or `undefined` if this
      * controller has no {@link CameraFollowOptions} (i.e. it's not
      * following any camera).
