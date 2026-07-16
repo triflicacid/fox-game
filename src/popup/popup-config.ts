@@ -43,6 +43,13 @@ export const POPUP_CONFIG = {
     /** Vertical gap between the last line of text and the button row, in canvas pixels. */
     buttonRowGap: 8,
 
+    /** Diameter of a radio input's marker circle, in canvas pixels. */
+    radioMarkerSize: 12,
+    /** Gap between a radio option's marker and its label, in canvas pixels. */
+    radioMarkerGap: 6,
+    /** Horizontal gap between consecutive options within a radio input, in canvas pixels. */
+    radioOptionGap: 16,
+
     /** Padding around the popup's content, in canvas pixels. */
     padding: 12,
 } as const;
