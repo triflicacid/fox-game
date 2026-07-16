@@ -103,6 +103,9 @@ export class SettingsController implements PopupSource {
                 {content: "Target FPS: "},
                 {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
             ],
+            [
+                {kind: "button", label: "GUESS WHAT", onClick: () => console.log("Hax"), highlightStyle: {background: 'red'}},
+            ],
         ];
     }
 

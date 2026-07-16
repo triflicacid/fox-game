@@ -100,11 +100,32 @@ export interface NumberInput {
 }
 
 /**
+ * Background/foreground colours to highlight a focused element with.
+ */
+export interface HighlightStyle {
+    background: string;
+    foreground: string;
+}
+
+/**
+ * A button input, clickable via Enter/Space.
+ */
+export interface ButtonInput {
+    kind: "button";
+    /** Text shown for the button, wrapped in `[...]` when drawn. */
+    label: string;
+    /** Invoked when the button is activated. */
+    onClick: () => void;
+    /** Background/foreground colours to highlight this button with while focused. Defaults to navy/white. */
+    highlightStyle?: Partial<HighlightStyle>;
+}
+
+/**
  * Every kind of interactive input a {@link PopupLine} can embed alongside
  * plain text. Add further input kinds to this union as they're introduced,
  * each with its own `kind` literal.
  */
-export type Input = RadioInput | CheckboxInput | NumberInput;
+export type Input = RadioInput | CheckboxInput | NumberInput | ButtonInput;
 
 /** A single item within a {@link PopupLine}: styled text, or an interactive input. */
 export type PopupLineItem = TextSegment | Input;
