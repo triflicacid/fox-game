@@ -174,6 +174,30 @@ export class MovementController {
     }
 
     /**
+     * In spectator mode, snaps {@link CameraFollowOptions.camera} straight
+     * to the bound entity's centre, in response to the `f` key. A no-op if
+     * there's no bound entity or camera.
+     */
+    private focusOnEntity(): void {
+        if (!this.cameraFollow || !this.entity) {
+            return;
+        }
+        this.cameraFollow.camera.setCenter(this.getEntityCenter(this.entity));
+    }
+
+    /**
+     * In spectator mode, snaps {@link CameraFollowOptions.camera} straight
+     * to the world origin, in response to the `o` key. A no-op if there's no
+     * bound camera.
+     */
+    private moveCameraToOrigin(): void {
+        if (!this.cameraFollow) {
+            return;
+        }
+        this.cameraFollow.camera.setCenter(Vector2d.ZERO);
+    }
+
+    /**
      * The world-space midpoint of an entity's current sprite, used as the
      * point the camera tracks (rather than the entity's top-left {@link
      * MovableEntity.getPosition}).
@@ -221,6 +245,14 @@ export class MovementController {
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
         if (event.key === "s" || event.key === "S") {
             this.toggleSpectatorMode();
+            return;
+        }
+        if (this.spectating && (event.key === "f" || event.key === "F")) {
+            this.focusOnEntity();
+            return;
+        }
+        if (this.spectating && (event.key === "o" || event.key === "O")) {
+            this.moveCameraToOrigin();
             return;
         }
 
