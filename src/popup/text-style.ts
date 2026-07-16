@@ -30,9 +30,9 @@ export interface TextStyle {
 }
 
 /**
- * A styled run of text - or, instead of text, a nested list of further
+ * A styled run of text or a nested list of further
  * segments, so a {@link PopupLine} can build up a tree of differently styled
- * runs rather than one flat string.
+ * runs.
  */
 export interface TextSegment {
     /** Literal text, or nested child segments. */

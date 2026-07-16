@@ -1,6 +1,7 @@
 import {KeyBinding} from "./key-binding";
 import {Popup} from "../popup/popup";
 import {PopupLine, TextFormat} from "../popup/text-style";
+import {COLORS} from "../popup/colors";
 
 /** Title shown atop the help popup. */
 const TITLE = "Keys";
@@ -66,7 +67,7 @@ export class HelpController {
         const sorted = [...bindings].sort((a, b) => a.key.localeCompare(b.key));
         const keyWidth = Math.max(...sorted.map((binding) => binding.key.length)) + KEY_DESCRIPTION_GAP;
         return sorted.map((binding) => [
-                {content: binding.key.padEnd(keyWidth), style: {foreground: '#ffea00', format: TextFormat.BOLD}},
+                {content: binding.key.padEnd(keyWidth), style: {foreground: COLORS.brightYellow, format: TextFormat.BOLD}},
                 {content: binding.description},
         ]);
     }
