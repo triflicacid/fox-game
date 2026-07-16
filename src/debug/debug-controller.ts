@@ -1,3 +1,5 @@
+import {KeyBinding} from "../help/key-binding";
+
 /** Toggles debug rendering mode on/off in response to the `d` key. */
 export class DebugController {
     private enabled = false;
@@ -13,6 +15,15 @@ export class DebugController {
      */
     public isEnabled(): boolean {
         return this.enabled;
+    }
+
+    /**
+     * This controller's key binding, for the help popup.
+     *
+     * @returns This controller's key bindings.
+     */
+    public getKeyBindings(): KeyBinding[] {
+        return [{key: "D", description: "Toggle debug overlay"}];
     }
 
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
