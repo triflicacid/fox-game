@@ -66,11 +66,26 @@ export interface RadioInput {
 }
 
 /**
- * Every kind of interactive input a {@link PopupLine} can embed alongside
- * plain text. Currently just {@link RadioInput} - add further input kinds to
- * this union as they're introduced, each with its own `kind` literal.
+ * A single checkbox, usable as an item within a {@link PopupLine} alongside
+ * plain {@link TextSegment}s. Toggling it invokes `onToggle` with its new
+ * checked state.
  */
-export type Input = RadioInput;
+export interface CheckboxInput {
+    kind: "checkbox";
+    /** Whether the checkbox is currently checked. */
+    checked: boolean;
+    /** Content shown as this checkbox's label. */
+    content: TextSegment[];
+    /** Invoked with the new checked state when the user toggles it. */
+    onToggle: (checked: boolean) => void;
+}
+
+/**
+ * Every kind of interactive input a {@link PopupLine} can embed alongside
+ * plain text. Add further input kinds to this union as they're introduced,
+ * each with its own `kind` literal.
+ */
+export type Input = RadioInput | CheckboxInput;
 
 /** A single item within a {@link PopupLine}: styled text, or an interactive input. */
 export type PopupLineItem = TextSegment | Input;

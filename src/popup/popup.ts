@@ -1,4 +1,4 @@
-import {Input, PopupLine, PopupLineItem, RadioInput, TextFormat, TextSegment, TextStyle} from "./text-style";
+import {CheckboxInput, Input, PopupLine, PopupLineItem, RadioInput, TextFormat, TextSegment, TextStyle} from "./text-style";
 import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
 import {POPUP_CONFIG} from "./popup-config";
 
@@ -67,11 +67,21 @@ interface ResolvedRadioElement {
     width: number;
 }
 
+/** A resolved, measured checkbox input within a line. */
+interface ResolvedCheckboxElement {
+    kind: "checkbox";
+    checked: boolean;
+    labelRuns: MeasuredRun[];
+    labelWidth: number;
+    onToggle: (checked: boolean) => void;
+    width: number;
+}
+
 /**
  * Every kind of resolved, measured input element a line can contain -
  * mirrors {@link Input}.
  */
-type ResolvedInputElement = ResolvedRadioElement;
+type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement;
 
 type ResolvedElement = ResolvedTextElement | ResolvedInputElement;
 
@@ -238,6 +248,21 @@ function resolveRadioElement(ctx: CanvasRenderingContext2D, item: RadioInput): {
     return {element: {kind: "radio", options, width}, maxFontSize};
 }
 
+/** Width a checkbox's box, box/label gap, and label together occupy. */
+function checkboxContentWidth(labelWidth: number): number {
+    return POPUP_CONFIG.checkboxSize + POPUP_CONFIG.checkboxGap + labelWidth;
+}
+
+/**
+ * Resolves and measures a {@link CheckboxInput}'s label.
+ */
+function resolveCheckboxElement(ctx: CanvasRenderingContext2D, item: CheckboxInput): {element: ResolvedCheckboxElement; maxFontSize: number} {
+    const runs = item.content.flatMap((segment) => flattenSegment(segment, BASE_STYLE));
+    const {measured, width: labelWidth, maxFontSize} = measureRuns(ctx, runs);
+    const width = checkboxContentWidth(labelWidth);
+    return {element: {kind: "checkbox", checked: item.checked, labelRuns: measured, labelWidth, onToggle: item.onToggle, width}, maxFontSize};
+}
+
 /**
  * Resolves and measures an {@link Input} into its {@link
  * ResolvedInputElement}, dispatching on `kind`. Add a case here (and a
@@ -249,6 +274,8 @@ function resolveInputElement(ctx: CanvasRenderingContext2D, item: Input): {eleme
     switch (item.kind) {
         case "radio":
             return resolveRadioElement(ctx, item);
+        case "checkbox":
+            return resolveCheckboxElement(ctx, item);
     }
 }
 
@@ -342,6 +369,25 @@ function drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 }
 
 /**
+ * Draws a classic Windows 98 "sunken" checkbox box at `(x, y)`.
+ */
+function drawCheckboxBox(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, checked: boolean): void {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x, y, size, size);
+    drawBevelEdge(ctx, x, y, size, size, POPUP_CONFIG.borderShadowColor, POPUP_CONFIG.borderHighlightColor);
+
+    if (checked) {
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + size * 0.2, y + size * 0.55);
+        ctx.lineTo(x + size * 0.42, y + size * 0.78);
+        ctx.lineTo(x + size * 0.82, y + size * 0.22);
+        ctx.stroke();
+    }
+}
+
+/**
  * Computes a resolved radio element's options' on-screen rects, walking
  * left-to-right from `x` exactly as {@link paintRadioElement} draws them.
  * Each option activates by invoking its own `onSelect` with its `key`.
@@ -396,6 +442,35 @@ function paintRadioElement(
     });
 }
 
+/** Computes a resolved checkbox element's on-screen rect. It activates by invoking `onToggle` with its flipped checked state. */
+function layoutCheckboxElement(element: ResolvedCheckboxElement, x: number, y: number, height: number): FocusableElement[] {
+    return [{rect: {x, y, w: element.width, h: height}, activate: () => element.onToggle(!element.checked)}];
+}
+
+/** Draws a resolved checkbox element's box plus label at `x`. */
+function paintCheckboxElement(
+    ctx: CanvasRenderingContext2D,
+    element: ResolvedCheckboxElement,
+    x: number,
+    y: number,
+    height: number,
+    focusedRect: Rect | null,
+): void {
+    const rect: Rect = {x, y, w: element.width, h: height};
+    const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+
+    if (focused) {
+        ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+
+    const boxY = y + (height - POPUP_CONFIG.checkboxSize) / 2;
+    drawCheckboxBox(ctx, x, boxY, POPUP_CONFIG.checkboxSize, element.checked);
+
+    const labelX = x + POPUP_CONFIG.checkboxSize + POPUP_CONFIG.checkboxGap;
+    drawRuns(ctx, element.labelRuns, labelX, y, height, focused ? POPUP_CONFIG.highlightTextColor : undefined);
+}
+
 /**
  * Computes a resolved input element's focusable rects, dispatching on
  * `kind`.
@@ -404,6 +479,8 @@ function layoutInputElement(element: ResolvedInputElement, x: number, y: number,
     switch (element.kind) {
         case "radio":
             return layoutRadioElement(element, x, y, height);
+        case "checkbox":
+            return layoutCheckboxElement(element, x, y, height);
     }
 }
 
@@ -421,6 +498,9 @@ function paintInputElement(
     switch (element.kind) {
         case "radio":
             paintRadioElement(ctx, element, x, y, height, focusedRect);
+            break;
+        case "checkbox":
+            paintCheckboxElement(ctx, element, x, y, height, focusedRect);
             break;
     }
 }

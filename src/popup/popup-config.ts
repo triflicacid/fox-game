@@ -50,6 +50,11 @@ export const POPUP_CONFIG = {
     /** Horizontal gap between consecutive options within a radio input, in canvas pixels. */
     radioOptionGap: 16,
 
+    /** Width/height of a checkbox input's box, in canvas pixels. */
+    checkboxSize: 12,
+    /** Gap between a checkbox's box and its label, in canvas pixels. */
+    checkboxGap: 6,
+
     /** Padding around the popup's content, in canvas pixels. */
     padding: 12,
 } as const;
