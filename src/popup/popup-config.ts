@@ -1,21 +1,32 @@
+import {COLORS} from "./colors";
+
 /**
  * Colours, fonts, and layout used by every {@link Popup}.
  */
 export const POPUP_CONFIG = {
     /** Colour of the dimming layer drawn behind the popup. */
     dimColor: "rgba(0, 0, 0, 0.4)",
-    /** Background colour of the popup itself. */
-    backgroundColor: "rgba(90, 90, 90, 0.95)",
+    /** Background colour of the popup itself - classic Windows 98 "button face" grey. */
+    backgroundColor: "#c0c0c0",
+
+    /** Outer bevel edge colour (top/left), the lightest tone. */
+    borderHighlightColor: "#ffffff",
+    /** Inner bevel edge colour (top/left). */
+    borderLightColor: "#dfdfdf",
+    /** Inner bevel edge colour (bottom/right). */
+    borderShadowColor: "#808080",
+    /** Outer bevel edge colour (bottom/right), the darkest tone. */
+    borderDarkShadowColor: "#000000",
 
     /** Text colour for the popup's title. */
-    titleColor: "#ffffff",
+    titleColor: "#000000",
     /** Font for the popup's title. */
     titleFont: "bold 16px monospace",
     /** Height reserved for the title above the lines of text, in canvas pixels. */
     titleHeight: 24,
 
     /** Default text colour for a line's segments and for buttons. */
-    textColor: "#ffffff",
+    textColor: "#000000",
     /** Default font family for a line's segments and for buttons. */
     fontFamily: "monospace",
     /** Default font size for a line's segments and for buttons, in canvas pixels. */
@@ -24,7 +35,9 @@ export const POPUP_CONFIG = {
     lineHeight: 20,
 
     /** Background colour drawn behind whichever button the cursor is on. */
-    highlightBackgroundColor: "#1a3d7c",
+    highlightBackgroundColor: COLORS.navy,
+    /** Text colour for whichever button the cursor is on. */
+    highlightTextColor: "#ffffff",
     /** Horizontal gap between buttons in the button row, in canvas pixels. */
     buttonGap: 16,
     /** Vertical gap between the last line of text and the button row, in canvas pixels. */
