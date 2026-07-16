@@ -18,6 +18,15 @@ export class DebugController {
     }
 
     /**
+     * Sets debug rendering mode.
+     *
+     * @param enabled - Whether debug rendering mode should be on.
+     */
+    public setEnabled(enabled: boolean): void {
+        this.enabled = enabled;
+    }
+
+    /**
      * This controller's key binding, for the help popup.
      *
      * @returns This controller's key bindings.

@@ -18,4 +18,5 @@ export const COLORS = {
     brightMagenta: "#ff55ff",
     brightCyan: "#55ffff",
     brightWhite: "#ffffff",
+    navy: "#000080",
 } as const;

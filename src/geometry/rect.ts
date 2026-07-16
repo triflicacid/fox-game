@@ -21,3 +21,9 @@ export interface Rect {
 export function pointInRect(x: number, y: number, rect: Rect): boolean {
     return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 }
+
+/** Whether two {@link Rect}s cover exactly the same area. */
+export function rectsEqual(a: Rect, b: Rect): boolean {
+    return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
