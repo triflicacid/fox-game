@@ -1,4 +1,4 @@
-import {CheckboxInput, Input, PopupLine, PopupLineItem, RadioInput, TextFormat, TextSegment, TextStyle} from "./text-style";
+import {CheckboxInput, Input, NumberInput, PopupLine, PopupLineItem, RadioInput, TextFormat, TextSegment, TextStyle} from "./text-style";
 import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
 import {POPUP_CONFIG} from "./popup-config";
 
@@ -77,11 +77,21 @@ interface ResolvedCheckboxElement {
     width: number;
 }
 
+/** A resolved, measured number input within a line. */
+interface ResolvedNumberElement {
+    kind: "number";
+    value: number;
+    step: number;
+    allowDecimal: boolean;
+    onChange: (value: number) => void;
+    width: number;
+}
+
 /**
  * Every kind of resolved, measured input element a line can contain -
  * mirrors {@link Input}.
  */
-type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement;
+type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement | ResolvedNumberElement;
 
 type ResolvedElement = ResolvedTextElement | ResolvedInputElement;
 
@@ -93,11 +103,23 @@ interface MeasuredLine {
 }
 
 /**
+ * Config to support editing for a {@link ResolvedNumberElement}.
+ */
+interface NumberEditHandle {
+    getValue: () => number;
+    step: number;
+    allowDecimal: boolean;
+    onChange: (value: number) => void;
+}
+
+/**
  * Anything a {@link Popup}'s keyboard cursor can land on and activate.
  */
 interface FocusableElement {
     rect: Rect;
     activate: () => void;
+    /** Present only for number-input focusables - see {@link Popup.handleNumberInputKey}. */
+    numberEdit?: NumberEditHandle;
 }
 
 /** Determines if `item` is an {@link Input} (any kind - they all carry a `kind` field). */
@@ -264,6 +286,23 @@ function resolveCheckboxElement(ctx: CanvasRenderingContext2D, item: CheckboxInp
 }
 
 /**
+ * Resolves a {@link NumberInput}.
+ */
+function resolveNumberElement(item: NumberInput): {element: ResolvedNumberElement; maxFontSize: number} {
+    return {
+        element: {
+            kind: "number",
+            value: item.value,
+            step: item.step ?? 1,
+            allowDecimal: item.allowDecimal ?? false,
+            onChange: item.onChange,
+            width: POPUP_CONFIG.numberInputWidth,
+        },
+        maxFontSize: POPUP_CONFIG.fontSize,
+    };
+}
+
+/**
  * Resolves and measures an {@link Input} into its {@link
  * ResolvedInputElement}, dispatching on `kind`. Add a case here (and a
  * matching `resolve*Element` function) for each new input kind - TypeScript
@@ -276,6 +315,8 @@ function resolveInputElement(ctx: CanvasRenderingContext2D, item: Input): {eleme
             return resolveRadioElement(ctx, item);
         case "checkbox":
             return resolveCheckboxElement(ctx, item);
+        case "number":
+            return resolveNumberElement(item);
     }
 }
 
@@ -369,12 +410,19 @@ function drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 }
 
 /**
+ * Draws a classic Windows 98 "sunken" box.
+ */
+function drawSunkenBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x, y, w, h);
+    drawBevelEdge(ctx, x, y, w, h, POPUP_CONFIG.borderShadowColor, POPUP_CONFIG.borderHighlightColor);
+}
+
+/**
  * Draws a classic Windows 98 "sunken" checkbox box at `(x, y)`.
  */
 function drawCheckboxBox(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, checked: boolean): void {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(x, y, size, size);
-    drawBevelEdge(ctx, x, y, size, size, POPUP_CONFIG.borderShadowColor, POPUP_CONFIG.borderHighlightColor);
+    drawSunkenBox(ctx, x, y, size, size);
 
     if (checked) {
         ctx.strokeStyle = "#000000";
@@ -472,6 +520,48 @@ function paintCheckboxElement(
 }
 
 /**
+ * Computes a resolved number element's on-screen rect.
+ */
+function layoutNumberElement(element: ResolvedNumberElement, x: number, y: number, height: number): FocusableElement[] {
+    return [{
+        rect: {x, y, w: element.width, h: height},
+        activate: () => undefined,
+        numberEdit: {getValue: () => element.value, step: element.step, allowDecimal: element.allowDecimal, onChange: element.onChange},
+    }];
+}
+
+/**
+ * Draws a resolved number element's box at `x`, showing `editText` in place
+ * of its committed value while it's focused and being actively typed into.
+ */
+function paintNumberElement(
+    ctx: CanvasRenderingContext2D,
+    element: ResolvedNumberElement,
+    x: number,
+    y: number,
+    height: number,
+    focusedRect: Rect | null,
+    editText: string | null,
+): void {
+    const rect: Rect = {x, y, w: element.width, h: height};
+    const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+
+    if (focused) {
+        ctx.fillStyle = POPUP_CONFIG.highlightBackgroundColor;
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+
+    const boxHeight = POPUP_CONFIG.lineHeight - 4;
+    const boxY = y + (height - boxHeight) / 2;
+    drawSunkenBox(ctx, x, boxY, element.width, boxHeight);
+
+    const text = focused && editText !== null ? editText : String(element.value);
+    ctx.font = BASE_FONT;
+    ctx.fillStyle = "#000000";
+    ctx.fillText(text, x + POPUP_CONFIG.numberInputPadding, y + (height - POPUP_CONFIG.fontSize) / 2);
+}
+
+/**
  * Computes a resolved input element's focusable rects, dispatching on
  * `kind`.
  */
@@ -481,11 +571,14 @@ function layoutInputElement(element: ResolvedInputElement, x: number, y: number,
             return layoutRadioElement(element, x, y, height);
         case "checkbox":
             return layoutCheckboxElement(element, x, y, height);
+        case "number":
+            return layoutNumberElement(element, x, y, height);
     }
 }
 
 /**
- * Draws a resolved input element, dispatching on `kind`.
+ * Draws a resolved input element, dispatching on `kind`. `editText` is only
+ * meaningful for (and only passed on to) a `"number"` element.
  */
 function paintInputElement(
     ctx: CanvasRenderingContext2D,
@@ -494,6 +587,7 @@ function paintInputElement(
     y: number,
     height: number,
     focusedRect: Rect | null,
+    editText: string | null,
 ): void {
     switch (element.kind) {
         case "radio":
@@ -501,6 +595,9 @@ function paintInputElement(
             break;
         case "checkbox":
             paintCheckboxElement(ctx, element, x, y, height, focusedRect);
+            break;
+        case "number":
+            paintNumberElement(ctx, element, x, y, height, focusedRect, editText);
             break;
     }
 }
@@ -531,13 +628,20 @@ function layoutLines(lineRows: MeasuredLine[], startX: number, startY: number): 
  * Draws a resolved line's elements left-to-right from `x`: plain text runs
  * as-is, inputs via {@link paintInputElement}.
  */
-function paintElements(ctx: CanvasRenderingContext2D, line: MeasuredLine, x: number, y: number, focusedRect: Rect | null): void {
+function paintElements(
+    ctx: CanvasRenderingContext2D,
+    line: MeasuredLine,
+    x: number,
+    y: number,
+    focusedRect: Rect | null,
+    editText: string | null,
+): void {
     let elemX = x;
     for (const element of line.elements) {
         if (element.kind === "text") {
             drawRuns(ctx, element.runs, elemX, y, line.height);
         } else {
-            paintInputElement(ctx, element, elemX, y, line.height, focusedRect);
+            paintInputElement(ctx, element, elemX, y, line.height, focusedRect, editText);
         }
         elemX += element.width;
     }
@@ -558,6 +662,11 @@ export class Popup {
     /** Every button and input option currently on screen, sorted top-down then left-to-right; rebuilt each {@link draw}. */
     private focusables: FocusableElement[] = [];
     private cursor: number | null = 0;
+    /**
+     * The in-progress typed text for whichever number input is focused, if
+     * any is currently being edited.
+     */
+    private numberEditBuffer: {cursor: number; text: string} | null = null;
     private readonly closeKeys: ReadonlySet<string>;
 
     /**
@@ -585,12 +694,15 @@ export class Popup {
     public show(): void {
         this.open = true;
         this.cursor = 0;
+        this.numberEditBuffer = null;
     }
 
     /**
-     * Closes this popup.
+     * Closes this popup, committing any in-progress number-input edit first
+     * so a typed value isn't lost.
      */
     public close(): void {
+        this.commitPendingNumberEdit();
         this.open = false;
     }
 
@@ -667,9 +779,10 @@ export class Popup {
         ].sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
 
         if (this.cursor !== null && this.cursor >= this.focusables.length) {
-            this.cursor = this.focusables.length > 0 ? this.focusables.length - 1 : null;
+            this.setCursor(this.focusables.length > 0 ? this.focusables.length - 1 : null);
         }
         const focusedRect = this.cursor !== null ? this.focusables[this.cursor].rect : null;
+        const editText = this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor ? this.numberEditBuffer.text : null;
 
         // Paint pass.
         ctx.fillStyle = POPUP_CONFIG.dimColor;
@@ -687,7 +800,7 @@ export class Popup {
 
         let lineY = linesStartY;
         for (const row of lineRows) {
-            paintElements(ctx, row, x + POPUP_CONFIG.padding, lineY, focusedRect);
+            paintElements(ctx, row, x + POPUP_CONFIG.padding, lineY, focusedRect, editText);
             lineY += row.height;
         }
 
@@ -720,7 +833,7 @@ export class Popup {
         const stopCount = this.focusables.length + 1;
         const currentStop = this.cursor === null ? 0 : this.cursor + 1;
         const nextStop = (currentStop + delta + stopCount) % stopCount;
-        this.cursor = nextStop === 0 ? null : nextStop - 1;
+        this.setCursor(nextStop === 0 ? null : nextStop - 1);
     }
 
     /**
@@ -764,7 +877,7 @@ export class Popup {
         const nextStop = (currentStop + delta + stopCount) % stopCount;
 
         if (nextStop === 0) {
-            this.cursor = null;
+            this.setCursor(null);
             return;
         }
 
@@ -772,12 +885,105 @@ export class Popup {
         const targetX = currentRect?.x ?? targetRow[0].rect.x;
         const closest = targetRow.reduce((best, candidate) =>
             Math.abs(candidate.rect.x - targetX) < Math.abs(best.rect.x - targetX) ? candidate : best);
-        this.cursor = this.focusables.indexOf(closest);
+        this.setCursor(this.focusables.indexOf(closest));
+    }
+
+    /**
+     * Changes the cursor, first committing any in-progress number-input
+     * edit belonging to the element being left.
+     *
+     * @param cursor - The new cursor value.
+     */
+    private setCursor(cursor: number | null): void {
+        if (cursor === this.cursor) {
+            return;
+        }
+        this.commitPendingNumberEdit();
+        this.cursor = cursor;
+    }
+
+    /**
+     * If {@link numberEditBuffer} holds an edit for the currently focused
+     * element, parses it and calls that number input's `onChange` with the
+     * result, then clears the buffer either way.
+     */
+    private commitPendingNumberEdit(): void {
+        const buffer = this.numberEditBuffer;
+        this.numberEditBuffer = null;
+        if (buffer === null || this.cursor === null || buffer.cursor !== this.cursor) {
+            return;
+        }
+        const numberEdit = this.focusables[this.cursor]?.numberEdit;
+        if (!numberEdit) {
+            return;
+        }
+        const parsed = parseFloat(buffer.text);
+        numberEdit.onChange(Number.isNaN(parsed) ? numberEdit.getValue() : parsed);
+    }
+
+    /**
+     * The focused number input's current value: the in-progress {@link
+     * numberEditBuffer}'s parsed value if it's mid-edit and parses cleanly,
+     * otherwise its last committed `value`.
+     *
+     * @param cursor - Index of the focused number input within {@link focusables}.
+     * @param numberEdit - The focused number input's edit handle.
+     * @returns Its current effective value.
+     */
+    private getEffectiveNumberValue(cursor: number, numberEdit: NumberEditHandle): number {
+        if (this.numberEditBuffer?.cursor === cursor) {
+            const parsed = parseFloat(this.numberEditBuffer.text);
+            if (!Number.isNaN(parsed)) {
+                return parsed;
+            }
+        }
+        return numberEdit.getValue();
+    }
+
+    /**
+     * Handles a key press while a number input is focused.
+     *
+     * Digits (and `.`, if `numberEdit.allowDecimal`) append to {@link
+     * numberEditBuffer} without touching `value`; `Backspace`
+     * removes the buffer's last character the same way. `ArrowUp`/
+     * `ArrowDown` commit, then step {@link getEffectiveNumberValue} by
+     * `numberEdit.step`. Every other key is ignored.
+     *
+     * @param cursor - Index of the focused number input within {@link focusables}.
+     * @param numberEdit - The focused number input's edit handle.
+     * @param event - The keyboard event.
+     */
+    private handleNumberInputKey(cursor: number, numberEdit: NumberEditHandle, event: KeyboardEvent): void {
+        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            const delta = event.key === "ArrowUp" ? numberEdit.step : -numberEdit.step;
+            const next = this.getEffectiveNumberValue(cursor, numberEdit) + delta;
+            this.numberEditBuffer = null;
+            numberEdit.onChange(next);
+            return;
+        }
+        if (event.key === "Enter") {
+            this.moveCursorHorizontal(1);
+            return;
+        }
+
+        const currentText = this.numberEditBuffer?.cursor === cursor ? this.numberEditBuffer.text : String(numberEdit.getValue());
+        let nextText: string;
+        if (event.key === "Backspace") {
+            nextText = currentText.slice(0, -1);
+        } else if (/^[0-9]$/.test(event.key)) {
+            nextText = currentText + event.key;
+        } else if (event.key === "." && numberEdit.allowDecimal && !currentText.includes(".")) {
+            nextText = currentText + event.key;
+        } else {
+            return;
+        }
+
+        this.numberEditBuffer = {cursor, text: nextText};
     }
 
     /**
      * While open, intercepts every key press before any other key-driven
-     * controller sees it: a configured close key shuts the popup; otherwise
+     * controller sees it: a configured close key shuts the popup.
      * `ArrowLeft`/`ArrowRight` move the cursor between {@link focusables} in
      * their sorted order (buttons and input options alike), `ArrowUp`/
      * `ArrowDown` move it to the closest element in the row above/below
@@ -800,6 +1006,15 @@ export class Popup {
         if (this.focusables.length === 0) {
             return;
         }
+
+        // if a field is being edited, route through there instead
+        const cursor = this.cursor;
+        const numberEdit = cursor !== null ? this.focusables[cursor].numberEdit : undefined;
+        if (cursor !== null && numberEdit && event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+            this.handleNumberInputKey(cursor, numberEdit, event);
+            return;
+        }
+
         if (event.key === "ArrowLeft") {
             this.moveCursorHorizontal(-1);
         } else if (event.key === "ArrowRight") {
@@ -845,7 +1060,7 @@ export class Popup {
         if (index === -1) {
             return;
         }
-        this.cursor = index;
+        this.setCursor(index);
         this.focusables[index].activate();
     };
 }
