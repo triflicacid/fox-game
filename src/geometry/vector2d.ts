@@ -65,4 +65,13 @@ export class Vector2d {
     public scale(factor: number): Vector2d {
         return new Vector2d(this.x * factor, this.y * factor);
     }
+
+    /**
+     * This vector's angle, in radians.
+     *
+     * @returns The angle, in radians.
+     */
+    public angleRadians(): number {
+        return Math.atan2(this.y, this.x);
+    }
 }

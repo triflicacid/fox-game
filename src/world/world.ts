@@ -271,7 +271,17 @@ export class World {
                 continue;
             }
 
-            ctx.drawImage(bitmap, position.x - viewX, position.y - viewY, frame.w, frame.h);
+            const x = position.x - viewX;
+            const y = position.y - viewY;
+            if (frame.rotation) {
+                ctx.save();
+                ctx.translate(x + frame.w / 2, y + frame.h / 2);
+                ctx.rotate(frame.rotation);
+                ctx.drawImage(bitmap, -frame.w / 2, -frame.h / 2, frame.w, frame.h);
+                ctx.restore();
+            } else {
+                ctx.drawImage(bitmap, x, y, frame.w, frame.h);
+            }
         }
     }
 
