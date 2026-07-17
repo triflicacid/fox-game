@@ -48,6 +48,9 @@ export class WorldController {
     /** The user's configured FPS cap, kept separate from whatever {@link frameLoop} is currently doing so the popup throttle doesn't clobber it. */
     private userTargetFps: number | undefined;
 
+    /** Name of the `NoiseField` currently rendered as a debug heatmap, or `undefined` for none. */
+    private noiseFieldName: string | undefined;
+
     /**
      * @param canvas - Canvas to render the world into.
      * @param targetFps - FPS to cap rendering at. Defaults to `undefined` (uncapped).
@@ -71,6 +74,9 @@ export class WorldController {
             (enabled) => this.debugController.setEnabled(enabled),
             () => this.getTargetFps() ?? WorldController.DEFAULT_TARGET_FPS,
             (fps) => this.setTargetFps(fps),
+            () => this.world.getNoiseFieldNames(),
+            () => this.noiseFieldName,
+            (name) => this.noiseFieldName = name,
             this.handlePopupOpenChange,
         );
         this.popupControllers = [this.helpController, this.settingsController];
@@ -190,14 +196,13 @@ export class WorldController {
             this.movementController.isSpectating(),
             this.frameLoop.getActualFps(),
             this.frameLoop.getTargetFps(),
+            this.noiseFieldName,
         );
     }
 
     /**
      * Every key binding in the game, gathered from every controller (and the
-     * main entity) that exposes one, for the help popup to list. Where
-     * multiple controllers bind the same key (e.g. `Esc` closing whichever
-     * popup is open), only the first one encountered is kept.
+     * main entity) that exposes one.
      */
     private getKeyBindings(): KeyBinding[] {
         const all = [
