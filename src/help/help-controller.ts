@@ -1,5 +1,6 @@
 import {KeyBinding} from "./key-binding";
-import {PopupLine, TextFormat} from "../popup/text-style";
+import {PopupLine} from "../popup/text-style";
+import {TextFormat} from "../display/text-style";
 import {COLORS} from "../popup/colors";
 import {PopupController} from "../popup/popup-controller";
 

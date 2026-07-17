@@ -1,8 +1,9 @@
 import {
     ButtonInput,
     CheckboxInput,
-    HighlightStyle, Input, NumberInput, PopupLine, PopupLineItem, RadioInput, SelectInput, TextFormat, TextSegment, TextStyle
+    HighlightStyle, Input, NumberInput, PopupLine, PopupLineItem, RadioInput, SelectInput
 } from "./text-style";
+import {Display, MeasuredRun} from "../display/display";
 import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
 import {POPUP_CONFIG} from "./popup-config";
 
@@ -19,31 +20,6 @@ export interface PopupOptions {
      * the game while it's open. `open` is `true` on open, `false` on close.
      */
     onOpenChange?: (open: boolean) => void;
-}
-
-/** A {@link TextStyle} with every field resolved to a concrete value. */
-interface ResolvedStyle {
-    foreground: string;
-    background: string | undefined;
-    fontFamily: string;
-    fontSize: number;
-    format: number;
-}
-
-/** A single flattened, styled run of text. */
-interface ResolvedRun {
-    text: string;
-    foreground: string;
-    background: string | undefined;
-    font: string;
-    fontSize: number;
-    underline: boolean;
-}
-
-/** A resolved, measured run within a line, alongside its measured width. */
-interface MeasuredRun {
-    run: ResolvedRun;
-    width: number;
 }
 
 /** A resolved, measured plain-text item within a line. */
@@ -178,17 +154,16 @@ function isInput(item: PopupLineItem): item is Input {
     return "kind" in item;
 }
 
-/** Style a top-level segment falls back to, built from {@link POPUP_CONFIG}. */
-const BASE_STYLE: ResolvedStyle = {
+/** Resolves/measures/draws every popup's text, styled per {@link POPUP_CONFIG}. */
+const display = new Display({
     foreground: POPUP_CONFIG.textColor,
-    background: undefined,
     fontFamily: POPUP_CONFIG.fontFamily,
     fontSize: POPUP_CONFIG.fontSize,
-    format: TextFormat.NONE,
-};
+    lineHeight: POPUP_CONFIG.lineHeight,
+});
 
-/** {@link BASE_STYLE} as a canvas font string, for the title and for buttons. */
-const BASE_FONT = `${BASE_STYLE.fontSize}px ${BASE_STYLE.fontFamily}`;
+/** Plain (unstyled) canvas font string matching {@link POPUP_CONFIG}'s defaults, for the title and for buttons. */
+const BASE_FONT = `${POPUP_CONFIG.fontSize}px ${POPUP_CONFIG.fontFamily}`;
 
 /** Thickness of the Windows-98-style border drawn by {@link drawWin98Border}, in canvas pixels. */
 const BORDER_WIDTH = 2;
@@ -224,77 +199,6 @@ function drawWin98Border(ctx: CanvasRenderingContext2D, x: number, y: number, w:
     drawBevelEdge(ctx, x + 1, y + 1, w - 2, h - 2, POPUP_CONFIG.borderLightColor, POPUP_CONFIG.borderShadowColor);
 }
 
-/**
- * Resolves `style` against `inherited`, falling back to `inherited`'s fields
- * for whichever ones `style` leaves unset.
- */
-function resolveStyle(style: TextStyle | undefined, inherited: ResolvedStyle): ResolvedStyle {
-    return {
-        foreground: style?.foreground ?? inherited.foreground,
-        background: style?.background ?? inherited.background,
-        fontFamily: style?.fontFamily ?? inherited.fontFamily,
-        fontSize: style?.fontSize ?? inherited.fontSize,
-        format: style?.format ?? inherited.format,
-    };
-}
-
-/**
- * Applies `format`'s `UPPERCASE`/`LOWERCASE` flags to `text`, if set.
- * `UPPERCASE` wins if both are set.
- */
-function applyCase(text: string, format: number): string {
-    if (format & TextFormat.UPPERCASE) {
-        return text.toUpperCase();
-    }
-    if (format & TextFormat.LOWERCASE) {
-        return text.toLowerCase();
-    }
-    return text;
-}
-
-/** Builds the canvas font string for a resolved style's family/size/bold/italic. */
-function buildFont(style: ResolvedStyle): string {
-    const italic = style.format & TextFormat.ITALIC ? "italic " : "";
-    const bold = style.format & TextFormat.BOLD ? "bold " : "";
-    return `${italic}${bold}${style.fontSize}px ${style.fontFamily}`;
-}
-
-/**
- * Recursively flattens `segment` into {@link ResolvedRun}s, resolving each
- * one's style against whatever it inherits from its parent.
- */
-function flattenSegment(segment: TextSegment, inherited: ResolvedStyle): ResolvedRun[] {
-    const style = resolveStyle(segment.style, inherited);
-    if (typeof segment.content === "string") {
-        return [{
-            text: applyCase(segment.content, style.format),
-            foreground: style.foreground,
-            background: style.background,
-            font: buildFont(style),
-            fontSize: style.fontSize,
-            underline: (style.format & TextFormat.UNDERLINE) !== 0,
-        }];
-    }
-    return segment.content.flatMap((child) => flattenSegment(child, style));
-}
-
-/**
- * Measures each of `runs`' widths (setting `ctx.font` per run first, since
- * they may each use a different font).
- */
-function measureRuns(ctx: CanvasRenderingContext2D, runs: ResolvedRun[]): {measured: MeasuredRun[]; width: number; maxFontSize: number} {
-    let width = 0;
-    let maxFontSize = 0;
-    const measured = runs.map((run) => {
-        ctx.font = run.font;
-        const runWidth = ctx.measureText(run.text).width;
-        width += runWidth;
-        maxFontSize = Math.max(maxFontSize, run.fontSize);
-        return {run, width: runWidth};
-    });
-    return {measured, width, maxFontSize};
-}
-
 /** Width a radio option's marker, marker/label gap, and label together occupy - excludes any gap to a sibling option. */
 function radioOptionContentWidth(labelWidth: number): number {
     return POPUP_CONFIG.radioMarkerSize + POPUP_CONFIG.radioMarkerGap + labelWidth;
@@ -310,8 +214,7 @@ function resolveRadioElement(ctx: CanvasRenderingContext2D, item: RadioInput): {
     let width = 0;
     let maxFontSize = 0;
     const options: ResolvedRadioOption[] = item.options.map((option, i) => {
-        const runs = option.content.flatMap((segment) => flattenSegment(segment, BASE_STYLE));
-        const {measured, width: labelWidth, maxFontSize: labelFontSize} = measureRuns(ctx, runs);
+        const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = display.resolveLine(ctx, option.content);
         maxFontSize = Math.max(maxFontSize, labelFontSize);
 
         width += (i > 0 ? POPUP_CONFIG.radioOptionGap : 0) + radioOptionContentWidth(labelWidth);
@@ -337,8 +240,7 @@ function checkboxContentWidth(labelWidth: number): number {
  * Resolves and measures a {@link CheckboxInput}'s label.
  */
 function resolveCheckboxElement(ctx: CanvasRenderingContext2D, item: CheckboxInput): {element: ResolvedCheckboxElement; maxFontSize: number} {
-    const runs = item.content.flatMap((segment) => flattenSegment(segment, BASE_STYLE));
-    const {measured, width: labelWidth, maxFontSize} = measureRuns(ctx, runs);
+    const {runs: measured, width: labelWidth, maxFontSize} = display.resolveLine(ctx, item.content);
     const width = checkboxContentWidth(labelWidth);
     return {
         element: {
@@ -379,8 +281,7 @@ function resolveSelectElement(ctx: CanvasRenderingContext2D, item: SelectInput):
     let maxLabelWidth = 0;
     let maxFontSize = 0;
     const options: ResolvedSelectOption[] = item.options.map((option) => {
-        const runs = option.content.flatMap((segment) => flattenSegment(segment, BASE_STYLE));
-        const {measured, width: labelWidth, maxFontSize: labelFontSize} = measureRuns(ctx, runs);
+        const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = display.resolveLine(ctx, option.content);
         maxFontSize = Math.max(maxFontSize, labelFontSize);
         maxLabelWidth = Math.max(maxLabelWidth, labelWidth);
         return {
@@ -473,43 +374,13 @@ function resolveLine(ctx: CanvasRenderingContext2D, line: PopupLine): MeasuredLi
             return element;
         }
 
-        const runs = flattenSegment(item, BASE_STYLE);
-        const {measured, width: textWidth, maxFontSize: textFontSize} = measureRuns(ctx, runs);
+        const {runs: measured, width: textWidth, maxFontSize: textFontSize} = display.resolveLine(ctx, [item]);
         maxFontSize = Math.max(maxFontSize, textFontSize);
         width += textWidth;
         return {kind: "text", runs: measured, width: textWidth};
     });
 
-    return {elements, width, height: Math.max(POPUP_CONFIG.lineHeight, maxFontSize + 6)};
-}
-
-/**
- * Draws a run of measured text left-to-right from `x`, each run with its own
- * styles applied - except `colorOverride`, if given, replaces every run's
- * own foreground colour (used to draw a focused input option's label in
- * {@link POPUP_CONFIG.highlightTextColor}).
- */
-function drawRuns(ctx: CanvasRenderingContext2D, runs: MeasuredRun[], x: number, y: number, height: number, colorOverride?: string): void {
-    let runX = x;
-    for (const {run, width} of runs) {
-        ctx.font = run.font;
-        if (run.background) {
-            ctx.fillStyle = run.background;
-            ctx.fillRect(runX, y - height / 4, width, height);
-        }
-        ctx.fillStyle = colorOverride ?? run.foreground;
-        ctx.fillText(run.text, runX, y);
-        if (run.underline) {
-            const underlineY = y + run.fontSize + 2;
-            ctx.strokeStyle = run.foreground;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(runX, underlineY);
-            ctx.lineTo(runX + width, underlineY);
-            ctx.stroke();
-        }
-        runX += width;
-    }
+    return {elements, width, height: display.lineHeightFor(maxFontSize)};
 }
 
 /**
@@ -619,7 +490,7 @@ function paintRadioElement(
         drawRadioMarker(ctx, elemX + markerRadius, y + POPUP_CONFIG.fontSize / 2, markerRadius, option.selected);
 
         const labelX = elemX + POPUP_CONFIG.radioMarkerSize + POPUP_CONFIG.radioMarkerGap;
-        drawRuns(ctx, option.labelRuns, labelX, y, height, focused ? option.highlightStyle.foreground : undefined);
+        display.drawLine(ctx, option.labelRuns, labelX, y, height, focused ? option.highlightStyle.foreground : undefined);
 
         elemX += optionWidth;
     });
@@ -651,7 +522,7 @@ function paintCheckboxElement(
     drawCheckboxBox(ctx, x, boxY, POPUP_CONFIG.checkboxSize, element.checked);
 
     const labelX = x + POPUP_CONFIG.checkboxSize + POPUP_CONFIG.checkboxGap;
-    drawRuns(ctx, element.labelRuns, labelX, y, height, focused ? element.highlightStyle.foreground : undefined);
+    display.drawLine(ctx, element.labelRuns, labelX, y, height, focused ? element.highlightStyle.foreground : undefined);
 }
 
 /**
@@ -812,7 +683,7 @@ function paintSelectElement(
 
     const selected = element.options[element.selectedIndex];
     if (selected) {
-        drawRuns(ctx, selected.labelRuns, x + POPUP_CONFIG.selectPadding, y, height);
+        display.drawLine(ctx, selected.labelRuns, x + POPUP_CONFIG.selectPadding, y, height);
     }
 
     drawSelectArrowButton(ctx, x + textBoxWidth, boxY, arrowWidth, boxHeight, open);
@@ -849,7 +720,7 @@ function paintSelectDropdown(
         }
 
         const textY = rowRect.y + (rowHeight - POPUP_CONFIG.fontSize) / 2;
-        drawRuns(ctx, option.labelRuns, rowRect.x + POPUP_CONFIG.selectPadding, textY, rowHeight, highlighted ? option.highlightStyle.foreground : undefined);
+        display.drawLine(ctx, option.labelRuns, rowRect.x + POPUP_CONFIG.selectPadding, textY, rowHeight, highlighted ? option.highlightStyle.foreground : undefined);
         return rowRect;
     });
 }
@@ -946,7 +817,7 @@ function paintElements(
     let elemX = x;
     for (const element of line.elements) {
         if (element.kind === "text") {
-            drawRuns(ctx, element.runs, elemX, y, line.height);
+            display.drawLine(ctx, element.runs, elemX, y, line.height);
         } else {
             paintInputElement(ctx, element, elemX, y, line.height, focusedRect, editText, openRect);
         }
