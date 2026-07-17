@@ -82,6 +82,29 @@ export interface RadioInput extends InputBase {
     onSelect: (key: string) => void;
 }
 
+/** A single selectable option within a {@link SelectInput}. */
+export interface SelectOption {
+    /** Uniquely identifies this option; passed to the owning {@link SelectInput}'s `onSelect`. */
+    key: string;
+    /** Content shown as this option's label. */
+    content: TextSegment[];
+    /** Background/foreground colours to highlight this option's row with while highlighted in the open dropdown. Defaults to the owning {@link SelectInput}'s `highlightStyle`, then navy/white. */
+    highlightStyle?: Partial<HighlightStyle>;
+}
+
+/**
+ * A Windows-98-style dropdown.
+ */
+export interface SelectInput extends InputBase {
+    kind: "select";
+    /** The options to choose between. */
+    options: SelectOption[];
+    /** `key` of the currently selected option. */
+    selected: string;
+    /** Invoked with an option's `key` when the user commits a selection. */
+    onSelect: (key: string) => void;
+}
+
 /**
  * A single checkbox. Toggling it invokes `onToggle` with its new
  * checked state.
@@ -128,7 +151,7 @@ export interface ButtonInput extends InputBase {
  * plain text. Add further input kinds to this union as they're introduced,
  * each with its own `kind` literal.
  */
-export type Input = RadioInput | CheckboxInput | NumberInput | ButtonInput;
+export type Input = RadioInput | CheckboxInput | NumberInput | ButtonInput | SelectInput;
 
 /** A single item within a {@link PopupLine}: styled text, or an interactive input. */
 export type PopupLineItem = TextSegment | Input;

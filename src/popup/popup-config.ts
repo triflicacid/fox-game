@@ -60,6 +60,11 @@ export const POPUP_CONFIG = {
     /** Horizontal padding inside a number input's box, in canvas pixels. */
     numberInputPadding: 4,
 
+    /** Horizontal padding inside a select input's box and dropdown rows, in canvas pixels. */
+    selectPadding: 4,
+    /** Width of a select input's dropdown-arrow button, in canvas pixels. */
+    selectArrowWidth: 18,
+
     /** Padding around the popup's content, in canvas pixels. */
     padding: 12,
 } as const;
