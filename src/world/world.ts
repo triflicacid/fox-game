@@ -135,6 +135,46 @@ export class World {
     }
 
     /**
+     * The most common feature label (`tile.feature?.name`, or `"none"` for
+     * no feature) among every tile touched by the given pixel rectangle -
+     * meant to be called with a sprite's full drawn rectangle
+     * (`SpriteFrame.w`/`h`), not its (typically smaller) collision `bounds`
+     * polygon, so it reflects what ground the sprite is visually standing
+     * on rather than only what its hitbox overlaps.
+     *
+     * @param x - Left edge of the rectangle, in world pixels.
+     * @param y - Top edge of the rectangle, in world pixels.
+     * @param w - Rectangle width, in world pixels.
+     * @param h - Rectangle height, in world pixels.
+     * @returns The most-represented feature label among the tiles the rectangle overlaps, breaking ties in favour of whichever qualifying label is encountered first (reading tiles left-to-right, top-to-bottom).
+     */
+    public getDominantFeatureLabel(x: number, y: number, w: number, h: number): string {
+        const startTileX = Math.floor(x / this.tileSize);
+        const startTileY = Math.floor(y / this.tileSize);
+        const endTileX = Math.floor((x + w - 1) / this.tileSize);
+        const endTileY = Math.floor((y + h - 1) / this.tileSize);
+
+        const counts = new Map<string, number>();
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                const label = this.getTile(tileX, tileY).feature?.name;
+                if (label)
+                    counts.set(label, (counts.get(label) ?? 0) + 1);
+            }
+        }
+
+        let dominantLabel = "none";
+        let dominantCount = 0;
+        for (const [label, count] of counts) {
+            if (count > dominantCount) {
+                dominantLabel = label;
+                dominantCount = count;
+            }
+        }
+        return dominantLabel;
+    }
+
+    /**
      * Every entity currently in the world. Just the fox for now.
      *
      * @returns The world's entities.
@@ -324,11 +364,20 @@ export class World {
         const position = this.mainEntity.getPosition();
         const velocity = this.mainEntity.getVelocity();
         const speed = Math.hypot(velocity.x, velocity.y);
+        const tileX = Math.floor(position.x / this.tileSize);
+        const tileY = Math.floor(position.y / this.tileSize);
+        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
+        const chunkBiome = this.getChunk(chunkX, chunkY).biome;
+        const exactFeature = this.getTile(tileX, tileY).feature?.name ?? "none";
+        const frame = this.mainEntity.getCurrentFrame();
+        const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);
 
         const lines: {text: string; color: string}[] = [
             {text: `camera: (${center.x.toFixed(1)}, ${center.y.toFixed(1)})`, color: DEBUG_CONFIG.hudTextColor},
             {text: `viewport: ${camera.getWidth()} x ${camera.getHeight()}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `entity: (${position.x.toFixed(1)}, ${position.y.toFixed(1)}), facing: ${this.mainEntity.getFacing()}`, color: DEBUG_CONFIG.hudTextColor},
+            {text: `chunk (${chunkX}, ${chunkY}), ${chunkBiome}`, color: DEBUG_CONFIG.hudTextColor},
+            {text: `feature: exact=${exactFeature}, nearby=${nearbyFeature}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `velocity: (${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}), speed: ${speed.toFixed(1)} px/s`, color: DEBUG_CONFIG.hudTextColor},
             {text: `FPS: ${actualFps.toFixed(2)}/${targetFps !== undefined ? targetFps.toFixed(0) : "uncapped"}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `seed: ${this.worldSeed}`, color: DEBUG_CONFIG.hudTextColor},

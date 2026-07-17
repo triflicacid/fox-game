@@ -16,7 +16,7 @@ import {PopupController} from "./popup/popup-controller";
  */
 export class WorldController {
     /** Width/height of a single tile, in canvas pixels. */
-    private static readonly TILE_SIZE = 32;
+    private static readonly TILE_SIZE = 8;
 
     /** Value the settings popup's target-FPS field shows when uncapped (i.e. {@link getTargetFps} returns `undefined`). */
     private static readonly DEFAULT_TARGET_FPS = 60;
