@@ -1,11 +1,7 @@
 import {KeyBinding} from "./key-binding";
-import {Popup} from "../popup/popup";
 import {PopupLine, TextFormat} from "../popup/text-style";
 import {COLORS} from "../popup/colors";
-import {PopupSource} from "../popup/popup-source";
-
-/** Title shown atop the help popup. */
-const TITLE = "Keys";
+import {PopupController} from "../popup/popup-controller";
 
 /** Gap, in characters, between a key's label and its description. */
 const KEY_DESCRIPTION_GAP = 2;
@@ -14,9 +10,7 @@ const KEY_DESCRIPTION_GAP = 2;
  * Shows the game's key bindings in a {@link Popup}, opened with `?` and
  * closed with `Esc` or `?` again (or by selecting its `Close` button).
  */
-export class HelpController implements PopupSource {
-    private readonly popup: Popup;
-
+export class HelpController extends PopupController {
     /**
      * @param getBindings - Called on every {@link draw} to fetch every key
      * binding currently in effect across the game, since this controller
@@ -24,17 +18,7 @@ export class HelpController implements PopupSource {
      * @param onOpenChange - Called whenever this popup opens or closes.
      */
     public constructor(private readonly getBindings: () => KeyBinding[], onOpenChange: (open: boolean) => void) {
-        this.popup = new Popup({closeKeys: ["Escape", "?"], onOpenChange});
-        window.addEventListener("keydown", this.handleKeyDown);
-    }
-
-    /**
-     * Whether the help popup is currently shown.
-     *
-     * @returns `true` if the popup is open.
-     */
-    public isOpen(): boolean {
-        return this.popup.isOpen();
+        super("Keyboard Controls", "?", {closeKeys: ["Escape", "?"], onOpenChange});
     }
 
     /**
@@ -50,28 +34,13 @@ export class HelpController implements PopupSource {
     }
 
     /**
-     * Paints the dimming layer behind the help popup. A no-op if it isn't open.
+     * Builds this popup's content, formatting {@link getBindings} into
+     * aligned lines.
      *
-     * @param ctx - Canvas context to draw into.
-     * @param canvasWidth - Canvas width, in canvas pixels.
-     * @param canvasHeight - Canvas height, in canvas pixels.
+     * @returns The lines to show in the help popup.
      */
-    public drawOverlay(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
-        this.popup.drawOverlay(ctx, canvasWidth, canvasHeight);
-    }
-
-    /**
-     * Draws the help popup, refreshing its content from {@link getBindings} first.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param canvasWidth - Canvas width, in canvas pixels.
-     * @param canvasHeight - Canvas height, in canvas pixels.
-     */
-    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
-        this.popup.setContent(TITLE, this.formatLines(this.getBindings()), [
-            {kind: "button", label: "Close", onClick: () => this.popup.close()},
-        ]);
-        this.popup.draw(ctx, canvasWidth, canvasHeight);
+    protected buildContent(): PopupLine[] {
+        return this.formatLines(this.getBindings());
     }
 
     /**
@@ -89,10 +58,4 @@ export class HelpController implements PopupSource {
                 {content: binding.description},
         ]);
     }
-
-    private readonly handleKeyDown = (event: KeyboardEvent): void => {
-        if (event.key === "?") {
-            this.popup.show();
-        }
-    };
 }

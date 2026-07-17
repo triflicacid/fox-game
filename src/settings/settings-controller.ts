@@ -1,19 +1,13 @@
-import {Popup} from "../popup/popup";
 import {PopupLine} from "../popup/text-style";
 import {KeyBinding} from "../help/key-binding";
-import {PopupSource} from "../popup/popup-source";
+import {PopupController} from "../popup/popup-controller";
 import {CameraFollowMode} from "../entities/movement-controller";
-
-/** Title shown atop the settings popup. */
-const TITLE = "Settings";
 
 /**
  * Shows the game's settings in a {@link Popup}, opened with `#` and closed
  * with `Esc` or `#` again (or by selecting its `Close` button).
  */
-export class SettingsController implements PopupSource {
-    private readonly popup: Popup;
-
+export class SettingsController extends PopupController {
     /**
      * @param getCameraFollowMode - Called on every {@link draw} to read the current camera follow mode.
      * @param setCameraFollowMode - Invoked when the user selects a different camera follow mode.
@@ -36,17 +30,7 @@ export class SettingsController implements PopupSource {
         private readonly setTargetFps: (fps: number) => void,
         onOpenChange: (open: boolean) => void,
     ) {
-        this.popup = new Popup({closeKeys: ["Escape", "#"], onOpenChange});
-        window.addEventListener("keydown", this.handleKeyDown);
-    }
-
-    /**
-     * Whether the settings popup is currently shown.
-     *
-     * @returns `true` if the popup is open.
-     */
-    public isOpen(): boolean {
-        return this.popup.isOpen();
+        super("Settings", "#", {closeKeys: ["Escape", "#"], onOpenChange});
     }
 
     /**
@@ -62,38 +46,13 @@ export class SettingsController implements PopupSource {
     }
 
     /**
-     * Paints the dimming layer behind the settings popup. A no-op if it isn't open.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param canvasWidth - Canvas width, in canvas pixels.
-     * @param canvasHeight - Canvas height, in canvas pixels.
-     */
-    public drawOverlay(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
-        this.popup.drawOverlay(ctx, canvasWidth, canvasHeight);
-    }
-
-    /**
-     * Draws the settings popup, refreshing its content from {@link getCameraFollowMode} first.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param canvasWidth - Canvas width, in canvas pixels.
-     * @param canvasHeight - Canvas height, in canvas pixels.
-     */
-    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
-        this.popup.setContent(TITLE, this.buildContent(), [
-            {kind: "button", label: "Close", onClick: () => this.popup.close()},
-        ]);
-        this.popup.draw(ctx, canvasWidth, canvasHeight);
-    }
-
-    /**
      * Builds this popup's content: the camera follow mode as a radio choice
      * between {@link CameraFollowMode}'s two values, a checkbox each for
      * spectator mode and debug mode, and a number field for the target FPS.
      *
      * @returns The lines to show in the settings popup.
      */
-    private buildContent(): PopupLine[] {
+    protected buildContent(): PopupLine[] {
         return [
             [
                 {content: "Camera follow mode: "},
@@ -119,10 +78,4 @@ export class SettingsController implements PopupSource {
             ],
         ];
     }
-
-    private readonly handleKeyDown = (event: KeyboardEvent): void => {
-        if (event.key === "#") {
-            this.popup.show();
-        }
-    };
 }
