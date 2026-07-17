@@ -17,11 +17,6 @@ export const DEBUG_CONFIG = {
     /** Padding between a chunk's top-left corner and its coordinate label, in canvas pixels. */
     chunkLabelPadding: 4,
 
-    /** Stroke colour for tile outlines. */
-    tileOutlineColor: "#00ff00",
-    /** Stroke width for tile outlines, in canvas pixels. */
-    tileOutlineWidth: 1,
-
     /** Stroke colour for entity bounding boxes. */
     boundingBoxColor: "#3399ff",
     /** Stroke width for entity bounding boxes, in canvas pixels. */
