@@ -1,18 +1,30 @@
 import {DEBUG_CONFIG} from "../debug/debug-config";
+import {BackgroundTileType} from "../sprites/BackgroundTileSpriteSheet";
+import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
 
 /**
- * A single square tile within a {@link Chunk}. Currently just a flat-coloured
- * square; this will later carry terrain/biome data instead of a raw colour.
+ * A single square tile within a {@link Chunk}. Renders whichever ground
+ * bitmap {@link groundType} resolves to in the shared background-tile sheet.
  */
 export class Tile {
+    private bitmap: ImageBitmap | null = null;
+
     /**
-     * @param color - CSS colour string this tile is filled with.
+     * @param groundType - Which ground sprite this tile renders.
+     * @param spriteSheets - Shared sprite sheets to resolve `groundType`'s bitmap from.
      */
-    public constructor(public readonly color: string) {
+    public constructor(
+        public readonly groundType: BackgroundTileType,
+        spriteSheets: ChunkSpriteSheets,
+    ) {
+        void spriteSheets.backgroundTile.getTileBitmap(groundType).then((bitmap) => {
+            this.bitmap = bitmap;
+        });
     }
 
     /**
-     * Draws this tile as a filled square.
+     * Draws this tile's ground bitmap. Draws nothing on the handful of
+     * frames before the sheet's image has finished loading.
      *
      * @param ctx - Canvas context to draw into.
      * @param x - Left edge of the tile, in canvas pixels.
@@ -20,8 +32,10 @@ export class Tile {
      * @param size - Width/height of the tile, in canvas pixels.
      */
     public draw(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(x, y, size, size);
+        if (!this.bitmap) {
+            return;
+        }
+        ctx.drawImage(this.bitmap, x, y, size, size);
     }
 
     /**

@@ -1,10 +1,11 @@
-import {Chunk, CHUNK_SIZE} from "./chunk";
+import {Chunk, ChunkSpriteSheets, CHUNK_SIZE} from "./chunk";
 import {Tile} from "./tile";
 import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
 import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
 import {DEBUG_CONFIG} from "../debug/debug-config";
+import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -32,6 +33,9 @@ export class World {
 
     private readonly chunks = new Map<string, Chunk>();
     private readonly entities: Entity[] = [];
+    private readonly chunkSpriteSheets: ChunkSpriteSheets = {
+        backgroundTile: new BackgroundTileSpriteSheet(),
+    };
     private mainEntity: MovableEntity;
 
     /**
@@ -80,7 +84,7 @@ export class World {
         const key = World.chunkKey(chunkX, chunkY);
         let chunk = this.chunks.get(key);
         if (!chunk) {
-            chunk = new Chunk(chunkX, chunkY);
+            chunk = new Chunk(chunkX, chunkY, this.chunkSpriteSheets);
             this.chunks.set(key, chunk);
         }
         return chunk;
