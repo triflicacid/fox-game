@@ -9,7 +9,7 @@ import {requireNonNull} from "./util";
 import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
 import {SettingsController} from "./settings/settings-controller";
-import {PopupSource} from "./popup/popup-source";
+import {PopupController} from "./popup/popup-controller";
 
 /**
  * Owns everything needed to run the game against a canvas.
@@ -32,13 +32,13 @@ export class WorldController {
     private readonly debugController: DebugController;
     private readonly helpController: HelpController;
     private readonly settingsController: SettingsController;
-    private readonly popupSources: PopupSource[];
+    private readonly popupControllers: PopupController[];
     private readonly frameLoop: FrameLoopController;
 
     private lastTickTime = 0;
 
     /** Whichever popup source is currently open, or `null` if none is. While set, the world is paused and the render loop is throttled. */
-    private activePopupSource: PopupSource | null = null;
+    private activePopupController: PopupController | null = null;
 
     /**
      * A copy of the canvas taken the moment a popup opened.
@@ -73,7 +73,7 @@ export class WorldController {
             (fps) => this.setTargetFps(fps),
             this.handlePopupOpenChange,
         );
-        this.popupSources = [this.helpController, this.settingsController];
+        this.popupControllers = [this.helpController, this.settingsController];
         this.userTargetFps = targetFps;
         this.frameLoop = new FrameLoopController(this.onFrame, targetFps);
 
@@ -111,7 +111,7 @@ export class WorldController {
      */
     public setTargetFps(fps: number | undefined): void {
         this.userTargetFps = fps;
-        if (!this.activePopupSource) {
+        if (!this.activePopupController) {
             this.frameLoop.setTargetFps(fps);
         }
     }
@@ -128,10 +128,10 @@ export class WorldController {
         this.canvas.height = window.innerHeight;
         this.camera.setViewportSize(this.canvas.width, this.canvas.height);
 
-        if (this.activePopupSource) {
+        if (this.activePopupController) {
             this.ctx.drawImage(requireNonNull(this.worldSnapshot), 0, 0, this.canvas.width, this.canvas.height);
-            this.activePopupSource.drawOverlay(this.ctx, this.canvas.width, this.canvas.height);
-            this.activePopupSource.draw(this.ctx, this.canvas.width, this.canvas.height);
+            this.activePopupController.drawOverlay(this.ctx, this.canvas.width, this.canvas.height);
+            this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height);
             return;
         }
 
@@ -142,13 +142,13 @@ export class WorldController {
      * Runs whenever any popup opens or closes.
      */
     private readonly handlePopupOpenChange = (): void => {
-        this.activePopupSource = this.popupSources.find((source) => source.isOpen()) ?? null;
-        this.frameLoop.setTargetFps(this.activePopupSource ? WorldController.POPUP_TARGET_FPS : this.userTargetFps);
+        this.activePopupController = this.popupControllers.find((source) => source.isOpen()) ?? null;
+        this.frameLoop.setTargetFps(this.activePopupController ? WorldController.POPUP_TARGET_FPS : this.userTargetFps);
 
-        if (this.activePopupSource) {
+        if (this.activePopupController) {
             this.worldSnapshot = this.captureWorldSnapshot();
-            this.activePopupSource.drawOverlay(this.ctx, this.canvas.width, this.canvas.height);
-            this.activePopupSource.draw(this.ctx, this.canvas.width, this.canvas.height);
+            this.activePopupController.drawOverlay(this.ctx, this.canvas.width, this.canvas.height);
+            this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height);
         } else {
             this.worldSnapshot = null;
         }
@@ -167,8 +167,8 @@ export class WorldController {
         const deltaMs = now - this.lastTickTime;
         this.lastTickTime = now;
 
-        if (this.activePopupSource) {
-            this.activePopupSource.draw(this.ctx, this.canvas.width, this.canvas.height);
+        if (this.activePopupController) {
+            this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height);
             return;
         }
 
@@ -203,7 +203,7 @@ export class WorldController {
         const all = [
             ...this.movementController.getKeyBindings(),
             ...this.debugController.getKeyBindings(),
-            ...this.popupSources.flatMap((source) => source.getKeyBindings()),
+            ...this.popupControllers.flatMap((source) => source.getKeyBindings()),
             ...(this.world.getMainEntity().getKeyBindings?.() ?? []),
         ];
         const seenKeys = new Set<string>();
