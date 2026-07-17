@@ -115,7 +115,7 @@ export class DebugHud {
             [this.label("feature: exact="), this.stringValue(data.exactFeature), this.label(", nearby="), this.stringValue(data.nearbyFeature)],
             [
                 this.label("velocity: ("), this.numberValue(data.velocityX.toFixed(1)), this.label(", "), this.numberValue(data.velocityY.toFixed(1)),
-                this.label("), speed: "), this.numberValue(`${data.speed.toFixed(1)} px/s`),
+                this.label("), speed: "), this.numberValue(data.speed.toFixed(1)), this.label(' px/s'),
             ],
             [
                 this.label("FPS: "), this.numberValue(data.actualFps.toFixed(2)), this.label("/"),
@@ -123,7 +123,7 @@ export class DebugHud {
             ],
             [
                 this.label("seed: "), this.numberValue(String(data.worldSeed)), this.label(" "),
-                {kind: "button", label: this.copyButtonLabel, onClick: () => this.handleCopyClick(data.worldSeed)},
+                {kind: "button", label: this.copyButtonLabel, onClick: () => this.handleCopyClick(data.worldSeed), disabled: this.copyRevertTimeoutId !== null},
             ],
         ];
         if (data.spectating) {

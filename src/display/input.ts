@@ -14,6 +14,8 @@ export interface HighlightStyle {
 export interface InputBase {
     kind: string;
     highlightStyle?: Partial<HighlightStyle>;
+    /** Whether this input is disabled. Defaults to `false`. */
+    disabled?: boolean;
 }
 
 /** A single selectable option within a {@link RadioInput}. */
@@ -24,6 +26,8 @@ export interface RadioOption {
     content: TextSegment[];
     /** Background/foreground colours to highlight this option with while focused. Defaults to the owning {@link RadioInput}'s `highlightStyle`, then the display's theme. */
     highlightStyle?: Partial<HighlightStyle>;
+    /** Whether this option is disabled, independent of the owning {@link RadioInput}'s own `disabled`. Defaults to `false`. */
+    disabled?: boolean;
 }
 
 /**
@@ -49,6 +53,8 @@ export interface SelectOption {
     content: TextSegment[];
     /** Background/foreground colours to highlight this option's row with while highlighted in the open dropdown. Defaults to the owning {@link SelectInput}'s `highlightStyle`, then the display's theme. */
     highlightStyle?: Partial<HighlightStyle>;
+    /** Whether this option is disabled, independent of the owning {@link SelectInput}'s own `disabled`. Defaults to `false`. */
+    disabled?: boolean;
 }
 
 /**
