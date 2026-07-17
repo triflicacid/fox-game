@@ -67,6 +67,12 @@ export const POPUP_CONFIG = {
     /** Width of a select input's dropdown-arrow button, in canvas pixels. */
     selectArrowWidth: 18,
 
+    /**
+     * Padding, in canvas pixels, added around a number/select input's sunken
+     * box when drawing its focus highlight.
+     */
+    focusHighlightPadding: 2,
+
     /** Padding around the popup's content, in canvas pixels. */
     padding: 12,
 } as const;
