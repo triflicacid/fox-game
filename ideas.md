@@ -9,3 +9,5 @@
   - Eat mechanics??
 - Optimisation: only re-render if requires (i.e., moved, keypress, or other action)
   - Only needs to re-render new chunks - could we cache old chunks which haven't been moved into?
+  - Check: only render chunks in viewport
+- Debug HUD: same formatting driving as popups, but without background and border. Extract this into a shared `display` class?
