@@ -689,8 +689,9 @@ function paintNumberElement(
     const boxY = y + (POPUP_CONFIG.fontSize - boxHeight) / 2;
 
     if (focused) {
+        const pad = POPUP_CONFIG.focusHighlightPadding;
         ctx.fillStyle = element.highlightStyle.background;
-        ctx.fillRect(x, boxY, element.width, boxHeight);
+        ctx.fillRect(x - pad, boxY - pad, element.width + pad * 2, boxHeight + pad * 2);
     }
 
     drawSunkenBox(ctx, x, boxY, element.width, boxHeight);
@@ -802,8 +803,9 @@ function paintSelectElement(
     const textBoxWidth = element.width - arrowWidth;
 
     if (focused) {
+        const pad = POPUP_CONFIG.focusHighlightPadding;
         ctx.fillStyle = element.highlightStyle.background;
-        ctx.fillRect(x, boxY, element.width, boxHeight);
+        ctx.fillRect(x - pad, boxY - pad, element.width + pad * 2, boxHeight + pad * 2);
     }
 
     drawSunkenBox(ctx, x, boxY, textBoxWidth, boxHeight);
