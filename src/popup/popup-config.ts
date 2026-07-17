@@ -59,6 +59,8 @@ export const POPUP_CONFIG = {
     numberInputWidth: 48,
     /** Horizontal padding inside a number input's box, in canvas pixels. */
     numberInputPadding: 4,
+    /** Half-period of a number input's blinking edit cursor, in milliseconds - on for this long, then off for this long. */
+    cursorBlinkIntervalMs: 500,
 
     /** Horizontal padding inside a select input's box and dropdown rows, in canvas pixels. */
     selectPadding: 4,
