@@ -612,11 +612,11 @@ function paintRadioElement(
 
         if (focused) {
             ctx.fillStyle = option.highlightStyle.background;
-            ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+            ctx.fillRect(elemX, y, optionWidth, POPUP_CONFIG.fontSize);
         }
 
         const markerRadius = POPUP_CONFIG.radioMarkerSize / 2;
-        drawRadioMarker(ctx, elemX + markerRadius, y + height / 2, markerRadius, option.selected);
+        drawRadioMarker(ctx, elemX + markerRadius, y + POPUP_CONFIG.fontSize / 2, markerRadius, option.selected);
 
         const labelX = elemX + POPUP_CONFIG.radioMarkerSize + POPUP_CONFIG.radioMarkerGap;
         drawRuns(ctx, option.labelRuns, labelX, y, height, focused ? option.highlightStyle.foreground : undefined);
@@ -644,10 +644,10 @@ function paintCheckboxElement(
 
     if (focused) {
         ctx.fillStyle = element.highlightStyle.background;
-        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.fillRect(x, y, element.width, POPUP_CONFIG.fontSize);
     }
 
-    const boxY = y + (height - POPUP_CONFIG.checkboxSize) / 2;
+    const boxY = y + (POPUP_CONFIG.fontSize - POPUP_CONFIG.checkboxSize) / 2;
     drawCheckboxBox(ctx, x, boxY, POPUP_CONFIG.checkboxSize, element.checked);
 
     const labelX = x + POPUP_CONFIG.checkboxSize + POPUP_CONFIG.checkboxGap;
@@ -685,13 +685,14 @@ function paintNumberElement(
     const rect: Rect = {x, y, w: element.width, h: height};
     const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
 
+    const boxHeight = POPUP_CONFIG.lineHeight - 4;
+    const boxY = y + (POPUP_CONFIG.fontSize - boxHeight) / 2;
+
     if (focused) {
         ctx.fillStyle = element.highlightStyle.background;
-        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.fillRect(x, boxY, element.width, boxHeight);
     }
 
-    const boxHeight = POPUP_CONFIG.lineHeight - 4;
-    const boxY = y + (height - boxHeight) / 2;
     drawSunkenBox(ctx, x, boxY, element.width, boxHeight);
 
     const editing = focused && editText !== null;
@@ -699,7 +700,7 @@ function paintNumberElement(
     ctx.font = BASE_FONT;
     ctx.fillStyle = "#000000";
     const textX = x + POPUP_CONFIG.numberInputPadding;
-    const textY = y + (height - POPUP_CONFIG.fontSize) / 2;
+    const textY = y;
     ctx.fillText(text, textX, textY);
 
     if (editing && isCursorBlinkVisible()) {
@@ -795,22 +796,21 @@ function paintSelectElement(
     const rect: Rect = {x, y, w: element.width, h: height};
     const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
 
-    if (focused) {
-        ctx.fillStyle = element.highlightStyle.background;
-        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-    }
-
     const boxHeight = POPUP_CONFIG.lineHeight - 4;
-    const boxY = y + (height - boxHeight) / 2;
+    const boxY = y + (POPUP_CONFIG.fontSize - boxHeight) / 2;
     const arrowWidth = POPUP_CONFIG.selectArrowWidth;
     const textBoxWidth = element.width - arrowWidth;
+
+    if (focused) {
+        ctx.fillStyle = element.highlightStyle.background;
+        ctx.fillRect(x, boxY, element.width, boxHeight);
+    }
 
     drawSunkenBox(ctx, x, boxY, textBoxWidth, boxHeight);
 
     const selected = element.options[element.selectedIndex];
     if (selected) {
-        const textY = y + (height - POPUP_CONFIG.fontSize) / 2;
-        drawRuns(ctx, selected.labelRuns, x + POPUP_CONFIG.selectPadding, textY, height);
+        drawRuns(ctx, selected.labelRuns, x + POPUP_CONFIG.selectPadding, y, height);
     }
 
     drawSelectArrowButton(ctx, x + textBoxWidth, boxY, arrowWidth, boxHeight, open);
@@ -846,7 +846,8 @@ function paintSelectDropdown(
             ctx.fillRect(rowRect.x, rowRect.y, rowRect.w, rowRect.h);
         }
 
-        drawRuns(ctx, option.labelRuns, rowRect.x + POPUP_CONFIG.selectPadding, rowRect.y, rowHeight, highlighted ? option.highlightStyle.foreground : undefined);
+        const textY = rowRect.y + (rowHeight - POPUP_CONFIG.fontSize) / 2;
+        drawRuns(ctx, option.labelRuns, rowRect.x + POPUP_CONFIG.selectPadding, textY, rowHeight, highlighted ? option.highlightStyle.foreground : undefined);
         return rowRect;
     });
 }
