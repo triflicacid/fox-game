@@ -21,10 +21,10 @@ function hashLatticePoint(seed: number, x: number, y: number): number {
 }
 
 /**
- * Ken Perlin's "smootherstep" easing curve: like `smoothstep` but with zero
- * first *and* second derivative at both ends, so tiling this noise's
- * interpolation doesn't show the faint diamond-shaped creases plain linear
- * (or `smoothstep`) interpolation leaves at lattice cell boundaries.
+ * Ken Perlin's "smootherstep" easing curve: like {@link https://en.wikipedia.org/wiki/Smoothstep | smoothstep}
+ * but with zero first *and* second derivative at both ends, so tiling this
+ * noise's interpolation doesn't show the faint diamond-shaped creases plain
+ * linear (or `smoothstep`) interpolation leaves at lattice cell boundaries.
  *
  * @param t - Input in `[0, 1]`.
  * @returns The eased value, also in `[0, 1]`.
@@ -46,7 +46,7 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 /**
- * Samples smooth, continuous 2D value noise: bilinearly interpolates
+ * Samples smooth, continuous 2D {@link https://en.wikipedia.org/wiki/Value_noise | value noise}: bilinearly interpolates
  * between hashed values at the four lattice points surrounding `(x, y) * frequency`.
  * Neighbouring samples are correlated so thresholding/banding the result gives irregular but coherent
  * patches.
@@ -77,7 +77,7 @@ export function sampleNoise2d(seed: number, x: number, y: number, frequency: num
 }
 
 /**
- * Samples fractional Brownian motion: `octaves` layers of {@link sampleNoise2d}
+ * Samples {@link https://en.wikipedia.org/wiki/Fractional_Brownian_motion | fractional Brownian motion}: `octaves` layers of {@link sampleNoise2d}
  * stacked at doubling frequency and halving amplitude, normalized back to
  * `[0, 1)`. Each octave uses a distinct derived seed so they don't just
  * repeat the same pattern at a different scale.
@@ -155,7 +155,7 @@ function dotGridGradient(seed: number, latticeX: number, latticeY: number, sampl
 }
 
 /**
- * Samples classic Perlin (gradient) noise: interpolates the dot products of
+ * Samples classic {@link https://en.wikipedia.org/wiki/Perlin_noise | Perlin (gradient) noise}: interpolates the dot products of
  * each of the four surrounding lattice points' gradient direction with the
  * offset to `(x, y) * frequency`.
  *
@@ -164,8 +164,7 @@ function dotGridGradient(seed: number, latticeX: number, latticeY: number, sampl
  * with **no flat plateaus**: a value-noise cell can end up nearly constant
  * across its interior whenever two adjacent corners happen to hash to
  * similar values (the same effect that makes plain `sampleNoise2d` values
- * concentrate near their own midpoint - see the grass-variety and river-ridge
- * sections of `plans/terrain-generation.md`), and wherever that happens, a
+ * concentrate near their own midpoint), and wherever that happens, a
  * `1 - abs(...)` ridge computed from it stays elevated over an *area*, not a
  * line - a "noodle" feature (a river) built from that reads as a blobby
  * "pancake" instead. Gradient noise's zero-crossings don't have this

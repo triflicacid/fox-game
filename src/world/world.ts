@@ -6,6 +6,7 @@ import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
+import {ChunkGenerator} from "./generation/chunk-generator";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -24,8 +25,7 @@ interface ChunkRange {
 /**
  * The game world: an effectively infinite 2D grid of tiles, split into
  * fixed-size {@link Chunk}s that are generated on demand and cached in
- * memory as they're needed. Chunk deltas (edits diverging from generation)
- * aren't persisted yet; see `initial-plan.md` for the planned storage design.
+ * memory as they're needed.
  */
 export class World {
     /** How many extra chunks to keep loaded beyond the camera's visible view, in every direction. */
@@ -36,8 +36,18 @@ export class World {
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
     };
+    private readonly chunkGenerator: ChunkGenerator;
     private readonly worldSeed: number;
     private mainEntity: MovableEntity;
+
+    /** Sum of every generated chunk's {@link Chunk.generationTimeMs}, for {@link getAverageChunkGenerationTimeMs}. */
+    private totalChunkGenerationTimeMs = 0;
+    /** Count of chunks contributing to {@link totalChunkGenerationTimeMs}. */
+    private generatedChunkCount = 0;
+    /** {@link Chunk.generationTimeMs} of the most recently generated chunk, for the debug HUD. */
+    private latestChunkGenerationTimeMs = 0;
+    /** Chunk count the last {@link draw} call rendered, for the debug HUD. */
+    private lastVisibleChunkCount = 0;
 
     /**
      * @param tileSize - Width/height of a single tile, in canvas pixels.
@@ -47,6 +57,7 @@ export class World {
      */
     public constructor(public readonly tileSize: number, worldSeed: number = Math.floor(Math.random() * 0xffffffff)) {
         this.worldSeed = worldSeed;
+        this.chunkGenerator = new ChunkGenerator(worldSeed);
         this.mainEntity = new Fox();
         this.entities.push(this.mainEntity);
     }
@@ -89,10 +100,42 @@ export class World {
         const key = World.chunkKey(chunkX, chunkY);
         let chunk = this.chunks.get(key);
         if (!chunk) {
-            chunk = new Chunk(chunkX, chunkY, this.worldSeed, this.chunkSpriteSheets);
+            chunk = new Chunk(chunkX, chunkY, this.chunkGenerator, this.chunkSpriteSheets, this.tileSize);
             this.chunks.set(key, chunk);
+            this.latestChunkGenerationTimeMs = chunk.generationTimeMs;
+            this.totalChunkGenerationTimeMs += chunk.generationTimeMs;
+            this.generatedChunkCount++;
         }
         return chunk;
+    }
+
+    /**
+     * How many chunks are currently loaded in memory.
+     *
+     * @returns The loaded chunk count.
+     */
+    public getLoadedChunkCount(): number {
+        return this.chunks.size;
+    }
+
+    /**
+     * Mean {@link Chunk.generationTimeMs} across every chunk generated so
+     * far this session, for the debug HUD.
+     *
+     * @returns The average chunk generation time, in milliseconds, or `0` if nothing has been generated yet.
+     */
+    public getAverageChunkGenerationTimeMs(): number {
+        return this.generatedChunkCount === 0 ? 0 : this.totalChunkGenerationTimeMs / this.generatedChunkCount;
+    }
+
+    /**
+     * {@link Chunk.generationTimeMs} of the most recently generated chunk,
+     * for the debug HUD.
+     *
+     * @returns The latest chunk generation time, in milliseconds, or `0` if nothing has been generated yet.
+     */
+    public getLatestChunkGenerationTimeMs(): number {
+        return this.latestChunkGenerationTimeMs;
     }
 
     /**
@@ -135,18 +178,17 @@ export class World {
     }
 
     /**
-     * The most common feature label (`tile.feature?.name`, or `"none"` for
-     * no feature) among every tile touched by the given pixel rectangle -
-     * meant to be called with a sprite's full drawn rectangle
-     * (`SpriteFrame.w`/`h`), not its (typically smaller) collision `bounds`
-     * polygon, so it reflects what ground the sprite is visually standing
-     * on rather than only what its hitbox overlaps.
+     * The most common feature tag among every tile touched by the given
+     * pixel rectangle - meant to be called with a sprite's full drawn
+     * rectangle (`SpriteFrame.w`/`h`), not its (typically smaller) collision
+     * `bounds` polygon, so it reflects what ground the sprite is visually
+     * standing on rather than only what its hitbox overlaps.
      *
      * @param x - Left edge of the rectangle, in world pixels.
      * @param y - Top edge of the rectangle, in world pixels.
      * @param w - Rectangle width, in world pixels.
      * @param h - Rectangle height, in world pixels.
-     * @returns The most-represented feature label among the tiles the rectangle overlaps, breaking ties in favour of whichever qualifying label is encountered first (reading tiles left-to-right, top-to-bottom).
+     * @returns The most-represented feature tag among the tiles the rectangle overlaps, breaking ties in favour of whichever qualifying tag is encountered first (reading tiles left-to-right, top-to-bottom).
      */
     public getDominantFeatureLabel(x: number, y: number, w: number, h: number): string {
         const startTileX = Math.floor(x / this.tileSize);
@@ -157,9 +199,8 @@ export class World {
         const counts = new Map<string, number>();
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const label = this.getTile(tileX, tileY).feature?.name;
-                if (label)
-                    counts.set(label, (counts.get(label) ?? 0) + 1);
+                const tag = this.getTile(tileX, tileY).featureTag;
+                counts.set(tag, (counts.get(tag) ?? 0) + 1);
             }
         }
 
@@ -276,13 +317,23 @@ export class World {
      * @param spectating - Whether spectator mode is currently active, shown as an indicator in the debug HUD. Defaults to `false`.
      * @param actualFps - Currently measured rendering FPS, shown in the debug HUD. Defaults to `0`.
      * @param targetFps - Configured FPS cap, shown alongside `actualFps` in the debug HUD, or `undefined` when uncapped.
+     * @param noiseFieldName - Name of a registered `NoiseField` to render as a greyscale heatmap over the visible area, or `undefined` for none. Only drawn while `debugEnabled`.
      */
-    public draw(ctx: CanvasRenderingContext2D, camera: Camera, debugEnabled = false, spectating = false, actualFps = 0, targetFps?: number): void {
+    public draw(
+        ctx: CanvasRenderingContext2D,
+        camera: Camera,
+        debugEnabled = false,
+        spectating = false,
+        actualFps = 0,
+        targetFps?: number,
+        noiseFieldName?: string,
+    ): void {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
         const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
 
+        this.lastVisibleChunkCount = 0;
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
                 const chunk = this.getChunk(chunkX, chunkY);
@@ -290,6 +341,7 @@ export class World {
                 const originY = chunkY * chunkPixelSize - viewY;
 
                 chunk.draw(ctx, originX, originY, this.tileSize);
+                this.lastVisibleChunkCount++;
 
                 if (debugEnabled) {
                     chunk.drawDebug(ctx, originX, originY, this.tileSize);
@@ -297,10 +349,53 @@ export class World {
             }
         }
 
+        if (debugEnabled && noiseFieldName) {
+            this.drawNoiseFieldOverlay(ctx, camera, noiseFieldName);
+        }
+
         this.drawEntities(ctx, camera, debugEnabled);
 
         if (debugEnabled) {
             this.drawDebugHud(ctx, camera, spectating, actualFps, targetFps);
+        }
+    }
+
+    /**
+     * Every registered `NoiseField`'s name.
+     *
+     * @returns Every registered field name.
+     */
+    public getNoiseFieldNames(): readonly string[] {
+        return this.chunkGenerator.getFields().getAll().map((field) => field.name);
+    }
+
+    /**
+     * Renders one registered `NoiseField` as a greyscale heatmap (black = 0,
+     * white = close to 1).
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param camera - Camera whose view to cover.
+     * @param fieldName - Name of the field to render; a no-op if nothing is registered under that name.
+     */
+    private drawNoiseFieldOverlay(ctx: CanvasRenderingContext2D, camera: Camera, fieldName: string): void {
+        const field = this.chunkGenerator.getFields().get(fieldName);
+        if (!field) {
+            return;
+        }
+
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
+        const startTileX = Math.floor(viewX / this.tileSize);
+        const startTileY = Math.floor(viewY / this.tileSize);
+        const endTileX = Math.floor((viewX + camera.getWidth()) / this.tileSize);
+        const endTileY = Math.floor((viewY + camera.getHeight()) / this.tileSize);
+
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                const grey = Math.round(Math.min(1, Math.max(0, field.sample(tileX, tileY))) * 255);
+                ctx.fillStyle = `rgb(${grey}, ${grey}, ${grey})`;
+                ctx.fillRect(tileX * this.tileSize - viewX, tileY * this.tileSize - viewY, this.tileSize, this.tileSize);
+            }
         }
     }
 
@@ -367,8 +462,8 @@ export class World {
         const tileX = Math.floor(position.x / this.tileSize);
         const tileY = Math.floor(position.y / this.tileSize);
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunkBiome = this.getChunk(chunkX, chunkY).biome;
-        const exactFeature = this.getTile(tileX, tileY).feature?.name ?? "none";
+        const chunkBiome = this.getChunk(chunkX, chunkY).biome.name;
+        const exactFeature = this.getTile(tileX, tileY).featureTag;
         const frame = this.mainEntity.getCurrentFrame();
         const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);
 
@@ -377,6 +472,8 @@ export class World {
             {text: `viewport: ${camera.getWidth()} x ${camera.getHeight()}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `entity: (${position.x.toFixed(1)}, ${position.y.toFixed(1)}), facing: ${this.mainEntity.getFacing()}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `chunk (${chunkX}, ${chunkY}), ${chunkBiome}`, color: DEBUG_CONFIG.hudTextColor},
+            {text: `chunks: visible=${this.lastVisibleChunkCount}, loaded=${this.getLoadedChunkCount()}`, color: DEBUG_CONFIG.hudTextColor},
+            {text: `chunk gen: latest=${this.getLatestChunkGenerationTimeMs().toFixed(6)} ms, avg=${this.getAverageChunkGenerationTimeMs().toFixed(4)} ms`, color: DEBUG_CONFIG.hudTextColor},
             {text: `feature: exact=${exactFeature}, nearby=${nearbyFeature}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `velocity: (${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}), speed: ${speed.toFixed(1)} px/s`, color: DEBUG_CONFIG.hudTextColor},
             {text: `FPS: ${actualFps.toFixed(2)}/${targetFps !== undefined ? targetFps.toFixed(0) : "uncapped"}`, color: DEBUG_CONFIG.hudTextColor},

@@ -17,6 +17,9 @@ export class SettingsController extends PopupController {
      * @param setDebugEnabled - Invoked when the user toggles the debug mode checkbox.
      * @param getTargetFps - Called on every {@link draw} to read the current target FPS.
      * @param setTargetFps - Invoked when the user edits the target FPS field.
+     * @param getNoiseFieldNames - Called on every {@link draw} to list the noise fields available to visualise.
+     * @param getNoiseFieldName - Called on every {@link draw} to read which noise field (if any) is currently visualised.
+     * @param setNoiseFieldName - Invoked when the user picks a different noise field, or `undefined` for none.
      * @param onOpenChange - Called whenever this popup opens or closes.
      */
     public constructor(
@@ -28,6 +31,9 @@ export class SettingsController extends PopupController {
         private readonly setDebugEnabled: (enabled: boolean) => void,
         private readonly getTargetFps: () => number,
         private readonly setTargetFps: (fps: number) => void,
+        private readonly getNoiseFieldNames: () => readonly string[],
+        private readonly getNoiseFieldName: () => string | undefined,
+        private readonly setNoiseFieldName: (name: string | undefined) => void,
         onOpenChange: (open: boolean) => void,
     ) {
         super("Settings", "#", {closeKeys: ["Escape", "#"], onOpenChange});
@@ -46,14 +52,12 @@ export class SettingsController extends PopupController {
     }
 
     /**
-     * Builds this popup's content: the camera follow mode as a radio choice
-     * between {@link CameraFollowMode}'s two values, a checkbox each for
-     * spectator mode and debug mode, and a number field for the target FPS.
+     * Builds this popup's content.
      *
      * @returns The lines to show in the settings popup.
      */
     protected buildContent(): PopupLine[] {
-        return [
+        const lines: PopupLine[] = [
             [
                 {content: "Camera follow mode: "},
                 {
@@ -77,5 +81,22 @@ export class SettingsController extends PopupController {
                 {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
             ],
         ];
+
+        if (this.getDebugEnabled()) {
+            lines.push([
+                {content: "Noise field: "},
+                {
+                    kind: "radio",
+                    selected: this.getNoiseFieldName() ?? "",
+                    onSelect: (key) => this.setNoiseFieldName(key === "" ? undefined : key),
+                    options: [
+                        {key: "", content: [{content: "None"}]},
+                        ...this.getNoiseFieldNames().map((name) => ({key: name, content: [{content: name}]})),
+                    ],
+                },
+            ]);
+        }
+
+        return lines;
     }
 }
