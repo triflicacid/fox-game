@@ -7,3 +7,5 @@
 - Maybe double-tab a direction to run faster
 - Other entities - rabbits in plains
   - Eat mechanics??
+- Optimisation: only re-render if requires (i.e., moved, keypress, or other action)
+  - Only needs to re-render new chunks - could we cache old chunks which haven't been moved into?
