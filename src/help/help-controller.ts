@@ -15,14 +15,16 @@ const KEY_DESCRIPTION_GAP = 2;
  * closed with `Esc` or `?` again (or by selecting its `Close` button).
  */
 export class HelpController implements PopupSource {
-    private readonly popup = new Popup({closeKeys: ["Escape", "?"]});
+    private readonly popup: Popup;
 
     /**
      * @param getBindings - Called on every {@link draw} to fetch every key
      * binding currently in effect across the game, since this controller
      * doesn't own the other controllers that contribute them.
+     * @param onOpenChange - Called whenever this popup opens or closes.
      */
-    public constructor(private readonly getBindings: () => KeyBinding[]) {
+    public constructor(private readonly getBindings: () => KeyBinding[], onOpenChange: (open: boolean) => void) {
+        this.popup = new Popup({closeKeys: ["Escape", "?"], onOpenChange});
         window.addEventListener("keydown", this.handleKeyDown);
     }
 
@@ -45,6 +47,17 @@ export class HelpController implements PopupSource {
             {key: "?", description: "Toggle the help window"},
             {key: "Esc", description: "Close this popup"},
         ];
+    }
+
+    /**
+     * Paints the dimming layer behind the help popup. A no-op if it isn't open.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param canvasWidth - Canvas width, in canvas pixels.
+     * @param canvasHeight - Canvas height, in canvas pixels.
+     */
+    public drawOverlay(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+        this.popup.drawOverlay(ctx, canvasWidth, canvasHeight);
     }
 
     /**
