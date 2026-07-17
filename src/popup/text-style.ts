@@ -120,18 +120,24 @@ export interface CheckboxInput extends InputBase {
 }
 
 /**
- * A single numeric text field. Un-focusing from the input
- * triggers `onChange` if the inputted value is a valid number.
+ * A single numeric text field, combobox-like: while merely focused,
+ * `ArrowUp`/`ArrowDown` move focus like any other input. `Enter`/`Space` (or
+ * typing a digit) enters edit mode, showing a blinking bar cursor after the
+ * typed digits; while editing, `ArrowUp`/`ArrowDown` step `value` instead,
+ * `Enter`/`Space` commit the typed value and leave edit mode (still
+ * focused), and `Esc` discards it and leaves edit mode, reverting to
+ * `value`. Focus moving away (e.g. `ArrowLeft`/`ArrowRight`, or closing the
+ * popup) also commits any in-progress edit.
  */
 export interface NumberInput extends InputBase {
     kind: "number";
     /** Current value. */
     value: number;
-    /** Amount `ArrowUp`/`ArrowDown` change `value` by. Defaults to `1`. */
+    /** Amount `ArrowUp`/`ArrowDown` change `value` by while editing. Defaults to `1`. */
     step?: number;
     /** Whether typing a decimal point is allowed. Defaults to `false` (integers only). */
     allowDecimal?: boolean;
-    /** Invoked with the new value once an edit commits (`Enter`, or focus moving away) or after an `ArrowUp`/`ArrowDown` step. */
+    /** Invoked with the new value once an edit commits (`Enter`/`Space`, focus moving away, or an `ArrowUp`/`ArrowDown` step while editing). */
     onChange: (value: number) => void;
 }
 

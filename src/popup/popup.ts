@@ -665,9 +665,13 @@ function layoutNumberElement(element: ResolvedNumberElement, x: number, y: numbe
     }];
 }
 
+/** Whether a blinking edit cursor should currently be drawn, per {@link POPUP_CONFIG.cursorBlinkIntervalMs}. */
+function isCursorBlinkVisible(): boolean {
+    return Math.floor(Date.now() / POPUP_CONFIG.cursorBlinkIntervalMs) % 2 === 0;
+}
+
 /**
- * Draws a resolved number element's box at `x`, showing `editText` in place
- * of its committed value while it's focused and being actively typed into.
+ * Draws a resolved number element's box at `x`.
  */
 function paintNumberElement(
     ctx: CanvasRenderingContext2D,
@@ -690,10 +694,18 @@ function paintNumberElement(
     const boxY = y + (height - boxHeight) / 2;
     drawSunkenBox(ctx, x, boxY, element.width, boxHeight);
 
+    const editing = focused && editText !== null;
     const text = focused && editText !== null ? editText : String(element.value);
     ctx.font = BASE_FONT;
     ctx.fillStyle = "#000000";
-    ctx.fillText(text, x + POPUP_CONFIG.numberInputPadding, y + (height - POPUP_CONFIG.fontSize) / 2);
+    const textX = x + POPUP_CONFIG.numberInputPadding;
+    const textY = y + (height - POPUP_CONFIG.fontSize) / 2;
+    ctx.fillText(text, textX, textY);
+
+    if (editing && isCursorBlinkVisible()) {
+        const textWidth = ctx.measureText(text).width;
+        ctx.fillRect(textX + textWidth + 1, boxY + 2, 1, boxHeight - 4);
+    }
 }
 
 /**
@@ -956,10 +968,12 @@ export class Popup {
     private focusables: FocusableElement[] = [];
     private cursor: number | null = 0;
     /**
-     * The in-progress typed text for whichever number input is focused, if
-     * any is currently being edited.
+     * The in-progress typed text for whichever number input is being
+     * edited, if any - kept in lockstep with {@link editingNumberCursor}.
      */
     private numberEditBuffer: {cursor: number; text: string} | null = null;
+    /** Index into {@link focusables} of the number input currently in edit mode, if any. */
+    private editingNumberCursor: number | null = null;
     /** Index into {@link focusables} of the select input whose dropdown is currently open, if any. */
     private openSelectCursor: number | null = null;
     /** Index into the open select's `options` currently highlighted, while a dropdown is open. */
@@ -996,6 +1010,7 @@ export class Popup {
         this.open = true;
         this.cursor = 0;
         this.numberEditBuffer = null;
+        this.editingNumberCursor = null;
         this.openSelectCursor = null;
         this.openSelectHighlight = 0;
         this.onOpenChange?.(true);
@@ -1099,6 +1114,10 @@ export class Popup {
         }
         if (this.openSelectCursor !== null && (this.openSelectCursor !== this.cursor || !this.focusables[this.openSelectCursor]?.selectEdit)) {
             this.openSelectCursor = null;
+        }
+        if (this.editingNumberCursor !== null && (this.editingNumberCursor !== this.cursor || !this.focusables[this.editingNumberCursor]?.numberEdit)) {
+            this.editingNumberCursor = null;
+            this.numberEditBuffer = null;
         }
         const focusedRect = this.cursor !== null ? this.focusables[this.cursor].rect : null;
         const editText = this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor ? this.numberEditBuffer.text : null;
@@ -1216,6 +1235,7 @@ export class Popup {
         }
         this.commitPendingNumberEdit();
         this.openSelectCursor = null;
+        this.editingNumberCursor = null;
         this.cursor = cursor;
     }
 
@@ -1258,28 +1278,56 @@ export class Popup {
     }
 
     /**
-     * Handles a key press while a number input is focused.
+     * Enters edit mode for the number input at `cursor` (see {@link
+     * editingNumberCursor}), seeding {@link numberEditBuffer} with
+     * `initialText` - callers work out what that should be for the key (or
+     * click) that triggered it: `value`'s current string for `Enter`/
+     * `Space`/a click, the typed digit alone for a digit key, or `value`'s
+     * string with its last character dropped for `Backspace`.
+     *
+     * @param cursor - Index of the number input within {@link focusables}.
+     * @param numberEdit - The number input's edit handle.
+     * @param initialText - The buffer's starting text.
+     */
+    private startEditingNumber(cursor: number, numberEdit: NumberEditHandle, initialText: string): void {
+        this.editingNumberCursor = cursor;
+        this.numberEditBuffer = {cursor, text: initialText};
+    }
+
+    /**
+     * Handles a key press while a number input is in edit mode (see {@link
+     * editingNumberCursor}).
      *
      * Digits (and `.`, if `numberEdit.allowDecimal`) append to {@link
-     * numberEditBuffer} without touching `value`; `Backspace`
-     * removes the buffer's last character the same way. `ArrowUp`/
-     * `ArrowDown` commit, then step {@link getEffectiveNumberValue} by
-     * `numberEdit.step`. Every other key is ignored.
+     * numberEditBuffer} without touching `value`; `Backspace` removes the
+     * buffer's last character the same way. `ArrowUp`/`ArrowDown` step
+     * {@link getEffectiveNumberValue} by `numberEdit.step`, committing
+     * immediately and refreshing the buffer to match, staying in edit mode.
+     * `Enter`/`Space` commit the buffer (via {@link commitPendingNumberEdit})
+     * and leave edit mode. `Escape` discards the buffer without committing
+     * and leaves edit mode, reverting to `value`. Every other key is
+     * ignored.
      *
      * @param cursor - Index of the focused number input within {@link focusables}.
      * @param numberEdit - The focused number input's edit handle.
      * @param event - The keyboard event.
      */
     private handleNumberInputKey(cursor: number, numberEdit: NumberEditHandle, event: KeyboardEvent): void {
+        if (event.key === "Escape") {
+            this.numberEditBuffer = null;
+            this.editingNumberCursor = null;
+            return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+            this.commitPendingNumberEdit();
+            this.editingNumberCursor = null;
+            return;
+        }
         if (event.key === "ArrowUp" || event.key === "ArrowDown") {
             const delta = event.key === "ArrowUp" ? numberEdit.step : -numberEdit.step;
             const next = this.getEffectiveNumberValue(cursor, numberEdit) + delta;
-            this.numberEditBuffer = null;
             numberEdit.onChange(next);
-            return;
-        }
-        if (event.key === "Enter") {
-            this.moveCursorHorizontal(1);
+            this.numberEditBuffer = {cursor, text: String(next)};
             return;
         }
 
@@ -1332,10 +1380,14 @@ export class Popup {
      * `ArrowDown` move it to the closest element in the row above/below
      * (see {@link moveCursorVertical}), and `Enter`/`Space` activates
      * whichever one the cursor is currently on (if any) - or, for a select
-     * input, opens its dropdown (see {@link handleSelectInputKey}). While a
-     * select's dropdown is open, every key routes there instead, and takes
-     * priority even over a configured close key (so `Escape` closes just the
-     * dropdown, not the whole popup).
+     * input, opens its dropdown (see {@link handleSelectInputKey}), or for a
+     * number input, enters edit mode (see {@link handleNumberInputKey}).
+     * Typing a digit or `Backspace` while a number input is focused (but not
+     * yet editing) also enters edit mode, seeding the buffer from that key
+     * (see {@link startEditingNumber}). While a select's dropdown is open or
+     * a number input is being edited, every key routes there instead, and
+     * takes priority even over a configured close key (so `Escape`
+     * closes/cancels just that, not the whole popup).
      *
      * @param event - The keyboard event.
      */
@@ -1356,6 +1408,14 @@ export class Popup {
             }
         }
 
+        if (cursor !== null && this.editingNumberCursor === cursor) {
+            const numberEdit = this.focusables[cursor].numberEdit;
+            if (numberEdit) {
+                this.handleNumberInputKey(cursor, numberEdit, event);
+                return;
+            }
+        }
+
         if (this.closeKeys.has(event.key)) {
             this.close();
             return;
@@ -1364,12 +1424,7 @@ export class Popup {
             return;
         }
 
-        // if a field is being edited, route through there instead
-        const numberEdit = cursor !== null ? this.focusables[cursor].numberEdit : undefined;
-        if (cursor !== null && numberEdit && event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-            this.handleNumberInputKey(cursor, numberEdit, event);
-            return;
-        }
+        const focusedNumberEdit = cursor !== null ? this.focusables[cursor].numberEdit : undefined;
 
         if (event.key === "ArrowLeft") {
             this.moveCursorHorizontal(-1);
@@ -1379,13 +1434,21 @@ export class Popup {
             this.moveCursorVertical(-1);
         } else if (event.key === "ArrowDown") {
             this.moveCursorVertical(1);
+        } else if (cursor !== null && focusedNumberEdit && /^[0-9]$/.test(event.key)) {
+            this.startEditingNumber(cursor, focusedNumberEdit, event.key);
+        } else if (cursor !== null && focusedNumberEdit && event.key === "Backspace") {
+            this.startEditingNumber(cursor, focusedNumberEdit, String(focusedNumberEdit.getValue()).slice(0, -1));
         } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null) {
-            const selectEdit = this.focusables[this.cursor].selectEdit;
+            const focusable = this.focusables[this.cursor];
+            const selectEdit = focusable.selectEdit;
+            const numberEdit = focusable.numberEdit;
             if (selectEdit) {
                 this.openSelectCursor = this.cursor;
                 this.openSelectHighlight = Math.max(0, selectEdit.options.findIndex((option) => option.key === selectEdit.selectedKey));
+            } else if (numberEdit) {
+                this.startEditingNumber(this.cursor, numberEdit, String(numberEdit.getValue()));
             } else {
-                this.focusables[this.cursor].activate();
+                focusable.activate();
             }
         }
     };
@@ -1407,7 +1470,8 @@ export class Popup {
      * While open, hit-tests a click against {@link focusables} (as last laid
      * out by {@link draw}): a hit moves the cursor to that element and
      * activates it, same as pressing `Enter` while it's focused - or, for a
-     * select input, opens its dropdown. While a select's dropdown is open, a
+     * select input, opens its dropdown, or for a number input not already
+     * being edited, enters edit mode. While a select's dropdown is open, a
      * click is tested against {@link openSelectDropdownRects} first: a hit on
      * an option row commits it and closes, a hit on the select's own box
      * closes it without committing (toggling it shut), and a hit elsewhere
@@ -1441,12 +1505,18 @@ export class Popup {
             return;
         }
         this.setCursor(index);
-        const selectEdit = this.focusables[index].selectEdit;
+        const focusable = this.focusables[index];
+        const selectEdit = focusable.selectEdit;
+        const numberEdit = focusable.numberEdit;
         if (selectEdit) {
             this.openSelectCursor = index;
             this.openSelectHighlight = Math.max(0, selectEdit.options.findIndex((option) => option.key === selectEdit.selectedKey));
+        } else if (numberEdit) {
+            if (this.editingNumberCursor !== index) {
+                this.startEditingNumber(index, numberEdit, String(numberEdit.getValue()));
+            }
         } else {
-            this.focusables[index].activate();
+            focusable.activate();
         }
     };
 }
