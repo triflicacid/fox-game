@@ -1,5 +1,5 @@
 import {KeyBinding} from "./key-binding";
-import {PopupLine} from "../popup/text-style";
+import {DisplayLine} from "../display/input";
 import {TextFormat} from "../display/text-style";
 import {COLORS} from "../popup/colors";
 import {PopupController} from "../popup/popup-controller";
@@ -40,7 +40,7 @@ export class HelpController extends PopupController {
      *
      * @returns The lines to show in the help popup.
      */
-    protected buildContent(): PopupLine[] {
+    protected buildContent(): DisplayLine[] {
         return this.formatLines(this.getBindings());
     }
 
@@ -51,7 +51,7 @@ export class HelpController extends PopupController {
      * @param bindings - Key bindings to format.
      * @returns One formatted line per binding.
      */
-    private formatLines(bindings: KeyBinding[]): PopupLine[] {
+    private formatLines(bindings: KeyBinding[]): DisplayLine[] {
         const sorted = [...bindings].sort((a, b) => a.key.localeCompare(b.key));
         const keyWidth = Math.max(...sorted.map((binding) => binding.key.length)) + KEY_DESCRIPTION_GAP;
         return sorted.map((binding) => [

@@ -1,4 +1,4 @@
-import {TextSegment} from "../display/text-style";
+import {TextSegment} from "./text-style";
 
 /**
  * Background/foreground colours to highlight a focused element with.
@@ -22,13 +22,13 @@ export interface RadioOption {
     key: string;
     /** Content shown as this option's label. */
     content: TextSegment[];
-    /** Background/foreground colours to highlight this option with while focused. Defaults to the owning {@link RadioInput}'s `highlightStyle`, then navy/white. */
+    /** Background/foreground colours to highlight this option with while focused. Defaults to the owning {@link RadioInput}'s `highlightStyle`, then the display's theme. */
     highlightStyle?: Partial<HighlightStyle>;
 }
 
 /**
  * An interactive radio-button group. Exactly one of `options`
- * is selected at a time; clicking a different one invokes `onSelect` with
+ * is selected at a time. Clicking a different one invokes `onSelect` with
  * that option's `key`.
  */
 export interface RadioInput extends InputBase {
@@ -47,12 +47,12 @@ export interface SelectOption {
     key: string;
     /** Content shown as this option's label. */
     content: TextSegment[];
-    /** Background/foreground colours to highlight this option's row with while highlighted in the open dropdown. Defaults to the owning {@link SelectInput}'s `highlightStyle`, then navy/white. */
+    /** Background/foreground colours to highlight this option's row with while highlighted in the open dropdown. Defaults to the owning {@link SelectInput}'s `highlightStyle`, then the display's theme. */
     highlightStyle?: Partial<HighlightStyle>;
 }
 
 /**
- * A Windows-98-style dropdown.
+ * A dropdown, themed per whichever {@link ChromeTheme} its owning display uses.
  */
 export interface SelectInput extends InputBase {
     kind: "select";
@@ -79,14 +79,7 @@ export interface CheckboxInput extends InputBase {
 }
 
 /**
- * A single numeric text field, combobox-like: while merely focused,
- * `ArrowUp`/`ArrowDown` move focus like any other input. `Enter`/`Space` (or
- * typing a digit) enters edit mode, showing a blinking bar cursor after the
- * typed digits; while editing, `ArrowUp`/`ArrowDown` step `value` instead,
- * `Enter`/`Space` commit the typed value and leave edit mode (still
- * focused), and `Esc` discards it and leaves edit mode, reverting to
- * `value`. Focus moving away (e.g. `ArrowLeft`/`ArrowRight`, or closing the
- * popup) also commits any in-progress edit.
+ * A single numeric text field. Must be focused to be edited.
  */
 export interface NumberInput extends InputBase {
     kind: "number";
@@ -112,14 +105,14 @@ export interface ButtonInput extends InputBase {
 }
 
 /**
- * Every kind of interactive input a {@link PopupLine} can embed alongside
- * plain text. Add further input kinds to this union as they're introduced,
- * each with its own `kind` literal.
+ * Every kind of interactive input an {@link InteractableDisplay} can embed
+ * alongside plain text. Add further input kinds to this union as they're
+ * introduced, each with its own `kind` literal.
  */
 export type Input = RadioInput | CheckboxInput | NumberInput | ButtonInput | SelectInput;
 
-/** A single item within a {@link PopupLine}: styled text, or an interactive input. */
-export type PopupLineItem = TextSegment | Input;
+/** A single item within a {@link DisplayLine}: styled text, or an interactive input. */
+export type DisplayLineItem = TextSegment | Input;
 
-/** A single line in a {@link Popup}, made of one or more top-level items. */
-export type PopupLine = PopupLineItem[];
+/** A single line an {@link InteractableDisplay} can lay out, made of one or more top-level items. */
+export type DisplayLine = DisplayLineItem[];
