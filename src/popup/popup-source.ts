@@ -21,7 +21,17 @@ export interface PopupSource {
     getKeyBindings(): KeyBinding[];
 
     /**
-     * Draws this source's popup. A no-op if it isn't open.
+     * Paints the dimming layer behind this source's popup. A no-op if it
+     * isn't open. Only needs calling once per open.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param canvasWidth - Canvas width, in canvas pixels.
+     * @param canvasHeight - Canvas height, in canvas pixels.
+     */
+    drawOverlay(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void;
+
+    /**
+     * Draws this source's popup panel. A no-op if it isn't open.
      *
      * @param ctx - Canvas context to draw into.
      * @param canvasWidth - Canvas width, in canvas pixels.

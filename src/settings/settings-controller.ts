@@ -12,7 +12,7 @@ const TITLE = "Settings";
  * with `Esc` or `#` again (or by selecting its `Close` button).
  */
 export class SettingsController implements PopupSource {
-    private readonly popup = new Popup({closeKeys: ["Escape", "#"]});
+    private readonly popup: Popup;
 
     /**
      * @param getCameraFollowMode - Called on every {@link draw} to read the current camera follow mode.
@@ -23,6 +23,7 @@ export class SettingsController implements PopupSource {
      * @param setDebugEnabled - Invoked when the user toggles the debug mode checkbox.
      * @param getTargetFps - Called on every {@link draw} to read the current target FPS.
      * @param setTargetFps - Invoked when the user edits the target FPS field.
+     * @param onOpenChange - Called whenever this popup opens or closes.
      */
     public constructor(
         private readonly getCameraFollowMode: () => CameraFollowMode | undefined,
@@ -33,7 +34,9 @@ export class SettingsController implements PopupSource {
         private readonly setDebugEnabled: (enabled: boolean) => void,
         private readonly getTargetFps: () => number,
         private readonly setTargetFps: (fps: number) => void,
+        onOpenChange: (open: boolean) => void,
     ) {
+        this.popup = new Popup({closeKeys: ["Escape", "#"], onOpenChange});
         window.addEventListener("keydown", this.handleKeyDown);
     }
 
@@ -56,6 +59,17 @@ export class SettingsController implements PopupSource {
             {key: "#", description: "Toggle the settings window"},
             {key: "Esc", description: "Close this popup"},
         ];
+    }
+
+    /**
+     * Paints the dimming layer behind the settings popup. A no-op if it isn't open.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param canvasWidth - Canvas width, in canvas pixels.
+     * @param canvasHeight - Canvas height, in canvas pixels.
+     */
+    public drawOverlay(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+        this.popup.drawOverlay(ctx, canvasWidth, canvasHeight);
     }
 
     /**
