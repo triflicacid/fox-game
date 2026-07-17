@@ -54,6 +54,14 @@ export interface DisplayDefaults {
     lineHeight: number;
 }
 
+/** Fallback {@link DisplayDefaults} used for any field a {@link Display} isn't given. */
+export const DEFAULT_DISPLAY_DEFAULTS: DisplayDefaults = {
+    foreground: "#000000",
+    fontFamily: "monospace",
+    fontSize: 14,
+    lineHeight: 20,
+};
+
 /**
  * Resolves, measures, and draws lines of styled {@link TextSegment} text.
  */
@@ -62,17 +70,18 @@ export class Display {
     private readonly lineHeight: number;
 
     /**
-     * @param defaults - Default style and minimum line height for this display.
+     * @param defaults - Default style and minimum line height for this display. Any field left unset falls back to {@link DEFAULT_DISPLAY_DEFAULTS}.
      */
-    public constructor(defaults: DisplayDefaults) {
+    public constructor(defaults: Partial<DisplayDefaults> = {}) {
+        const resolved: DisplayDefaults = {...DEFAULT_DISPLAY_DEFAULTS, ...defaults};
         this.baseStyle = {
-            foreground: defaults.foreground,
+            foreground: resolved.foreground,
             background: undefined,
-            fontFamily: defaults.fontFamily,
-            fontSize: defaults.fontSize,
+            fontFamily: resolved.fontFamily,
+            fontSize: resolved.fontSize,
             format: TextFormat.NONE,
         };
-        this.lineHeight = defaults.lineHeight;
+        this.lineHeight = resolved.lineHeight;
     }
 
     /**

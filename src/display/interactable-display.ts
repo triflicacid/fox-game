@@ -1,4 +1,4 @@
-import {Display, DisplayDefaults, MeasuredRun} from "./display";
+import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from "./display";
 import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HighlightStyle, Input, NumberInput, RadioInput, SelectInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
 import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
@@ -146,6 +146,22 @@ export interface FocusableElement {
     selectEdit?: SelectEditHandle;
 }
 
+/** Fallback {@link InteractableDisplayDefaults} used for any field an {@link InteractableDisplay} isn't given. */
+export const DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS: InteractableDisplayDefaults = {
+    ...DEFAULT_DISPLAY_DEFAULTS,
+    radioMarkerSize: 12,
+    radioMarkerGap: 6,
+    radioOptionGap: 16,
+    checkboxSize: 12,
+    checkboxGap: 6,
+    numberInputWidth: 48,
+    numberInputPadding: 4,
+    cursorBlinkIntervalMs: 500,
+    selectPadding: 4,
+    selectArrowWidth: 18,
+    focusHighlightPadding: 2,
+};
+
 /** Determines if `item` is an {@link Input} (any kind - they all carry a `kind` field). */
 function isInput(item: DisplayLineItem): item is Input {
     return "kind" in item;
@@ -186,16 +202,17 @@ export class InteractableDisplay extends Display {
     private openSelectDropdownRects: Rect[] | null = null;
 
     /**
-     * @param defaults - Default text style, minimum line height, and input geometry.
+     * @param defaults - Default text style, minimum line height, and input geometry. Any field left unset falls back to {@link DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS}.
      * @param theme - Chrome (borders/boxes/markers) this display paints its inputs and panel with.
-     * @param focusMode - Whether this display is always focused while active, or only once clicked into. Defaults to `"always"`.
+     * @param focusMode - Whether this display is always focused while active, or only once clicked into.
      */
-    public constructor(defaults: InteractableDisplayDefaults, theme: ChromeTheme, focusMode: FocusMode = "always") {
-        super(defaults);
-        this.defaults = defaults;
+    public constructor(defaults: Partial<InteractableDisplayDefaults>, theme: ChromeTheme, focusMode: FocusMode) {
+        const resolved: InteractableDisplayDefaults = {...DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS, ...defaults};
+        super(resolved);
+        this.defaults = resolved;
         this.theme = theme;
         this.focusMode = focusMode;
-        this.plainFont = `${defaults.fontSize}px ${defaults.fontFamily}`;
+        this.plainFont = `${resolved.fontSize}px ${resolved.fontFamily}`;
         window.addEventListener("keydown", this.handleKeyDown, {capture: true});
         window.addEventListener("mousedown", this.handleMouseDown, {capture: true});
         window.addEventListener("click", this.handleClick, {capture: true});
