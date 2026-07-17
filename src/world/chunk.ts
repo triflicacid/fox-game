@@ -1,6 +1,7 @@
 import {Tile} from "./tile";
 import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
 import {DEBUG_CONFIG} from "../debug/debug-config";
+import {sampleGrassType} from "./terrain-generator";
 
 /** Number of tiles along each edge of a chunk. */
 export const CHUNK_SIZE = 16;
@@ -18,29 +19,35 @@ export class Chunk {
     /**
      * @param chunkX - This chunk's X coordinate, in chunk units (not tiles/pixels).
      * @param chunkY - This chunk's Y coordinate, in chunk units (not tiles/pixels).
+     * @param worldSeed - The world's seed, so every noise channel samples deterministically.
      * @param spriteSheets - Shared sprite sheets this chunk's tiles/props resolve their bitmaps from.
      */
     public constructor(
         public readonly chunkX: number,
         public readonly chunkY: number,
+        worldSeed: number,
         spriteSheets: ChunkSpriteSheets,
     ) {
-        this.tiles = Chunk.generateTiles(spriteSheets);
+        this.tiles = this.generateTiles(worldSeed, spriteSheets);
     }
 
     /**
-     * Generates this chunk's tiles.
-     * todo actual generation plz
+     * Generates this chunk's tiles by sampling every noise channel at each
+     * tile's absolute world coordinate (not chunk-local), so neighbouring
+     * chunks agree at their shared boundary with no special-casing needed.
      *
+     * @param worldSeed - The world's seed.
      * @param spriteSheets - Shared sprite sheets each generated tile resolves its bitmap from.
      * @returns A `CHUNK_SIZE x CHUNK_SIZE` grid of freshly generated tiles.
      */
-    private static generateTiles(spriteSheets: ChunkSpriteSheets): Tile[][] {
+    private generateTiles(worldSeed: number, spriteSheets: ChunkSpriteSheets): Tile[][] {
         const tiles: Tile[][] = [];
-        for (let y = 0; y < CHUNK_SIZE; y++) {
+        for (let localY = 0; localY < CHUNK_SIZE; localY++) {
             const row: Tile[] = [];
-            for (let x = 0; x < CHUNK_SIZE; x++) {
-                row.push(Chunk.generateTile(spriteSheets));
+            for (let localX = 0; localX < CHUNK_SIZE; localX++) {
+                const worldX = this.chunkX * CHUNK_SIZE + localX;
+                const worldY = this.chunkY * CHUNK_SIZE + localY;
+                row.push(Chunk.generateTile(worldSeed, worldX, worldY, spriteSheets));
             }
             tiles.push(row);
         }
@@ -48,13 +55,19 @@ export class Chunk {
     }
 
     /**
-     * Generates a single tile.
+     * Generates a single tile at the given absolute world tile position.
+     * Currently just grass variety; path/gravel/water sampling from
+     * `plans/terrain-generation.md` will layer on top of this later.
      *
+     * @param worldSeed - The world's seed.
+     * @param worldX - Tile's X position, in tiles from the world origin.
+     * @param worldY - Tile's Y position, in tiles from the world origin.
      * @param spriteSheets - Shared sprite sheets to resolve the tile's bitmap from.
      * @returns The generated tile.
      */
-    private static generateTile(spriteSheets: ChunkSpriteSheets): Tile {
-        return new Tile("grass1", spriteSheets);
+    private static generateTile(worldSeed: number, worldX: number, worldY: number, spriteSheets: ChunkSpriteSheets): Tile {
+        const groundType = sampleGrassType(worldSeed, worldX, worldY);
+        return new Tile(groundType, spriteSheets);
     }
 
     /**

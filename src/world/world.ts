@@ -36,12 +36,17 @@ export class World {
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
     };
+    private readonly worldSeed: number;
     private mainEntity: MovableEntity;
 
     /**
      * @param tileSize - Width/height of a single tile, in canvas pixels.
+     * @param worldSeed - Seed every chunk's terrain generation is sampled from. Defaults to a
+     * fresh random seed, so revisiting the same chunk within one `World` instance is
+     * deterministic, but different play sessions get different terrain.
      */
-    public constructor(public readonly tileSize: number) {
+    public constructor(public readonly tileSize: number, worldSeed: number = Math.floor(Math.random() * 0xffffffff)) {
+        this.worldSeed = worldSeed;
         this.mainEntity = new Fox();
         this.entities.push(this.mainEntity);
     }
@@ -84,7 +89,7 @@ export class World {
         const key = World.chunkKey(chunkX, chunkY);
         let chunk = this.chunks.get(key);
         if (!chunk) {
-            chunk = new Chunk(chunkX, chunkY, this.chunkSpriteSheets);
+            chunk = new Chunk(chunkX, chunkY, this.worldSeed, this.chunkSpriteSheets);
             this.chunks.set(key, chunk);
         }
         return chunk;
@@ -326,6 +331,7 @@ export class World {
             {text: `entity: (${position.x.toFixed(1)}, ${position.y.toFixed(1)}), facing: ${this.mainEntity.getFacing()}`, color: DEBUG_CONFIG.hudTextColor},
             {text: `velocity: (${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}), speed: ${speed.toFixed(1)} px/s`, color: DEBUG_CONFIG.hudTextColor},
             {text: `FPS: ${actualFps.toFixed(2)}/${targetFps !== undefined ? targetFps.toFixed(0) : "uncapped"}`, color: DEBUG_CONFIG.hudTextColor},
+            {text: `seed: ${this.worldSeed}`, color: DEBUG_CONFIG.hudTextColor},
         ];
         if (spectating) {
             lines.push({text: "SPECTATOR MODE", color: DEBUG_CONFIG.hudSpectatorColor});
