@@ -86,7 +86,7 @@ export class SettingsController extends PopupController {
             lines.push([
                 {content: "Noise field: "},
                 {
-                    kind: "radio",
+                    kind: "select",
                     selected: this.getNoiseFieldName() ?? "",
                     onSelect: (key) => this.setNoiseFieldName(key === "" ? undefined : key),
                     options: [

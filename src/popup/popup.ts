@@ -1,7 +1,7 @@
 import {
     ButtonInput,
     CheckboxInput,
-    HighlightStyle, Input, NumberInput, PopupLine, PopupLineItem, RadioInput, TextFormat, TextSegment, TextStyle
+    HighlightStyle, Input, NumberInput, PopupLine, PopupLineItem, RadioInput, SelectInput, TextFormat, TextSegment, TextStyle
 } from "./text-style";
 import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
 import {POPUP_CONFIG} from "./popup-config";
@@ -103,11 +103,35 @@ interface ResolvedButtonElement {
     width: number;
 }
 
+/** A single resolved, measured option within a resolved select input. */
+interface ResolvedSelectOption {
+    key: string;
+    labelRuns: MeasuredRun[];
+    labelWidth: number;
+    /** Highlight colours for this option's row while highlighted in the open dropdown. */
+    highlightStyle: HighlightStyle;
+}
+
+/**
+ * A resolved, measured select (dropdown) input within a line. `width` is
+ * sized to fit the widest option's label plus the dropdown arrow, so the box
+ * doesn't resize as the selected option changes.
+ */
+interface ResolvedSelectElement {
+    kind: "select";
+    options: ResolvedSelectOption[];
+    /** Index into `options` of the currently selected one; `0` if `selected` matched none. */
+    selectedIndex: number;
+    onSelect: (key: string) => void;
+    highlightStyle: HighlightStyle;
+    width: number;
+}
+
 /**
  * Every kind of resolved, measured input element a line can contain -
  * mirrors {@link Input}.
  */
-type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement | ResolvedNumberElement | ResolvedButtonElement;
+type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement | ResolvedNumberElement | ResolvedButtonElement | ResolvedSelectElement;
 
 type ResolvedElement = ResolvedTextElement | ResolvedInputElement;
 
@@ -129,6 +153,15 @@ interface NumberEditHandle {
 }
 
 /**
+ * Config to support opening/navigating a {@link ResolvedSelectElement}.
+ */
+interface SelectEditHandle {
+    options: ResolvedSelectOption[];
+    selectedKey: string;
+    onSelect: (key: string) => void;
+}
+
+/**
  * Anything a {@link Popup}'s keyboard cursor can land on and activate.
  */
 interface FocusableElement {
@@ -136,6 +169,8 @@ interface FocusableElement {
     activate: () => void;
     /** Present only for number-input focusables - see {@link Popup.handleNumberInputKey}. */
     numberEdit?: NumberEditHandle;
+    /** Present only for select-input focusables - see {@link Popup.handleSelectInputKey}. */
+    selectEdit?: SelectEditHandle;
 }
 
 /** Determines if `item` is an {@link Input} (any kind - they all carry a `kind` field). */
@@ -338,6 +373,41 @@ function resolveNumberElement(item: NumberInput): {element: ResolvedNumberElemen
 }
 
 /**
+ * Resolves and measures a {@link SelectInput}'s options.
+ */
+function resolveSelectElement(ctx: CanvasRenderingContext2D, item: SelectInput): {element: ResolvedSelectElement; maxFontSize: number} {
+    let maxLabelWidth = 0;
+    let maxFontSize = 0;
+    const options: ResolvedSelectOption[] = item.options.map((option) => {
+        const runs = option.content.flatMap((segment) => flattenSegment(segment, BASE_STYLE));
+        const {measured, width: labelWidth, maxFontSize: labelFontSize} = measureRuns(ctx, runs);
+        maxFontSize = Math.max(maxFontSize, labelFontSize);
+        maxLabelWidth = Math.max(maxLabelWidth, labelWidth);
+        return {
+            key: option.key,
+            labelRuns: measured,
+            labelWidth,
+            highlightStyle: fillHighlightStyle(option.highlightStyle ?? item.highlightStyle),
+        };
+    });
+
+    const width = POPUP_CONFIG.selectPadding * 2 + maxLabelWidth + POPUP_CONFIG.selectArrowWidth;
+    const selectedIndex = Math.max(0, options.findIndex((option) => option.key === item.selected));
+
+    return {
+        element: {
+            kind: "select",
+            options,
+            selectedIndex,
+            onSelect: item.onSelect,
+            highlightStyle: fillHighlightStyle(item.highlightStyle),
+            width,
+        },
+        maxFontSize,
+    };
+}
+
+/**
  * Back-fill a {@link HighlightStyle} with default options if they are not provided.
  *
  * @param highlightStyle The input highlight style
@@ -380,6 +450,8 @@ function resolveInputElement(ctx: CanvasRenderingContext2D, item: Input): {eleme
             return resolveNumberElement(item);
         case "button":
             return {element: resolveButtonElement(ctx, item), maxFontSize: POPUP_CONFIG.fontSize};
+        case "select":
+            return resolveSelectElement(ctx, item);
     }
 }
 
@@ -657,6 +729,116 @@ function paintButtonElement(
     ctx.fillText(element.text, x, y);
 }
 
+/** Computes a resolved select element's on-screen rect. It opens via {@link Popup.handleSelectInputKey}, not `activate`. */
+function layoutSelectElement(element: ResolvedSelectElement, x: number, y: number, height: number): FocusableElement[] {
+    return [{
+        rect: {x, y, w: element.width, h: height},
+        activate: () => undefined,
+        selectEdit: {
+            options: element.options,
+            selectedKey: element.options[element.selectedIndex]?.key ?? "",
+            onSelect: element.onSelect,
+        },
+    }];
+}
+
+/**
+ * Draws a classic Windows 98 dropdown-arrow button at `(x, y)`: a raised
+ * square with a downward triangle, sunken (pressed) while `open`.
+ */
+function drawSelectArrowButton(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, open: boolean): void {
+    ctx.fillStyle = POPUP_CONFIG.backgroundColor;
+    ctx.fillRect(x, y, w, h);
+    if (open) {
+        drawBevelEdge(ctx, x, y, w, h, POPUP_CONFIG.borderShadowColor, POPUP_CONFIG.borderHighlightColor);
+    } else {
+        drawBevelEdge(ctx, x, y, w, h, POPUP_CONFIG.borderHighlightColor, POPUP_CONFIG.borderShadowColor);
+    }
+
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const triSize = Math.min(w, h) * 0.3;
+    ctx.fillStyle = "#000000";
+    ctx.beginPath();
+    ctx.moveTo(cx - triSize, cy - triSize * 0.5);
+    ctx.lineTo(cx + triSize, cy - triSize * 0.5);
+    ctx.lineTo(cx, cy + triSize * 0.6);
+    ctx.closePath();
+    ctx.fill();
+}
+
+/**
+ * Draws a resolved select element's closed combo box at `x`: a sunken box
+ * showing the selected option's label, plus a dropdown-arrow button.
+ */
+function paintSelectElement(
+    ctx: CanvasRenderingContext2D,
+    element: ResolvedSelectElement,
+    x: number,
+    y: number,
+    height: number,
+    focusedRect: Rect | null,
+    open: boolean,
+): void {
+    const rect: Rect = {x, y, w: element.width, h: height};
+    const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+
+    if (focused) {
+        ctx.fillStyle = element.highlightStyle.background;
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+
+    const boxHeight = POPUP_CONFIG.lineHeight - 4;
+    const boxY = y + (height - boxHeight) / 2;
+    const arrowWidth = POPUP_CONFIG.selectArrowWidth;
+    const textBoxWidth = element.width - arrowWidth;
+
+    drawSunkenBox(ctx, x, boxY, textBoxWidth, boxHeight);
+
+    const selected = element.options[element.selectedIndex];
+    if (selected) {
+        const textY = y + (height - POPUP_CONFIG.fontSize) / 2;
+        drawRuns(ctx, selected.labelRuns, x + POPUP_CONFIG.selectPadding, textY, height);
+    }
+
+    drawSelectArrowButton(ctx, x + textBoxWidth, boxY, arrowWidth, boxHeight, open);
+}
+
+/**
+ * Draws a select input's open dropdown list below `boxRect`, on top of
+ * whatever's underneath - the caller must paint this after everything else.
+ * Highlights `highlightIndex`'s row.
+ *
+ * @returns Each option row's on-screen rect, top to bottom, for hit-testing clicks.
+ */
+function paintSelectDropdown(
+    ctx: CanvasRenderingContext2D,
+    selectEdit: SelectEditHandle,
+    boxRect: Rect,
+    highlightIndex: number,
+): Rect[] {
+    const rowHeight = POPUP_CONFIG.lineHeight;
+    const listHeight = rowHeight * selectEdit.options.length;
+    const listRect: Rect = {x: boxRect.x, y: boxRect.y + boxRect.h, w: boxRect.w, h: listHeight};
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(listRect.x, listRect.y, listRect.w, listRect.h);
+    drawBevelEdge(ctx, listRect.x, listRect.y, listRect.w, listRect.h, POPUP_CONFIG.borderShadowColor, POPUP_CONFIG.borderHighlightColor);
+
+    return selectEdit.options.map((option, i) => {
+        const rowRect: Rect = {x: listRect.x, y: listRect.y + i * rowHeight, w: listRect.w, h: rowHeight};
+        const highlighted = i === highlightIndex;
+
+        if (highlighted) {
+            ctx.fillStyle = option.highlightStyle.background;
+            ctx.fillRect(rowRect.x, rowRect.y, rowRect.w, rowRect.h);
+        }
+
+        drawRuns(ctx, option.labelRuns, rowRect.x + POPUP_CONFIG.selectPadding, rowRect.y, rowHeight, highlighted ? option.highlightStyle.foreground : undefined);
+        return rowRect;
+    });
+}
+
 /**
  * Computes a resolved input element's focusable rects, dispatching on
  * `kind`.
@@ -671,12 +853,16 @@ function layoutInputElement(element: ResolvedInputElement, x: number, y: number,
             return layoutNumberElement(element, x, y, height);
         case "button":
             return layoutButtonElement(element, x, y, height);
+        case "select":
+            return layoutSelectElement(element, x, y, height);
     }
 }
 
 /**
  * Draws a resolved input element, dispatching on `kind`. `editText` is only
- * meaningful for (and only passed on to) a `"number"` element.
+ * meaningful for (and only passed on to) a `"number"` element; `openRect`
+ * (a select input's box rect, while its dropdown is open) is only meaningful
+ * for a `"select"` element, to draw its arrow pressed.
  */
 function paintInputElement(
     ctx: CanvasRenderingContext2D,
@@ -686,6 +872,7 @@ function paintInputElement(
     height: number,
     focusedRect: Rect | null,
     editText: string | null,
+    openRect: Rect | null,
 ): void {
     switch (element.kind) {
         case "radio":
@@ -699,6 +886,9 @@ function paintInputElement(
             break;
         case "button":
             paintButtonElement(ctx, element, x, y, height, focusedRect);
+            break;
+        case "select":
+            paintSelectElement(ctx, element, x, y, height, focusedRect, openRect !== null && rectsEqual({x, y, w: element.width, h: height}, openRect));
             break;
     }
 }
@@ -736,13 +926,14 @@ function paintElements(
     y: number,
     focusedRect: Rect | null,
     editText: string | null,
+    openRect: Rect | null,
 ): void {
     let elemX = x;
     for (const element of line.elements) {
         if (element.kind === "text") {
             drawRuns(ctx, element.runs, elemX, y, line.height);
         } else {
-            paintInputElement(ctx, element, elemX, y, line.height, focusedRect, editText);
+            paintInputElement(ctx, element, elemX, y, line.height, focusedRect, editText, openRect);
         }
         elemX += element.width;
     }
@@ -769,6 +960,12 @@ export class Popup {
      * any is currently being edited.
      */
     private numberEditBuffer: {cursor: number; text: string} | null = null;
+    /** Index into {@link focusables} of the select input whose dropdown is currently open, if any. */
+    private openSelectCursor: number | null = null;
+    /** Index into the open select's `options` currently highlighted, while a dropdown is open. */
+    private openSelectHighlight = 0;
+    /** The open select's option rows' on-screen rects, as last painted - for hit-testing clicks. */
+    private openSelectDropdownRects: Rect[] | null = null;
     private readonly closeKeys: ReadonlySet<string>;
     private readonly onOpenChange: ((open: boolean) => void) | undefined;
 
@@ -799,6 +996,8 @@ export class Popup {
         this.open = true;
         this.cursor = 0;
         this.numberEditBuffer = null;
+        this.openSelectCursor = null;
+        this.openSelectHighlight = 0;
         this.onOpenChange?.(true);
     }
 
@@ -898,8 +1097,12 @@ export class Popup {
         if (this.cursor !== null && this.cursor >= this.focusables.length) {
             this.setCursor(this.focusables.length > 0 ? this.focusables.length - 1 : null);
         }
+        if (this.openSelectCursor !== null && (this.openSelectCursor !== this.cursor || !this.focusables[this.openSelectCursor]?.selectEdit)) {
+            this.openSelectCursor = null;
+        }
         const focusedRect = this.cursor !== null ? this.focusables[this.cursor].rect : null;
         const editText = this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor ? this.numberEditBuffer.text : null;
+        const openRect = this.openSelectCursor !== null ? this.focusables[this.openSelectCursor].rect : null;
 
         // Paint pass.
         ctx.fillStyle = POPUP_CONFIG.backgroundColor;
@@ -914,7 +1117,7 @@ export class Popup {
 
         let lineY = linesStartY;
         for (const row of lineRows) {
-            paintElements(ctx, row, x + POPUP_CONFIG.padding, lineY, focusedRect, editText);
+            paintElements(ctx, row, x + POPUP_CONFIG.padding, lineY, focusedRect, editText, openRect);
             lineY += row.height;
         }
 
@@ -922,6 +1125,16 @@ export class Popup {
         for (const button of resolvedButtons) {
             paintButtonElement(ctx, button, buttonX, buttonRowY, POPUP_CONFIG.lineHeight, focusedRect);
             buttonX += button.width + POPUP_CONFIG.buttonGap;
+        }
+
+        // Open select's dropdown paints last, on top of everything below it.
+        if (this.openSelectCursor !== null) {
+            const selectEdit = this.focusables[this.openSelectCursor].selectEdit;
+            if (selectEdit) {
+                this.openSelectDropdownRects = paintSelectDropdown(ctx, selectEdit, this.focusables[this.openSelectCursor].rect, this.openSelectHighlight);
+            }
+        } else {
+            this.openSelectDropdownRects = null;
         }
     }
 
@@ -1002,6 +1215,7 @@ export class Popup {
             return;
         }
         this.commitPendingNumberEdit();
+        this.openSelectCursor = null;
         this.cursor = cursor;
     }
 
@@ -1085,13 +1299,43 @@ export class Popup {
     }
 
     /**
+     * Handles a key press while a select input's dropdown is open.
+     * `ArrowUp`/`ArrowDown` move {@link openSelectHighlight} within
+     * `selectEdit.options` (clamped, no wrap); `ArrowLeft`/`ArrowRight` do
+     * nothing; `Enter`/`Space` commit the highlighted option via
+     * `selectEdit.onSelect` and close the dropdown; `Escape` closes it
+     * without committing, leaving `selected` unchanged. Every other key is
+     * ignored - all are swallowed regardless, since {@link handleKeyDown}
+     * already calls `preventDefault`/`stopPropagation` up front.
+     *
+     * @param selectEdit - The open select input's edit handle.
+     * @param event - The keyboard event.
+     */
+    private handleSelectInputKey(selectEdit: SelectEditHandle, event: KeyboardEvent): void {
+        if (event.key === "Escape") {
+            this.openSelectCursor = null;
+        } else if (event.key === "ArrowUp") {
+            this.openSelectHighlight = Math.max(0, this.openSelectHighlight - 1);
+        } else if (event.key === "ArrowDown") {
+            this.openSelectHighlight = Math.min(selectEdit.options.length - 1, this.openSelectHighlight + 1);
+        } else if (event.key === "Enter" || event.key === " ") {
+            selectEdit.onSelect(selectEdit.options[this.openSelectHighlight].key);
+            this.openSelectCursor = null;
+        }
+    }
+
+    /**
      * While open, intercepts every key press before any other key-driven
      * controller sees it: a configured close key shuts the popup.
      * `ArrowLeft`/`ArrowRight` move the cursor between {@link focusables} in
      * their sorted order (buttons and input options alike), `ArrowUp`/
      * `ArrowDown` move it to the closest element in the row above/below
      * (see {@link moveCursorVertical}), and `Enter`/`Space` activates
-     * whichever one the cursor is currently on (if any).
+     * whichever one the cursor is currently on (if any) - or, for a select
+     * input, opens its dropdown (see {@link handleSelectInputKey}). While a
+     * select's dropdown is open, every key routes there instead, and takes
+     * priority even over a configured close key (so `Escape` closes just the
+     * dropdown, not the whole popup).
      *
      * @param event - The keyboard event.
      */
@@ -1102,6 +1346,16 @@ export class Popup {
         event.preventDefault();
         event.stopPropagation();
 
+        const cursor = this.cursor;
+
+        if (cursor !== null && this.openSelectCursor === cursor) {
+            const selectEdit = this.focusables[cursor].selectEdit;
+            if (selectEdit) {
+                this.handleSelectInputKey(selectEdit, event);
+                return;
+            }
+        }
+
         if (this.closeKeys.has(event.key)) {
             this.close();
             return;
@@ -1111,7 +1365,6 @@ export class Popup {
         }
 
         // if a field is being edited, route through there instead
-        const cursor = this.cursor;
         const numberEdit = cursor !== null ? this.focusables[cursor].numberEdit : undefined;
         if (cursor !== null && numberEdit && event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
             this.handleNumberInputKey(cursor, numberEdit, event);
@@ -1127,7 +1380,13 @@ export class Popup {
         } else if (event.key === "ArrowDown") {
             this.moveCursorVertical(1);
         } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null) {
-            this.focusables[this.cursor].activate();
+            const selectEdit = this.focusables[this.cursor].selectEdit;
+            if (selectEdit) {
+                this.openSelectCursor = this.cursor;
+                this.openSelectHighlight = Math.max(0, selectEdit.options.findIndex((option) => option.key === selectEdit.selectedKey));
+            } else {
+                this.focusables[this.cursor].activate();
+            }
         }
     };
 
@@ -1147,9 +1406,14 @@ export class Popup {
     /**
      * While open, hit-tests a click against {@link focusables} (as last laid
      * out by {@link draw}): a hit moves the cursor to that element and
-     * activates it, same as pressing `Enter` while it's focused. Registered
-     * on the capture phase and stops propagation while open, for the same
-     * reason as {@link handleMouseDown}.
+     * activates it, same as pressing `Enter` while it's focused - or, for a
+     * select input, opens its dropdown. While a select's dropdown is open, a
+     * click is tested against {@link openSelectDropdownRects} first: a hit on
+     * an option row commits it and closes, a hit on the select's own box
+     * closes it without committing (toggling it shut), and a hit elsewhere
+     * just closes the dropdown before falling through to the normal
+     * hit-test below. Registered on the capture phase and stops propagation
+     * while open, for the same reason as {@link handleMouseDown}.
      *
      * @param event - The mouse event.
      */
@@ -1159,11 +1423,30 @@ export class Popup {
         }
         event.stopPropagation();
 
+        if (this.openSelectCursor !== null && this.openSelectDropdownRects) {
+            const optionIndex = this.openSelectDropdownRects.findIndex((rect) => pointInRect(event.clientX, event.clientY, rect));
+            const selectEdit = this.focusables[this.openSelectCursor].selectEdit;
+            if (optionIndex !== -1 && selectEdit) {
+                selectEdit.onSelect(selectEdit.options[optionIndex].key);
+            }
+            const openBoxRect = this.focusables[this.openSelectCursor].rect;
+            this.openSelectCursor = null;
+            if (optionIndex !== -1 || pointInRect(event.clientX, event.clientY, openBoxRect)) {
+                return;
+            }
+        }
+
         const index = this.focusables.findIndex((focusable) => pointInRect(event.clientX, event.clientY, focusable.rect));
         if (index === -1) {
             return;
         }
         this.setCursor(index);
-        this.focusables[index].activate();
+        const selectEdit = this.focusables[index].selectEdit;
+        if (selectEdit) {
+            this.openSelectCursor = index;
+            this.openSelectHighlight = Math.max(0, selectEdit.options.findIndex((option) => option.key === selectEdit.selectedKey));
+        } else {
+            this.focusables[index].activate();
+        }
     };
 }
