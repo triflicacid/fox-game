@@ -1,16 +1,16 @@
 import {Tile} from "./tile";
-import {PASTEL_TILE_COLORS} from "./pastel-colors";
-import {randomElement} from "../util";
+import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 
 /** Number of tiles along each edge of a chunk. */
 export const CHUNK_SIZE = 16;
 
+export type {ChunkSpriteSheets};
+
 /**
  * A fixed-size square region of the world, made up of `CHUNK_SIZE x
  * CHUNK_SIZE` {@link Tile}s. Chunks are generated on demand by {@link World}
- * and identified by their integer chunk coordinates (not tile/pixel
- * coordinates).
+ * and identified by their integer chunk coordinates.
  */
 export class Chunk {
     private readonly tiles: Tile[][];
@@ -18,28 +18,43 @@ export class Chunk {
     /**
      * @param chunkX - This chunk's X coordinate, in chunk units (not tiles/pixels).
      * @param chunkY - This chunk's Y coordinate, in chunk units (not tiles/pixels).
+     * @param spriteSheets - Shared sprite sheets this chunk's tiles/props resolve their bitmaps from.
      */
-    public constructor(public readonly chunkX: number, public readonly chunkY: number) {
-        this.tiles = Chunk.generateTiles();
+    public constructor(
+        public readonly chunkX: number,
+        public readonly chunkY: number,
+        spriteSheets: ChunkSpriteSheets,
+    ) {
+        this.tiles = Chunk.generateTiles(spriteSheets);
     }
 
     /**
-     * Generates this chunk's tiles. Currently just picks a random pastel
-     * colour per tile; will later be replaced with Perlin-noise-driven
-     * terrain/biome generation seeded by the chunk's coordinates.
+     * Generates this chunk's tiles.
+     * todo actual generation plz
      *
+     * @param spriteSheets - Shared sprite sheets each generated tile resolves its bitmap from.
      * @returns A `CHUNK_SIZE x CHUNK_SIZE` grid of freshly generated tiles.
      */
-    private static generateTiles(): Tile[][] {
+    private static generateTiles(spriteSheets: ChunkSpriteSheets): Tile[][] {
         const tiles: Tile[][] = [];
         for (let y = 0; y < CHUNK_SIZE; y++) {
             const row: Tile[] = [];
             for (let x = 0; x < CHUNK_SIZE; x++) {
-                row.push(new Tile(randomElement(PASTEL_TILE_COLORS)));
+                row.push(Chunk.generateTile(spriteSheets));
             }
             tiles.push(row);
         }
         return tiles;
+    }
+
+    /**
+     * Generates a single tile.
+     *
+     * @param spriteSheets - Shared sprite sheets to resolve the tile's bitmap from.
+     * @returns The generated tile.
+     */
+    private static generateTile(spriteSheets: ChunkSpriteSheets): Tile {
+        return new Tile("grass1", spriteSheets);
     }
 
     /**
