@@ -59,6 +59,9 @@ export const POPUP_CONFIG = {
      */
     focusHighlightPadding: 2,
 
+    /** Fill colour of the sheen painted over a disabled input, e.g. a translucent grey. */
+    disabledOverlayColor: "rgba(128, 128, 128, 0.5)",
+
     /** Padding around the popup's content, in canvas pixels. */
     padding: 12,
 } as const;

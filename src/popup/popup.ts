@@ -35,6 +35,7 @@ const INTERACTABLE_DEFAULTS: InteractableDisplayDefaults = {
     selectPadding: POPUP_CONFIG.selectPadding,
     selectArrowWidth: POPUP_CONFIG.selectArrowWidth,
     focusHighlightPadding: POPUP_CONFIG.focusHighlightPadding,
+    disabledOverlayColor: POPUP_CONFIG.disabledOverlayColor,
 };
 
 /**

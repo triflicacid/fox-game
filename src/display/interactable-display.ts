@@ -30,6 +30,8 @@ export interface InteractableDisplayDefaults extends DisplayDefaults {
     selectArrowWidth: number;
     /** Padding added around a number/select input's sunken box when drawing its focus highlight, in canvas pixels. */
     focusHighlightPadding: number;
+    /** Fill colour of the sheen painted over a disabled input to grey it out - its whole box for a number/select input, or just the marker/box for a radio option/checkbox. Buttons have no box to grey out - a disabled one just stops highlighting/activating. */
+    disabledOverlayColor: string;
 }
 
 /** A resolved, measured plain-text item within a line. */
@@ -47,6 +49,8 @@ interface ResolvedRadioOption {
     labelWidth: number;
     onSelect: (key: string) => void;
     highlightStyle: HighlightStyle;
+    /** Whether this option is disabled - true if the option itself is, or the owning {@link RadioInput} as a whole is. */
+    disabled: boolean;
 }
 
 /** A resolved, measured radio input within a line. */
@@ -64,6 +68,7 @@ interface ResolvedCheckboxElement {
     labelWidth: number;
     onToggle: (checked: boolean) => void;
     highlightStyle: HighlightStyle;
+    disabled: boolean;
     width: number;
 }
 
@@ -75,6 +80,7 @@ interface ResolvedNumberElement {
     allowDecimal: boolean;
     onChange: (value: number) => void;
     highlightStyle: HighlightStyle;
+    disabled: boolean;
     width: number;
 }
 
@@ -84,6 +90,7 @@ export interface ResolvedButtonElement {
     text: string;
     onClick: () => void;
     highlightStyle: HighlightStyle;
+    disabled: boolean;
     width: number;
 }
 
@@ -93,6 +100,8 @@ interface ResolvedSelectOption {
     labelRuns: MeasuredRun[];
     labelWidth: number;
     highlightStyle: HighlightStyle;
+    /** Whether this option is disabled: skipped by in-dropdown Arrow navigation and unselectable, drawn with a greyed-over sheen. Independent of the owning {@link SelectInput}'s own `disabled` - that gates the whole control instead. */
+    disabled: boolean;
 }
 
 /**
@@ -106,6 +115,7 @@ interface ResolvedSelectElement {
     selectedIndex: number;
     onSelect: (key: string) => void;
     highlightStyle: HighlightStyle;
+    disabled: boolean;
     width: number;
 }
 
@@ -144,6 +154,8 @@ export interface FocusableElement {
     numberEdit?: NumberEditHandle;
     /** Present only for select-input focusables - see {@link InteractableDisplay.handleSelectInputKey}. */
     selectEdit?: SelectEditHandle;
+    /** Whether this element is disabled - skipped by arrow-key navigation and unclickable/unactivatable. It can still be the current cursor position (e.g. if it became disabled while focused), just not drawn highlighted. */
+    disabled: boolean;
 }
 
 /** Fallback {@link InteractableDisplayDefaults} used for any field an {@link InteractableDisplay} isn't given. */
@@ -160,6 +172,7 @@ export const DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS: InteractableDisplayDefaults 
     selectPadding: 4,
     selectArrowWidth: 18,
     focusHighlightPadding: 2,
+    disabledOverlayColor: "rgba(128, 128, 128, 0.5)",
 };
 
 /** Determines if `item` is an {@link Input} (any kind - they all carry a `kind` field). */
@@ -321,6 +334,7 @@ export class InteractableDisplay extends Display {
                 labelWidth,
                 onSelect: item.onSelect,
                 highlightStyle: this.fillHighlightStyle(option.highlightStyle ?? item.highlightStyle),
+                disabled: (item.disabled ?? false) || (option.disabled ?? false),
             };
         });
         return {element: {kind: "radio", options, width}, maxFontSize};
@@ -338,6 +352,7 @@ export class InteractableDisplay extends Display {
                 labelWidth,
                 onToggle: item.onToggle,
                 highlightStyle: this.fillHighlightStyle(item.highlightStyle),
+                disabled: item.disabled ?? false,
                 width,
             },
             maxFontSize,
@@ -354,6 +369,7 @@ export class InteractableDisplay extends Display {
                 allowDecimal: item.allowDecimal ?? false,
                 onChange: item.onChange,
                 highlightStyle: this.fillHighlightStyle(item.highlightStyle),
+                disabled: item.disabled ?? false,
                 width: this.defaults.numberInputWidth,
             },
             maxFontSize: this.defaults.fontSize,
@@ -373,6 +389,7 @@ export class InteractableDisplay extends Display {
                 labelRuns: measured,
                 labelWidth,
                 highlightStyle: this.fillHighlightStyle(option.highlightStyle ?? item.highlightStyle),
+                disabled: option.disabled ?? false,
             };
         });
 
@@ -386,6 +403,7 @@ export class InteractableDisplay extends Display {
                 selectedIndex,
                 onSelect: item.onSelect,
                 highlightStyle: this.fillHighlightStyle(item.highlightStyle),
+                disabled: item.disabled ?? false,
                 width,
             },
             maxFontSize,
@@ -396,7 +414,7 @@ export class InteractableDisplay extends Display {
     public resolveButton(ctx: CanvasRenderingContext2D, button: ButtonInput): ResolvedButtonElement {
         ctx.font = this.plainFont;
         const text = `[${button.label}]`;
-        return {kind: "button", text, onClick: button.onClick, highlightStyle: this.fillHighlightStyle(button.highlightStyle), width: ctx.measureText(text).width};
+        return {kind: "button", text, onClick: button.onClick, highlightStyle: this.fillHighlightStyle(button.highlightStyle), disabled: button.disabled ?? false, width: ctx.measureText(text).width};
     }
 
     /**
@@ -445,6 +463,20 @@ export class InteractableDisplay extends Display {
         return {elements, width, height: this.lineHeightFor(maxFontSize)};
     }
 
+    /** Paints a translucent grey sheen over `rect`, marking a disabled element. Must be drawn last, on top of the element's normal painting. */
+    private paintDisabledOverlay(ctx: CanvasRenderingContext2D, rect: Rect): void {
+        ctx.fillStyle = this.defaults.disabledOverlayColor;
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+
+    /** Paints a translucent grey sheen over the `radius`-sized circle at `(cx, cy)`, marking a disabled radio option - covers just its marker, not its label. Must be drawn last, on top of the element's normal painting. */
+    private paintDisabledCircleOverlay(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number): void {
+        ctx.fillStyle = this.defaults.disabledOverlayColor;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
     /** Draws a checkbox's box (themed) plus a tick mark when `checked`. */
     private drawCheckboxBox(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, checked: boolean): void {
         this.theme.drawBox(ctx, x, y, size, size, "sunken");
@@ -469,7 +501,7 @@ export class InteractableDisplay extends Display {
                 elemX += this.defaults.radioOptionGap;
             }
             const optionWidth = this.radioOptionContentWidth(option.labelWidth);
-            focusables.push({rect: {x: elemX, y, w: optionWidth, h: height}, activate: () => option.onSelect(option.key)});
+            focusables.push({rect: {x: elemX, y, w: optionWidth, h: height}, activate: () => option.onSelect(option.key), disabled: option.disabled});
             elemX += optionWidth;
         });
         return focusables;
@@ -484,7 +516,7 @@ export class InteractableDisplay extends Display {
             }
             const optionWidth = this.radioOptionContentWidth(option.labelWidth);
             const rect: Rect = {x: elemX, y, w: optionWidth, h: height};
-            const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+            const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !option.disabled;
 
             if (focused) {
                 ctx.fillStyle = option.highlightStyle.background;
@@ -492,10 +524,16 @@ export class InteractableDisplay extends Display {
             }
 
             const markerRadius = this.defaults.radioMarkerSize / 2;
-            this.theme.drawRadioMarker(ctx, elemX + markerRadius, y + this.defaults.fontSize / 2, markerRadius, option.selected);
+            const markerCx = elemX + markerRadius;
+            const markerCy = y + this.defaults.fontSize / 2;
+            this.theme.drawRadioMarker(ctx, markerCx, markerCy, markerRadius, option.selected);
 
             const labelX = elemX + this.defaults.radioMarkerSize + this.defaults.radioMarkerGap;
             this.drawLine(ctx, option.labelRuns, labelX, y, height, focused ? option.highlightStyle.foreground : undefined);
+
+            if (option.disabled) {
+                this.paintDisabledCircleOverlay(ctx, markerCx, markerCy, markerRadius);
+            }
 
             elemX += optionWidth;
         });
@@ -503,13 +541,13 @@ export class InteractableDisplay extends Display {
 
     /** Computes a resolved checkbox element's on-screen rect. It activates by invoking `onToggle` with its flipped checked state. */
     private layoutCheckbox(element: ResolvedCheckboxElement, x: number, y: number, height: number): FocusableElement[] {
-        return [{rect: {x, y, w: element.width, h: height}, activate: () => element.onToggle(!element.checked)}];
+        return [{rect: {x, y, w: element.width, h: height}, activate: () => element.onToggle(!element.checked), disabled: element.disabled}];
     }
 
     /** Draws a resolved checkbox element's box plus label at `x`. */
     private paintCheckbox(ctx: CanvasRenderingContext2D, element: ResolvedCheckboxElement, x: number, y: number, height: number, focusedRect: Rect | null): void {
         const rect: Rect = {x, y, w: element.width, h: height};
-        const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+        const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
         if (focused) {
             ctx.fillStyle = element.highlightStyle.background;
@@ -521,6 +559,10 @@ export class InteractableDisplay extends Display {
 
         const labelX = x + this.defaults.checkboxSize + this.defaults.checkboxGap;
         this.drawLine(ctx, element.labelRuns, labelX, y, height, focused ? element.highlightStyle.foreground : undefined);
+
+        if (element.disabled) {
+            this.paintDisabledOverlay(ctx, {x, y: boxY, w: this.defaults.checkboxSize, h: this.defaults.checkboxSize});
+        }
     }
 
     /** Computes a resolved number element's on-screen rect. */
@@ -529,6 +571,7 @@ export class InteractableDisplay extends Display {
             rect: {x, y, w: element.width, h: height},
             activate: () => undefined,
             numberEdit: {getValue: () => element.value, step: element.step, allowDecimal: element.allowDecimal, onChange: element.onChange},
+            disabled: element.disabled,
         }];
     }
 
@@ -540,7 +583,7 @@ export class InteractableDisplay extends Display {
     /** Draws a resolved number element's box at `x`. */
     private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, height: number, focusedRect: Rect | null, editText: string | null): void {
         const rect: Rect = {x, y, w: element.width, h: height};
-        const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+        const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
         const boxHeight = this.defaults.lineHeight - 4;
         const boxY = y + (this.defaults.fontSize - boxHeight) / 2;
@@ -565,17 +608,21 @@ export class InteractableDisplay extends Display {
             const textWidth = ctx.measureText(text).width;
             ctx.fillRect(textX + textWidth + 1, boxY + 2, 1, boxHeight - 4);
         }
+
+        if (element.disabled) {
+            this.paintDisabledOverlay(ctx, {x, y: boxY, w: element.width, h: boxHeight});
+        }
     }
 
     /** Computes a resolved button's on-screen rect: its measured width, padded out by 2 canvas pixels on every side. */
     public layoutButton(element: ResolvedButtonElement, x: number, y: number, height: number): FocusableElement[] {
-        return [{rect: {x: x - 2, y: y - 2, w: element.width + 4, h: height}, activate: element.onClick}];
+        return [{rect: {x: x - 2, y: y - 2, w: element.width + 4, h: height}, activate: element.onClick, disabled: element.disabled}];
     }
 
     /** Draws a resolved button's bracket-wrapped label at `(x, y)`, highlighted when `focusedRect` matches its rect. */
     private paintButton(ctx: CanvasRenderingContext2D, element: ResolvedButtonElement, x: number, y: number, height: number, focusedRect: Rect | null): void {
         const rect: Rect = {x: x - 2, y: y - 2, w: element.width + 4, h: height};
-        const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+        const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
         if (focused) {
             ctx.fillStyle = element.highlightStyle.background;
@@ -605,13 +652,14 @@ export class InteractableDisplay extends Display {
                 selectedKey: element.options[element.selectedIndex]?.key ?? "",
                 onSelect: element.onSelect,
             },
+            disabled: element.disabled,
         }];
     }
 
     /** Draws a resolved select element's closed combo box at `x`: a themed box showing the selected option's label, plus a dropdown-arrow button. */
     private paintSelect(ctx: CanvasRenderingContext2D, element: ResolvedSelectElement, x: number, y: number, height: number, focusedRect: Rect | null, open: boolean): void {
         const rect: Rect = {x, y, w: element.width, h: height};
-        const focused = focusedRect !== null && rectsEqual(rect, focusedRect);
+        const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
         const boxHeight = this.defaults.lineHeight - 4;
         const boxY = y + (this.defaults.fontSize - boxHeight) / 2;
@@ -632,6 +680,10 @@ export class InteractableDisplay extends Display {
         }
 
         this.theme.drawSelectArrowButton(ctx, x + textBoxWidth, boxY, arrowWidth, boxHeight, open);
+
+        if (element.disabled) {
+            this.paintDisabledOverlay(ctx, {x, y: boxY, w: element.width, h: boxHeight});
+        }
     }
 
     /**
@@ -649,7 +701,7 @@ export class InteractableDisplay extends Display {
 
         return selectEdit.options.map((option, i) => {
             const rowRect: Rect = {x: listRect.x, y: listRect.y + i * rowHeight, w: listRect.w, h: rowHeight};
-            const highlighted = i === highlightIndex;
+            const highlighted = i === highlightIndex && !option.disabled;
 
             if (highlighted) {
                 ctx.fillStyle = option.highlightStyle.background;
@@ -658,6 +710,11 @@ export class InteractableDisplay extends Display {
 
             const textY = rowRect.y + (rowHeight - this.defaults.fontSize) / 2;
             this.drawLine(ctx, option.labelRuns, rowRect.x + this.defaults.selectPadding, textY, rowHeight, highlighted ? option.highlightStyle.foreground : undefined);
+
+            if (option.disabled) {
+                this.paintDisabledOverlay(ctx, rowRect);
+            }
+
             return rowRect;
         });
     }
@@ -805,15 +862,22 @@ export class InteractableDisplay extends Display {
     /**
      * Moves the cursor one step through {@link focusables} in their sorted
      * order, treating "nothing selected" (`null`) as one extra stop between
-     * the last element and the first.
+     * the last element and the first. Disabled elements are skipped over -
+     * if every element is disabled, the cursor ends up back where it
+     * started.
      *
      * @param delta - `1` to move to the next element, `-1` to move to the previous one.
      */
     private moveCursorHorizontal(delta: 1 | -1): void {
         const stopCount = this.focusables.length + 1;
-        const currentStop = this.cursor === null ? 0 : this.cursor + 1;
-        const nextStop = (currentStop + delta + stopCount) % stopCount;
-        this.setCursor(nextStop === 0 ? null : nextStop - 1);
+        let stop = this.cursor === null ? 0 : this.cursor + 1;
+        for (let i = 0; i < stopCount; i++) {
+            stop = (stop + delta + stopCount) % stopCount;
+            if (stop === 0 || !this.focusables[stop - 1].disabled) {
+                break;
+            }
+        }
+        this.setCursor(stop === 0 ? null : stop - 1);
     }
 
     /**
@@ -837,7 +901,9 @@ export class InteractableDisplay extends Display {
     /**
      * Moves the cursor to the next/previous row of {@link focusables} (by
      * `y`), landing on whichever element in that row is horizontally
-     * closest to the currently focused one.
+     * closest to the currently focused one. Rows made up entirely of
+     * disabled elements are skipped over, as is any disabled element within
+     * an otherwise-enabled row.
      *
      * @param delta - `1` to move to the next row down, `-1` to move to the previous row up.
      */
@@ -851,19 +917,26 @@ export class InteractableDisplay extends Display {
         const currentRowIndex = currentRect === null ? -1 : rows.findIndex((row) => row[0].rect.y === currentRect.y);
 
         const stopCount = rows.length + 1;
-        const currentStop = currentRowIndex === -1 ? 0 : currentRowIndex + 1;
-        const nextStop = (currentStop + delta + stopCount) % stopCount;
+        let stop = currentRowIndex === -1 ? 0 : currentRowIndex + 1;
 
-        if (nextStop === 0) {
-            this.setCursor(null);
+        for (let i = 0; i < stopCount; i++) {
+            stop = (stop + delta + stopCount) % stopCount;
+            if (stop === 0) {
+                this.setCursor(null);
+                return;
+            }
+
+            const targetRow = rows[stop - 1].filter((focusable) => !focusable.disabled);
+            if (targetRow.length === 0) {
+                continue;
+            }
+
+            const targetX = currentRect?.x ?? targetRow[0].rect.x;
+            const closest = targetRow.reduce((best, candidate) =>
+                Math.abs(candidate.rect.x - targetX) < Math.abs(best.rect.x - targetX) ? candidate : best);
+            this.setCursor(this.focusables.indexOf(closest));
             return;
         }
-
-        const targetRow = rows[nextStop - 1];
-        const targetX = currentRect?.x ?? targetRow[0].rect.x;
-        const closest = targetRow.reduce((best, candidate) =>
-            Math.abs(candidate.rect.x - targetX) < Math.abs(best.rect.x - targetX) ? candidate : best);
-        this.setCursor(this.focusables.indexOf(closest));
     }
 
     /**
@@ -990,14 +1063,33 @@ export class InteractableDisplay extends Display {
     }
 
     /**
+     * The nearest enabled option index from `from`, stepping by `delta` and
+     * clamping (not wrapping) at either end. Returns `from` unchanged if
+     * there's no enabled option in that direction.
+     */
+    private nextEnabledOptionIndex(options: ResolvedSelectOption[], from: number, delta: 1 | -1): number {
+        let i = from;
+        while (i + delta >= 0 && i + delta < options.length) {
+            i += delta;
+            if (!options[i].disabled) {
+                return i;
+            }
+        }
+        return from;
+    }
+
+    /**
      * Handles a key press while a select input's dropdown is open.
-     * `ArrowUp`/`ArrowDown` move {@link openSelectHighlight} within
-     * `selectEdit.options` (clamped, no wrap); `ArrowLeft`/`ArrowRight` do
-     * nothing; `Enter`/`Space` commit the highlighted option via
-     * `selectEdit.onSelect` and close the dropdown; `Escape` closes it
-     * without committing, leaving `selected` unchanged. Every other key is
-     * ignored - all are swallowed regardless, since {@link handleKeyDown}
-     * already calls `preventDefault`/`stopPropagation` up front.
+     * `ArrowUp`/`ArrowDown` move {@link openSelectHighlight} to the nearest
+     * enabled option within `selectEdit.options` (clamped, no wrap, skipping
+     * disabled options - see {@link nextEnabledOptionIndex}); `ArrowLeft`/
+     * `ArrowRight` do nothing; `Enter`/`Space` commit the highlighted option
+     * via `selectEdit.onSelect` and close the dropdown, unless it's disabled
+     * (in which case the key is ignored and the dropdown stays open);
+     * `Escape` closes it without committing, leaving `selected` unchanged.
+     * Every other key is ignored - all are swallowed regardless, since
+     * {@link handleKeyDown} already calls `preventDefault`/`stopPropagation`
+     * up front.
      *
      * @param selectEdit - The open select input's edit handle.
      * @param event - The keyboard event.
@@ -1006,12 +1098,14 @@ export class InteractableDisplay extends Display {
         if (event.key === "Escape") {
             this.openSelectCursor = null;
         } else if (event.key === "ArrowUp") {
-            this.openSelectHighlight = Math.max(0, this.openSelectHighlight - 1);
+            this.openSelectHighlight = this.nextEnabledOptionIndex(selectEdit.options, this.openSelectHighlight, -1);
         } else if (event.key === "ArrowDown") {
-            this.openSelectHighlight = Math.min(selectEdit.options.length - 1, this.openSelectHighlight + 1);
+            this.openSelectHighlight = this.nextEnabledOptionIndex(selectEdit.options, this.openSelectHighlight, 1);
         } else if (event.key === "Enter" || event.key === " ") {
-            selectEdit.onSelect(selectEdit.options[this.openSelectHighlight].key);
-            this.openSelectCursor = null;
+            if (!selectEdit.options[this.openSelectHighlight].disabled) {
+                selectEdit.onSelect(selectEdit.options[this.openSelectHighlight].key);
+                this.openSelectCursor = null;
+            }
         }
     }
 
@@ -1027,7 +1121,12 @@ export class InteractableDisplay extends Display {
      * `Enter`/`Space` activates whichever one the cursor is currently on (if
      * any) - or, for a select input, opens its dropdown, or for a number
      * input, enters edit mode. Typing a digit or `Backspace` while a number
-     * input is focused (but not yet editing) also enters edit mode.
+     * input is focused (but not yet editing) also enters edit mode. Disabled
+     * elements are skipped by Arrow-key navigation (see {@link
+     * moveCursorHorizontal}/{@link moveCursorVertical}); if the cursor is
+     * still sitting on one anyway (e.g. it became disabled after being
+     * focused), digit/`Backspace`/`Enter`/`Space` handling for it is
+     * suppressed.
      *
      * @param event - The keyboard event.
      */
@@ -1063,7 +1162,8 @@ export class InteractableDisplay extends Display {
             return;
         }
 
-        const focusedNumberEdit = cursor !== null ? this.focusables[cursor].numberEdit : undefined;
+        const focusedDisabled = cursor !== null ? this.focusables[cursor].disabled : false;
+        const focusedNumberEdit = cursor !== null && !focusedDisabled ? this.focusables[cursor].numberEdit : undefined;
 
         if (event.key === "ArrowLeft") {
             this.moveCursorHorizontal(-1);
@@ -1077,7 +1177,7 @@ export class InteractableDisplay extends Display {
             this.startEditingNumber(cursor, focusedNumberEdit, event.key);
         } else if (cursor !== null && focusedNumberEdit && event.key === "Backspace") {
             this.startEditingNumber(cursor, focusedNumberEdit, String(focusedNumberEdit.getValue()).slice(0, -1));
-        } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null) {
+        } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null && !focusedDisabled) {
             const focusable = this.focusables[this.cursor];
             const selectEdit = focusable.selectEdit;
             const numberEdit = focusable.numberEdit;
@@ -1119,17 +1219,19 @@ export class InteractableDisplay extends Display {
      * whatever's beneath still receives it; a click inside `bounds` while
      * unfocused grants focus, then falls through to the same hit-testing a
      * focused click gets. Once focused (in either mode), hit-tests the
-     * click against {@link focusables} (as last laid out): a hit moves the
-     * cursor to that element and activates it, same as pressing `Enter`
-     * while it's focused - or, for a select input, opens its dropdown, or
-     * for a number input not already being edited, enters edit mode. While
-     * a select's dropdown is open, a click is tested against {@link
-     * openSelectDropdownRects} first: a hit on an option row commits it and
-     * closes, a hit on the select's own box closes it without committing
-     * (toggling it shut), and a hit elsewhere just closes the dropdown
-     * before falling through to the normal hit-test below. Registered on
-     * the capture phase and stops propagation while focused, for the same
-     * reason as {@link handleMouseDown}.
+     * click against {@link focusables} (as last laid out): a hit on a
+     * disabled element is swallowed and otherwise ignored; a hit on an
+     * enabled one moves the cursor to it and activates it, same as pressing
+     * `Enter` while it's focused - or, for a select input, opens its
+     * dropdown, or for a number input not already being edited, enters edit
+     * mode. While a select's dropdown is open, a click is tested against
+     * {@link openSelectDropdownRects} first: a hit on an enabled option row
+     * commits it and closes; a hit on a disabled option row is swallowed
+     * without committing or closing; a hit on the select's own box closes it
+     * without committing (toggling it shut); a hit elsewhere just closes the
+     * dropdown before falling through to the normal hit-test below.
+     * Registered on the capture phase and stops propagation while focused,
+     * for the same reason as {@link handleMouseDown}.
      *
      * @param event - The mouse event.
      */
@@ -1155,6 +1257,10 @@ export class InteractableDisplay extends Display {
         if (this.openSelectCursor !== null && this.openSelectDropdownRects) {
             const optionIndex = this.openSelectDropdownRects.findIndex((rect) => pointInRect(event.clientX, event.clientY, rect));
             const selectEdit = this.focusables[this.openSelectCursor].selectEdit;
+            const optionDisabled = optionIndex !== -1 && selectEdit ? selectEdit.options[optionIndex].disabled : false;
+            if (optionDisabled) {
+                return;
+            }
             if (optionIndex !== -1 && selectEdit) {
                 selectEdit.onSelect(selectEdit.options[optionIndex].key);
             }
@@ -1169,8 +1275,11 @@ export class InteractableDisplay extends Display {
         if (index === -1) {
             return;
         }
-        this.setCursor(index);
         const focusable = this.focusables[index];
+        if (focusable.disabled) {
+            return;
+        }
+        this.setCursor(index);
         const selectEdit = focusable.selectEdit;
         const numberEdit = focusable.numberEdit;
         if (selectEdit) {
