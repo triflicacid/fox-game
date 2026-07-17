@@ -1,4 +1,4 @@
-import {Vector2d} from "../geometry/vector2d";
+import {Vector2d} from "./vector2d";
 
 /** Angle, in radians, each side of an arrowhead splays from the shaft. */
 const ARROWHEAD_ANGLE = Math.PI / 7;
