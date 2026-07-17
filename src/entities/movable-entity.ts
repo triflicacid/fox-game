@@ -4,8 +4,8 @@ import {SpriteFrame} from "../sprites/sprite";
 import {CompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
-import {drawArrow} from "../debug/debug-renderer";
 import {KeyBinding} from "../help/key-binding";
+import {drawArrow} from "../geometry/arrow";
 
 /**
  * An {@link Entity} that can move: it has a facing direction and a
