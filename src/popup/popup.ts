@@ -13,6 +13,12 @@ export interface PopupOptions {
      * whenever it's open. Defaults to `["Escape"]`.
      */
     closeKeys?: string[];
+
+    /**
+     * Called whenever this popup opens or closes, e.g. so a caller can pause
+     * the game while it's open. `open` is `true` on open, `false` on close.
+     */
+    onOpenChange?: (open: boolean) => void;
 }
 
 /** A {@link TextStyle} with every field resolved to a concrete value. */
@@ -747,7 +753,8 @@ function paintElements(
  * navigated by a keyboard cursor or clicked directly. While open, it takes
  * over the keyboard and mouse entirely (see {@link handleKeyDown}/{@link
  * handleMouseDown}/{@link handleClick}), so nothing behind it reacts to
- * input until it's closed. Call {@link draw} once per frame to render it.
+ * input until it's closed. Call {@link drawOverlay} once on open, and
+ * {@link draw} every frame, to render it.
  */
 export class Popup {
     private open = false;
@@ -763,12 +770,14 @@ export class Popup {
      */
     private numberEditBuffer: {cursor: number; text: string} | null = null;
     private readonly closeKeys: ReadonlySet<string>;
+    private readonly onOpenChange: ((open: boolean) => void) | undefined;
 
     /**
      * @param options - Configures this popup. See {@link PopupOptions}.
      */
     public constructor(options: PopupOptions = {}) {
         this.closeKeys = new Set(options.closeKeys ?? ["Escape"]);
+        this.onOpenChange = options.onOpenChange;
         window.addEventListener("keydown", this.handleKeyDown, {capture: true});
         window.addEventListener("mousedown", this.handleMouseDown, {capture: true});
         window.addEventListener("click", this.handleClick, {capture: true});
@@ -790,6 +799,7 @@ export class Popup {
         this.open = true;
         this.cursor = 0;
         this.numberEditBuffer = null;
+        this.onOpenChange?.(true);
     }
 
     /**
@@ -799,6 +809,7 @@ export class Popup {
     public close(): void {
         this.commitPendingNumberEdit();
         this.open = false;
+        this.onOpenChange?.(false);
     }
 
     /**
@@ -816,7 +827,24 @@ export class Popup {
     }
 
     /**
-     * Draws a dimming layer plus this popup, centred on the canvas.
+     * Paints the dimming layer behind this popup, across the whole canvas.
+     * A no-op if closed. This need only be done once (when the popup is opened.(
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param canvasWidth - Canvas width, in canvas pixels.
+     * @param canvasHeight - Canvas height, in canvas pixels.
+     */
+    public drawOverlay(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+        if (!this.open) {
+            return;
+        }
+
+        ctx.fillStyle = POPUP_CONFIG.dimColor;
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
+
+    /**
+     * Draws this popup's panel, centred on the canvas.
      *
      * @param ctx - Canvas context to draw into.
      * @param canvasWidth - Canvas width, in canvas pixels.
@@ -874,9 +902,6 @@ export class Popup {
         const editText = this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor ? this.numberEditBuffer.text : null;
 
         // Paint pass.
-        ctx.fillStyle = POPUP_CONFIG.dimColor;
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
         ctx.fillStyle = POPUP_CONFIG.backgroundColor;
         ctx.fillRect(x, y, width, height);
         drawWin98Border(ctx, x - BORDER_WIDTH, y - BORDER_WIDTH, width + BORDER_WIDTH * 2, height + BORDER_WIDTH * 2);
