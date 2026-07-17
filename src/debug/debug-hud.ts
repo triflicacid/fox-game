@@ -41,6 +41,10 @@ export interface DebugHudData {
  */
 export class DebugHud {
     private readonly display: InteractableDisplay;
+    /** The seed line's button's current label - see {@link updateButtonText}. */
+    private copyButtonLabel = "Copy";
+    /** Pending revert-to-"Copy" timer from the last click, if any. */
+    private copyRevertTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
     public constructor() {
         this.display = new InteractableDisplay({
@@ -64,6 +68,31 @@ export class DebugHud {
     /** A numeric-valued segment - `value` is pre-formatted (may include a unit suffix, e.g. `"12.3 ms"`). */
     private numberValue(value: string): TextSegment {
         return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
+    }
+
+    /**
+     * Updates the seed line's button's displayed label.
+     */
+    private updateButtonText(label: string): void {
+        this.copyButtonLabel = label;
+    }
+
+    /**
+     * The seed line's button's action: copies `seed` to the clipboard, shows
+     * "Copied" for {@link DEBUG_CONFIG.hudCopyFeedbackDurationMs}, then
+     * reverts to "Copy". Restarts the revert timer if clicked again mid-feedback.
+     */
+    private handleCopyClick(seed: number): void {
+        copyToClipboard(String(seed));
+        this.updateButtonText("Copied");
+
+        if (this.copyRevertTimeoutId !== null) {
+            clearTimeout(this.copyRevertTimeoutId);
+        }
+        this.copyRevertTimeoutId = setTimeout(() => {
+            this.copyRevertTimeoutId = null;
+            this.updateButtonText("Copy");
+        }, DEBUG_CONFIG.hudCopyFeedbackDurationMs);
     }
 
     /**
@@ -94,7 +123,7 @@ export class DebugHud {
             ],
             [
                 this.label("seed: "), this.numberValue(String(data.worldSeed)), this.label(" "),
-                {kind: "button", label: "Copy", onClick: () => copyToClipboard(String(data.worldSeed))},
+                {kind: "button", label: this.copyButtonLabel, onClick: () => this.handleCopyClick(data.worldSeed)},
             ],
         ];
         if (data.spectating) {
