@@ -2,7 +2,6 @@
   - Biomes?
   - Lakes?
   - Fences and obstacles?
-- Better popup performance - no need to re-render the game
 - A vertical jump wit hspace bar
 - A dash (like Celeste)
 - Maybe double-tab a direction to run faster
