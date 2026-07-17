@@ -1,6 +1,9 @@
-import {Display} from "../display/display";
+import {FocusableElement, InteractableDisplay} from "../display/interactable-display";
+import {DisplayLine} from "../display/input";
 import {TextSegment} from "../display/text-style";
+import {FLAT_THEME} from "../display/flat-theme";
 import {DEBUG_CONFIG} from "./debug-config";
+import {copyToClipboard} from "../util";
 
 /**
  * Everything the debug HUD needs to render one frame - gathered by whoever
@@ -37,15 +40,15 @@ export interface DebugHudData {
  * Draws the top-left debug HUD.
  */
 export class DebugHud {
-    private readonly display: Display;
+    private readonly display: InteractableDisplay;
 
     public constructor() {
-        this.display = new Display({
+        this.display = new InteractableDisplay({
             foreground: DEBUG_CONFIG.hudTextColor,
             fontFamily: DEBUG_CONFIG.hudFontFamily,
             fontSize: DEBUG_CONFIG.hudFontSize,
             lineHeight: DEBUG_CONFIG.hudLineHeight,
-        });
+        }, FLAT_THEME, "click", null);
     }
 
     /** A label segment, in the HUD's default text colour. */
@@ -66,8 +69,8 @@ export class DebugHud {
     /**
      * Builds this frame's HUD lines from `data`.
      */
-    private buildLines(data: DebugHudData): TextSegment[][] {
-        const lines: TextSegment[][] = [
+    private buildLines(data: DebugHudData): DisplayLine[] {
+        const lines: DisplayLine[] = [
             [this.label("camera: ("), this.numberValue(data.cameraCenterX.toFixed(1)), this.label(", "), this.numberValue(data.cameraCenterY.toFixed(1)), this.label(")")],
             [this.label("viewport: "), this.numberValue(String(data.viewportWidth)), this.label(" x "), this.numberValue(String(data.viewportHeight))],
             [
@@ -89,12 +92,30 @@ export class DebugHud {
                 this.label("FPS: "), this.numberValue(data.actualFps.toFixed(2)), this.label("/"),
                 data.targetFps !== undefined ? this.numberValue(data.targetFps.toFixed(0)) : this.stringValue("uncapped"),
             ],
-            [this.label("seed: "), this.numberValue(String(data.worldSeed))],
+            [
+                this.label("seed: "), this.numberValue(String(data.worldSeed)), this.label(" "),
+                {kind: "button", label: "Copy", onClick: () => copyToClipboard(String(data.worldSeed))},
+            ],
         ];
         if (data.spectating) {
             lines.push([{content: "SPECTATOR MODE", style: {foreground: DEBUG_CONFIG.hudSpectatorColor}}]);
         }
         return lines;
+    }
+
+    /**
+     * Called when the HUD is toggled. Used to disable the interactive display.
+     *
+     * @param visible - Whether debug mode (and so this HUD) is currently shown.
+     */
+    public setVisible(visible: boolean): void {
+        if (visible === this.display.isActive()) {
+            return;
+        }
+        this.display.setActive(visible);
+        if (!visible) {
+            this.display.setBounds(null);
+        }
     }
 
     /**
@@ -110,14 +131,26 @@ export class DebugHud {
         ctx.textBaseline = "top";
 
         const padding = DEBUG_CONFIG.hudPadding;
-        const {lines: resolvedLines, width, height} = this.display.layoutBlock(ctx, lines, padding);
+        const resolvedLines = lines.map((line) => this.display.resolveElements(ctx, line));
+        const width = Math.max(0, ...resolvedLines.map((line) => line.width)) + padding * 2;
+        const height = resolvedLines.reduce((sum, line) => sum + line.height, 0) + padding * 2;
+
+        this.display.setBounds({x: 0, y: 0, w: width, h: height});
+
+        const focusables: FocusableElement[] = [];
+        let lineY = padding;
+        for (const line of resolvedLines) {
+            focusables.push(...this.display.layoutFocusables(line, padding, lineY));
+            lineY += line.height;
+        }
+        this.display.setFocusables(focusables);
 
         ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
         ctx.fillRect(0, 0, width, height);
 
-        let lineY = padding;
+        lineY = padding;
         for (const line of resolvedLines) {
-            this.display.drawLine(ctx, line.runs, padding, lineY, line.height);
+            this.display.drawElements(ctx, line, padding, lineY);
             lineY += line.height;
         }
     }

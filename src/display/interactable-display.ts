@@ -187,6 +187,7 @@ export class InteractableDisplay extends Display {
     private focused = false;
     private bounds: Rect | null = null;
     private keyDownInterceptor: ((event: KeyboardEvent) => boolean) | undefined;
+    private readonly initialFocusIndex: number | null;
 
     private focusables: FocusableElement[] = [];
     private cursor: number | null = null;
@@ -205,13 +206,15 @@ export class InteractableDisplay extends Display {
      * @param defaults - Default text style, minimum line height, and input geometry. Any field left unset falls back to {@link DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS}.
      * @param theme - Chrome (borders/boxes/markers) this display paints its inputs and panel with.
      * @param focusMode - Whether this display is always focused while active, or only once clicked into.
+     * @param initialFocusIndex - Index into {@link focusables} the cursor lands on when {@link setActive} is called with `true`, or `null` for no initial focus. Defaults to `0` (the first element).
      */
-    public constructor(defaults: Partial<InteractableDisplayDefaults>, theme: ChromeTheme, focusMode: FocusMode) {
+    public constructor(defaults: Partial<InteractableDisplayDefaults>, theme: ChromeTheme, focusMode: FocusMode, initialFocusIndex: number | null = 0) {
         const resolved: InteractableDisplayDefaults = {...DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS, ...defaults};
         super(resolved);
         this.defaults = resolved;
         this.theme = theme;
         this.focusMode = focusMode;
+        this.initialFocusIndex = initialFocusIndex;
         this.plainFont = `${resolved.fontSize}px ${resolved.fontFamily}`;
         window.addEventListener("keydown", this.handleKeyDown, {capture: true});
         window.addEventListener("mousedown", this.handleMouseDown, {capture: true});
@@ -226,7 +229,7 @@ export class InteractableDisplay extends Display {
     public setActive(active: boolean): void {
         if (active) {
             this.active = true;
-            this.cursor = 0;
+            this.cursor = this.initialFocusIndex;
             this.numberEditBuffer = null;
             this.editingNumberCursor = null;
             this.openSelectCursor = null;
@@ -784,9 +787,9 @@ export class InteractableDisplay extends Display {
         }
     }
 
-    /** The currently focused element's rect, if any. */
+    /** The currently focused element's rect, if any - `null` whenever this display itself isn't {@link isFocused focused} (e.g. blurred in `"click"` mode), even if a cursor position is still remembered. */
     private getFocusedRect(): Rect | null {
-        return this.cursor !== null ? this.focusables[this.cursor]?.rect ?? null : null;
+        return this.isFocused() && this.cursor !== null ? this.focusables[this.cursor]?.rect ?? null : null;
     }
 
     /** The focused number input's in-progress edit text, if it's the one currently being edited. */

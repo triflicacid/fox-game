@@ -329,6 +329,8 @@ export class World {
         targetFps?: number,
         noiseFieldName?: string,
     ): void {
+        this.debugHud.setVisible(debugEnabled);
+
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
