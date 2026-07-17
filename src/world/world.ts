@@ -237,14 +237,21 @@ export class World {
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
                 const chunk = this.getChunk(chunkX, chunkY);
-                chunk.draw(ctx, chunkX * chunkPixelSize - viewX, chunkY * chunkPixelSize - viewY, this.tileSize);
+                const originX = chunkX * chunkPixelSize - viewX;
+                const originY = chunkY * chunkPixelSize - viewY;
+
+                chunk.draw(ctx, originX, originY, this.tileSize);
+
+                if (debugEnabled) {
+                    chunk.drawDebug(ctx, originX, originY, this.tileSize);
+                }
             }
         }
 
-        this.drawEntities(ctx, camera);
+        this.drawEntities(ctx, camera, debugEnabled);
 
         if (debugEnabled) {
-            this.drawDebugOverlay(ctx, camera, spectating, actualFps, targetFps);
+            this.drawDebugHud(ctx, camera, spectating, actualFps, targetFps);
         }
     }
 
@@ -254,8 +261,9 @@ export class World {
      *
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera to render entities through.
+     * @param debugEnabled - Whether to draw debug info on each entity.
      */
-    private drawEntities(ctx: CanvasRenderingContext2D, camera: Camera): void {
+    private drawEntities(ctx: CanvasRenderingContext2D, camera: Camera, debugEnabled = false): void {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
 
@@ -278,47 +286,17 @@ export class World {
                 ctx.translate(x + frame.w / 2, y + frame.h / 2);
                 ctx.rotate(frame.rotation);
                 ctx.drawImage(bitmap, -frame.w / 2, -frame.h / 2, frame.w, frame.h);
+                if (debugEnabled) {
+                    entity.drawDebugOverlay(ctx, viewX, viewY);
+                }
                 ctx.restore();
             } else {
                 ctx.drawImage(bitmap, x, y, frame.w, frame.h);
+                if (debugEnabled) {
+                    entity.drawDebugOverlay(ctx, viewX, viewY);
+                }
             }
         }
-    }
-
-    /**
-     * Draws the debug rendering overlay: every visible chunk/tile's outline,
-     * every visible entity's bounding box and (for a {@link MovableEntity})
-     * facing arrow, and the HUD readout (see {@link drawDebugHud}).
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param camera - Camera to render the overlay through.
-     * @param spectating - Whether spectator mode is currently active, shown as an indicator in the HUD.
-     * @param actualFps - Currently measured rendering FPS, shown in the HUD.
-     * @param targetFps - Configured FPS cap, shown alongside `actualFps`, or `undefined` when uncapped.
-     */
-    private drawDebugOverlay(ctx: CanvasRenderingContext2D, camera: Camera, spectating: boolean, actualFps: number, targetFps: number | undefined): void {
-        const viewX = camera.getViewX();
-        const viewY = camera.getViewY();
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
-
-        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
-            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                const chunk = this.getChunk(chunkX, chunkY);
-                chunk.drawDebug(ctx, chunkX * chunkPixelSize - viewX, chunkY * chunkPixelSize - viewY, this.tileSize);
-            }
-        }
-
-        for (const entity of this.entities) {
-            const position = entity.getPosition();
-            const frame = entity.getCurrentFrame();
-            if (!camera.isRectVisible(position.x, position.y, frame.w, frame.h)) {
-                continue;
-            }
-            entity.drawDebugOverlay(ctx, viewX, viewY);
-        }
-
-        this.drawDebugHud(ctx, camera, spectating, actualFps, targetFps);
     }
 
     /**
