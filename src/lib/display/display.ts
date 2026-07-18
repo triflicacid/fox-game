@@ -119,6 +119,24 @@ export class Display {
         return `${italic}${bold}${style.fontSize}px ${style.fontFamily}`;
     }
 
+    /** Swaps a resolved style's `foreground`/`background` - a no-op when `background` is unset, since there's nothing to move into `foreground`. */
+    private invertStyle(style: ResolvedStyle): ResolvedStyle {
+        return style.background === undefined ? style : {...style, foreground: style.background, background: style.foreground};
+    }
+
+    /** Applies `segmentStyle`'s `invert`/`invertFormat`/`fontSizeDelta` to `resolved` - see {@link TextStyle}. */
+    private adjustStyle(segmentStyle: TextStyle | undefined, resolved: ResolvedStyle): ResolvedStyle {
+        let style = segmentStyle?.invert ? this.invertStyle(resolved) : resolved;
+        if (segmentStyle?.invertFormat) {
+            style = {...style, format: style.format & ~segmentStyle.invertFormat};
+        }
+        if (segmentStyle?.fontSizeDelta !== undefined) {
+            const delta = segmentStyle.fontSizeDelta;
+            style = {...style, fontSize: typeof delta === "number" ? style.fontSize + delta : delta(style.fontSize)};
+        }
+        return style;
+    }
+
     /**
      * Recursively flattens `segment` into {@link ResolvedRun}s, resolving
      * each one's style against whatever it inherits from its parent. A
@@ -128,7 +146,7 @@ export class Display {
         if (segment.hidden) {
             return [];
         }
-        const style = this.resolveStyle(segment.style, inherited);
+        const style = this.adjustStyle(segment.style, this.resolveStyle(segment.style, inherited));
         if (typeof segment.content === "string") {
             return [{
                 text: this.applyCase(segment.content, style.format),

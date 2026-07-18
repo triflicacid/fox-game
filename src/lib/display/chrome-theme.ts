@@ -11,11 +11,13 @@ export abstract class ChromeTheme {
     /**
      * @param surfaceBackground - Flat surface colour for a panel's body and for a control's idle face (e.g. the select arrow button).
      * @param boxForeground - Text/mark colour that reads clearly against {@link drawBox}'s fill (e.g. a checkbox's tick, a number input's digits).
+     * @param boxBackground - Default fill colour of a sunken box/marker face (e.g. a checkbox's or radio marker's default interior), before any state-style override.
      * @param borderWidth - Thickness of {@link drawPanelBorder}'s border, in canvas pixels - callers use this to inflate the rect they draw the border around.
      */
     protected constructor(
         public readonly surfaceBackground: string,
         public readonly boxForeground: string,
+        public readonly boxBackground: string,
         public readonly borderWidth: number,
     ) {
     }

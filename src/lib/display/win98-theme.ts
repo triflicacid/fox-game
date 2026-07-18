@@ -13,6 +13,8 @@ const BORDER_DARK_SHADOW_COLOR = "#000000";
 
 /** Flat grey face colour shared by every Win98 surface (panel body, control faces). */
 const SURFACE_COLOR = "#c0c0c0";
+/** Default fill colour of a sunken box/marker (checkbox, radio marker, number/select interior). */
+const BOX_BACKGROUND = "#ffffff";
 
 /**
  * Draws a two-tone bevel edge: `topLeft` along the top and left sides of the
@@ -44,7 +46,7 @@ function drawRaisedBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w
 
 /** Draws a classic Windows 98 "sunken" box: a white fill with the bevel edges inverted relative to a raised border. */
 function drawSunkenBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = BOX_BACKGROUND;
     ctx.fillRect(x, y, w, h);
     drawBevelEdge(ctx, x, y, w, h, BORDER_SHADOW_COLOR, BORDER_HIGHLIGHT_COLOR);
 }
@@ -56,7 +58,7 @@ function drawSunkenBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
  */
 class Win98Theme extends ChromeTheme {
     public constructor() {
-        super(SURFACE_COLOR, "#000000", 2);
+        super(SURFACE_COLOR, "#000000", BOX_BACKGROUND, 2);
     }
 
     public override defaultFocusedStyle(): TextStyle {
@@ -80,7 +82,7 @@ class Win98Theme extends ChromeTheme {
     public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean, foreground?: string, background?: string): void {
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fillStyle = background ?? "#ffffff";
+        ctx.fillStyle = background ?? BOX_BACKGROUND;
         ctx.fill();
 
         ctx.lineWidth = 1;

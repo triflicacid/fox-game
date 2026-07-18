@@ -6,10 +6,13 @@ export interface ResolvedStateStyle {
     background: string | undefined;
 }
 
-/** Resolves `style`'s colours over `base`. Font, size, and format are ignored so an overlay never changes measured width. */
+/** Resolves `style`'s colours over `base`. Font, size, and format are ignored so an overlay never changes measured width. `invert` swaps the resolved pair - a no-op when `background` ends up unset. */
 export function resolveStateStyle(style: TextStyle | undefined, base: ResolvedStateStyle): ResolvedStateStyle {
-    return {
+    const resolved = {
         foreground: style?.foreground ?? base.foreground,
         background: style?.background ?? base.background,
     };
+    return style?.invert && resolved.background !== undefined
+        ? {foreground: resolved.background, background: resolved.foreground}
+        : resolved;
 }

@@ -361,9 +361,9 @@ export class InteractableDisplay extends Display {
         return {foreground: style.foreground, background: style.background};
     }
 
-    /** Resolves a plain optional style with no base of its own - the root of a fallback chain. */
-    private resolveBaseStyle(style: TextStyle | undefined): ResolvedStateStyle {
-        return resolveStateStyle(style, {foreground: undefined, background: undefined});
+    /** The theme's default box/marker look, as a resolved base for `inputStyle`/`inputSelectedStyle` - concrete (never unset) so `invert` always has a colour pair to swap. */
+    private boxBase(): ResolvedStateStyle {
+        return {foreground: this.theme.boxForeground, background: this.theme.boxBackground};
     }
 
     /** Resolves an input-level then optional option-level style over `base`, per field. */
@@ -385,14 +385,19 @@ export class InteractableDisplay extends Display {
         return this.resolveLayeredStyle(inputStyle, {foreground: undefined, background: undefined}, optionStyle);
     }
 
-    /** Resolves a checked/selected marker's own style: input-level then optional option-level `inputSelectedStyle`, falling back field-by-field to the already-resolved `selectedStyle`. */
+    /** Resolves a checked/selected marker's own style: input-level then optional option-level `inputSelectedStyle`, falling back field-by-field to the already-resolved `selectedStyle`, then the theme's default box look - concrete, so `invert` always has something to swap. */
     private resolveInputSelectedStyle(inputStyle: TextStyle | undefined, selectedStyle: ResolvedStateStyle | null, optionStyle?: TextStyle): ResolvedStateStyle {
-        return this.resolveLayeredStyle(inputStyle, selectedStyle ?? {foreground: undefined, background: undefined}, optionStyle);
+        const boxBase = this.boxBase();
+        const base: ResolvedStateStyle = {
+            foreground: selectedStyle?.foreground ?? boxBase.foreground,
+            background: selectedStyle?.background ?? boxBase.background,
+        };
+        return this.resolveLayeredStyle(inputStyle, base, optionStyle);
     }
 
-    /** Resolves a marker's own idle style: input-level then optional option-level `inputStyle`, falling back field-by-field to the resolved base `style`. */
+    /** Resolves a marker's own idle style: input-level then optional option-level `inputStyle`, falling back field-by-field to the resolved base `style`, then the theme's default box look. */
     private resolveInputStyle(inputStyle: TextStyle | undefined, baseStyle: TextStyle | undefined, optionStyle?: TextStyle): ResolvedStateStyle {
-        return this.resolveLayeredStyle(inputStyle, this.resolveBaseStyle(baseStyle), optionStyle);
+        return this.resolveLayeredStyle(inputStyle, resolveStateStyle(baseStyle, this.boxBase()), optionStyle);
     }
 
     /** Width a radio option's marker, marker/label gap, and label together occupy - excludes any gap to a sibling option. */
