@@ -2,6 +2,9 @@ import {InputBase} from "./base";
 
 /**
  * A button input, clickable via Enter/Space.
+ *
+ * Colour precedence: `focusedStyle` while focused, otherwise the theme's
+ * default look.
  */
 export interface ButtonInput extends InputBase {
     kind: "button";

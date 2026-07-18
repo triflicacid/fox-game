@@ -1,5 +1,6 @@
 import {BoxKind, ChromeTheme} from "./chrome-theme";
 import {COLORS} from "./colors";
+import {TextStyle} from "./text-style";
 
 /** Outer bevel edge colour (top/left), the lightest tone. */
 const BORDER_HIGHLIGHT_COLOR = "#ffffff";
@@ -55,7 +56,11 @@ function drawSunkenBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
  */
 class Win98Theme extends ChromeTheme {
     public constructor() {
-        super(SURFACE_COLOR, "#000000", COLORS.navy, "#ffffff", 2);
+        super(SURFACE_COLOR, "#000000", 2);
+    }
+
+    public override defaultFocusedStyle(): TextStyle {
+        return {background: COLORS.navy, foreground: "#ffffff"};
     }
 
     public override drawPanelBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
@@ -72,10 +77,10 @@ class Win98Theme extends ChromeTheme {
         }
     }
 
-    public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean): void {
+    public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean, foreground?: string, background?: string): void {
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = background ?? "#ffffff";
         ctx.fill();
 
         ctx.lineWidth = 1;
@@ -92,7 +97,7 @@ class Win98Theme extends ChromeTheme {
         if (selected) {
             ctx.beginPath();
             ctx.arc(cx, cy, radius * 0.45, 0, Math.PI * 2);
-            ctx.fillStyle = "#000000";
+            ctx.fillStyle = foreground ?? "#000000";
             ctx.fill();
         }
     }

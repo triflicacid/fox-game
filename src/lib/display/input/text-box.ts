@@ -1,16 +1,23 @@
-import {HighlightStyle, InputBase} from "./base";
+import {TextStyle} from "../text-style";
+import {InputBase} from "./base";
 
 /**
  * Fields shared by {@link NumberInput} and {@link TextInput} - both render as a
  * single-line sunken box sized to their content.
+ *
+ * Colour precedence, resolved per field (foreground/background
+ * independently), for the box and its text: `editingStyle` while being
+ * edited > `focusedStyle` while focused > the theme's default box look.
+ * `selectedStyle` colours the Shift+Arrow text-selection highlight instead of
+ * the box itself, falling back to `focusedStyle`.
  */
 export interface TextBoxInputBase extends InputBase {
     /** Fixed width of the box, in canvas pixels; longer content clips and scrolls while editing. `Infinity` sizes the box to fit its content instead (bounded below by `minWidth`). Defaults to the display's default box width. */
     maxWidth?: number;
     /** Minimum width the box may shrink to, in canvas pixels; only relevant when `maxWidth` is `Infinity`. Defaults to `0`. */
     minWidth?: number;
-    /** Colours for the Shift+Arrow text selection. Unset fields fall back to `highlightStyle`. */
-    selectionStyle?: Partial<HighlightStyle>;
+    /** Style overlaid on the box while it is being edited. Falls back to `focusedStyle`. */
+    editingStyle?: TextStyle;
 }
 
 /**

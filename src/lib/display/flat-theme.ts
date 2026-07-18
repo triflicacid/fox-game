@@ -1,5 +1,6 @@
 import {ChromeTheme} from "./chrome-theme";
 import {COLORS} from "./colors";
+import {TextStyle} from "./text-style";
 
 /** Background colour for every flat-themed surface (panel body, control faces). */
 const SURFACE_COLOR = COLORS.black;
@@ -21,7 +22,11 @@ function drawOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
  */
 class FlatTheme extends ChromeTheme {
     public constructor() {
-        super(SURFACE_COLOR, BORDER_COLOR, BORDER_COLOR, SURFACE_COLOR, 1);
+        super(SURFACE_COLOR, BORDER_COLOR, 1);
+    }
+
+    public override defaultFocusedStyle(): TextStyle {
+        return {background: BORDER_COLOR, foreground: SURFACE_COLOR};
     }
 
     public override drawPanelBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
@@ -34,7 +39,14 @@ class FlatTheme extends ChromeTheme {
         drawOutline(ctx, x, y, w, h, BORDER_COLOR);
     }
 
-    public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean): void {
+    public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean, foreground?: string, background?: string): void {
+        if (background) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius - 0.5, 0, Math.PI * 2);
+            ctx.fillStyle = background;
+            ctx.fill();
+        }
+
         ctx.beginPath();
         ctx.arc(cx, cy, radius - 0.5, 0, Math.PI * 2);
         ctx.strokeStyle = BORDER_COLOR;
@@ -44,7 +56,7 @@ class FlatTheme extends ChromeTheme {
         if (selected) {
             ctx.beginPath();
             ctx.arc(cx, cy, radius * 0.5, 0, Math.PI * 2);
-            ctx.fillStyle = BORDER_COLOR;
+            ctx.fillStyle = foreground ?? BORDER_COLOR;
             ctx.fill();
         }
     }
