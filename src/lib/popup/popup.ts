@@ -2,6 +2,7 @@ import {ButtonInput, DisplayLine} from "../display/input";
 import {InteractableDisplay, InteractableDisplayDefaults, FocusableElement} from "../display/interactable-display";
 import {WIN98_THEME} from "../display/win98-theme";
 import {POPUP_CONFIG} from "./popup-config";
+import {BoundingRect, rectContains, unionRect} from "../display/bounding-rect";
 
 /** Configures a {@link Popup} at construction. */
 export interface PopupOptions {
@@ -34,6 +35,7 @@ const INTERACTABLE_DEFAULTS: InteractableDisplayDefaults = {
     cursorBlinkIntervalMs: POPUP_CONFIG.cursorBlinkIntervalMs,
     selectPadding: POPUP_CONFIG.selectPadding,
     selectArrowWidth: POPUP_CONFIG.selectArrowWidth,
+    focusHighlightPadding: POPUP_CONFIG.focusHighlightPadding,
     disabledOverlayColor: POPUP_CONFIG.disabledOverlayColor,
 };
 
@@ -52,6 +54,8 @@ export class Popup {
     private buttons: ButtonInput[] = [];
     private readonly closeKeys: ReadonlySet<string>;
     private readonly onOpenChange: ((open: boolean) => void) | undefined;
+    /** Total bounds this popup (panel plus any open select dropdown, which can extend past the panel) occupied last frame - see {@link draw}'s `repaintBackground`. */
+    private lastOccupiedRect: BoundingRect | null = null;
 
     /**
      * @param options - Configures this popup. See {@link PopupOptions}.
@@ -91,6 +95,7 @@ export class Popup {
      */
     public close(): void {
         this.display.setActive(false);
+        this.lastOccupiedRect = null;
         this.onOpenChange?.(false);
     }
 
@@ -131,8 +136,12 @@ export class Popup {
      * @param ctx - Canvas context to draw into.
      * @param canvasWidth - Canvas width, in canvas pixels.
      * @param canvasHeight - Canvas height, in canvas pixels.
+     * @param repaintBackground - Called before painting if this popup's
+     * occupied bounds (panel plus any open dropdown) shrank since last frame,
+     * so whatever sits behind it can be re-blitted before stale pixels in the
+     * now-uncovered area are left behind.
      */
-    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, repaintBackground?: () => void): void {
         if (!this.isOpen()) {
             return;
         }
@@ -143,10 +152,15 @@ export class Popup {
         ctx.font = POPUP_CONFIG.titleFont;
         const titleWidth = this.title ? ctx.measureText(this.title).width : 0;
 
+        // Resets the focus-index counter resolve* methods use to detect
+        // "was I focused/editing/open last frame" - must run once per frame,
+        // before the first resolve call, and lines/buttons must resolve in
+        // the same order layoutFocusables/layoutButton visit them below.
+        this.display.beginResolvePass();
         const lineRows = this.lines.map((line) => this.display.resolveElements(ctx, line));
 
         // Footer buttons
-        const resolvedButtons = this.buttons.map((button) => this.display.resolveButton(ctx, button));
+        const resolvedButtons = this.buttons.map((button) => this.display.resolveButton(ctx, button).element);
         const buttonRowWidth = resolvedButtons.reduce((sum, button) => sum + button.width, 0)
             + POPUP_CONFIG.buttonGap * Math.max(this.buttons.length - 1, 0);
 
@@ -182,6 +196,15 @@ export class Popup {
 
         const focusables = [...inputFocusables, ...buttonFocusables].sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
         this.display.setFocusables(focusables);
+
+        const panelRect: BoundingRect = {x, y, w: width, h: height};
+        const displayBounds = this.display.getBounds();
+        const occupiedRect = displayBounds ? unionRect(panelRect, displayBounds) : panelRect;
+        if (repaintBackground && this.lastOccupiedRect !== null && !rectContains(occupiedRect, this.lastOccupiedRect)) {
+            repaintBackground();
+            this.drawOverlay(ctx, canvasWidth, canvasHeight);
+        }
+        this.lastOccupiedRect = occupiedRect;
 
         // Paint pass.
         ctx.fillStyle = WIN98_THEME.surfaceBackground;
