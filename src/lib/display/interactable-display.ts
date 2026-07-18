@@ -204,8 +204,8 @@ export class InteractableDisplay extends Display {
 
     private focusables: FocusableElement[] = [];
     private cursor: number | null = null;
-    /** The in-progress typed text for whichever number input is being edited, if any - kept in lockstep with {@link editingNumberCursor}. */
-    private numberEditBuffer: {cursor: number; text: string} | null = null;
+    /** The in-progress typed text (plus caret position within it) for whichever number input is being edited, if any. */
+    private numberEditBuffer: {cursor: number; text: string; pos: number} | null = null;
     /** Index into {@link focusables} of the number input currently in edit mode, if any. */
     private editingNumberCursor: number | null = null;
     /** Index into {@link focusables} of the select input whose dropdown is currently open, if any. */
@@ -581,7 +581,7 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved number element's box at `x`. */
-    private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, editText: string | null): void {
+    private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, editText: string | null, editCursorPos: number | null): void {
         const rect: BoundingRect = {x, y, w: element.width, h: height};
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
@@ -605,7 +605,8 @@ export class InteractableDisplay extends Display {
         ctx.fillText(text, textX, textY);
 
         if (editing && this.isCursorBlinkVisible()) {
-            const textWidth = ctx.measureText(text).width;
+            const cursorText = editCursorPos !== null ? text.slice(0, editCursorPos) : text;
+            const textWidth = ctx.measureText(cursorText).width;
             ctx.fillRect(textX + textWidth + 1, boxY + 2, 1, boxHeight - 4);
         }
 
@@ -762,6 +763,7 @@ export class InteractableDisplay extends Display {
         height: number,
         focusedRect: BoundingRect | null,
         editText: string | null,
+        editCursorPos: number | null,
         openRect: BoundingRect | null,
     ): void {
         switch (element.kind) {
@@ -772,7 +774,7 @@ export class InteractableDisplay extends Display {
                 this.paintCheckbox(ctx, element, x, y, height, focusedRect);
                 break;
             case "number":
-                this.paintNumber(ctx, element, x, y, height, focusedRect, editText);
+                this.paintNumber(ctx, element, x, y, height, focusedRect, editText, editCursorPos);
                 break;
             case "button":
                 this.paintButton(ctx, element, x, y, height, focusedRect);
@@ -807,6 +809,7 @@ export class InteractableDisplay extends Display {
     public drawElements(ctx: CanvasRenderingContext2D, line: ResolvedElementLine, x: number, y: number): void {
         const focusedRect = this.getFocusedRect();
         const editText = this.getEditText();
+        const editCursorPos = this.getEditCursorPos();
         const openRect = this.getOpenRect();
 
         let elemX = x;
@@ -814,7 +817,7 @@ export class InteractableDisplay extends Display {
             if (element.kind === "text") {
                 this.drawLine(ctx, element.runs, elemX, y, line.height);
             } else {
-                this.paintInput(ctx, element, elemX, y, line.height, focusedRect, editText, openRect);
+                this.paintInput(ctx, element, elemX, y, line.height, focusedRect, editText, editCursorPos, openRect);
             }
             elemX += element.width;
         }
@@ -852,6 +855,11 @@ export class InteractableDisplay extends Display {
     /** The focused number input's in-progress edit text, if it's the one currently being edited. */
     private getEditText(): string | null {
         return this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor ? this.numberEditBuffer.text : null;
+    }
+
+    /** The focused number input's in-progress edit caret position (a character index into {@link getEditText}), if it's the one currently being edited. */
+    private getEditCursorPos(): number | null {
+        return this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor ? this.numberEditBuffer.pos : null;
     }
 
     /** The open select input's box rect, if a dropdown is currently open. */
@@ -996,10 +1004,7 @@ export class InteractableDisplay extends Display {
     /**
      * Enters edit mode for the number input at `cursor` (see {@link
      * editingNumberCursor}), seeding {@link numberEditBuffer} with
-     * `initialText` - callers work out what that should be for the key (or
-     * click) that triggered it: `value`'s current string for `Enter`/
-     * `Space`/a click, the typed digit alone for a digit key, or `value`'s
-     * string with its last character dropped for `Backspace`.
+     * `initialText` and placing the caret at its end.
      *
      * @param cursor - Index of the number input within {@link focusables}.
      * @param numberEdit - The number input's edit handle.
@@ -1007,22 +1012,23 @@ export class InteractableDisplay extends Display {
      */
     private startEditingNumber(cursor: number, numberEdit: NumberEditHandle, initialText: string): void {
         this.editingNumberCursor = cursor;
-        this.numberEditBuffer = {cursor, text: initialText};
+        this.numberEditBuffer = {cursor, text: initialText, pos: initialText.length};
     }
 
     /**
      * Handles a key press while a number input is in edit mode (see {@link
      * editingNumberCursor}).
      *
-     * Digits (and `.`, if `numberEdit.allowDecimal`) append to {@link
-     * numberEditBuffer} without touching `value`; `Backspace` removes the
-     * buffer's last character the same way. `ArrowUp`/`ArrowDown` step
-     * {@link getEffectiveNumberValue} by `numberEdit.step`, committing
-     * immediately and refreshing the buffer to match, staying in edit mode.
-     * `Enter`/`Space` commit the buffer (via {@link commitPendingNumberEdit})
-     * and leave edit mode. `Escape` discards the buffer without committing
-     * and leaves edit mode, reverting to `value`. Every other key is
-     * ignored.
+     * `ArrowLeft`/`ArrowRight` move the caret within {@link numberEditBuffer}
+     * without touching its text (clamped to the text's bounds). Digits (and
+     * `.`, if `numberEdit.allowDecimal`) insert at the caret and advance it;
+     * `Backspace` removes the character just before the caret the same way.
+     * `ArrowUp`/`ArrowDown` step {@link getEffectiveNumberValue} by
+     * `numberEdit.step`, committing immediately and replacing the buffer
+     * (caret moving to its end), staying in edit mode. `Enter`/`Space`
+     * commit the buffer (via {@link commitPendingNumberEdit}) and leave edit
+     * mode. `Escape` discards the buffer without committing and leaves edit
+     * mode, reverting to `value`. Every other key is ignored.
      *
      * @param cursor - Index of the focused number input within {@link focusables}.
      * @param numberEdit - The focused number input's edit handle.
@@ -1043,23 +1049,43 @@ export class InteractableDisplay extends Display {
             const delta = event.key === "ArrowUp" ? numberEdit.step : -numberEdit.step;
             const next = this.getEffectiveNumberValue(cursor, numberEdit) + delta;
             numberEdit.onChange(next);
-            this.numberEditBuffer = {cursor, text: String(next)};
+            const text = String(next);
+            this.numberEditBuffer = {cursor, text, pos: text.length};
             return;
         }
 
-        const currentText = this.numberEditBuffer?.cursor === cursor ? this.numberEditBuffer.text : String(numberEdit.getValue());
+        const current = this.numberEditBuffer?.cursor === cursor ? this.numberEditBuffer : null;
+        const currentText = current?.text ?? String(numberEdit.getValue());
+        const pos = current?.pos ?? currentText.length;
+
+        if (event.key === "ArrowLeft") {
+            this.numberEditBuffer = {cursor, text: currentText, pos: Math.max(0, pos - 1)};
+            return;
+        }
+        if (event.key === "ArrowRight") {
+            this.numberEditBuffer = {cursor, text: currentText, pos: Math.min(currentText.length, pos + 1)};
+            return;
+        }
+
         let nextText: string;
+        let nextPos: number;
         if (event.key === "Backspace") {
-            nextText = currentText.slice(0, -1);
+            if (pos === 0) {
+                return;
+            }
+            nextText = currentText.slice(0, pos - 1) + currentText.slice(pos);
+            nextPos = pos - 1;
         } else if (/^[0-9]$/.test(event.key)) {
-            nextText = currentText + event.key;
+            nextText = currentText.slice(0, pos) + event.key + currentText.slice(pos);
+            nextPos = pos + 1;
         } else if (event.key === "." && numberEdit.allowDecimal && !currentText.includes(".")) {
-            nextText = currentText + event.key;
+            nextText = currentText.slice(0, pos) + event.key + currentText.slice(pos);
+            nextPos = pos + 1;
         } else {
             return;
         }
 
-        this.numberEditBuffer = {cursor, text: nextText};
+        this.numberEditBuffer = {cursor, text: nextText, pos: nextPos};
     }
 
     /**
