@@ -108,6 +108,8 @@ export interface TextBoxInputBase extends InputBase {
     maxWidth?: number;
     /** Minimum width the box may shrink to, in canvas pixels - only relevant when `maxWidth` is `Infinity`, to stop the box collapsing around short/empty content. Defaults to `0`. */
     minWidth?: number;
+    /** Background/foreground colours to highlight a Shift+Arrow text selection with. Any field left unset falls back to that field of `highlightStyle`. */
+    selectionStyle?: Partial<HighlightStyle>;
 }
 
 /**

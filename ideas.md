@@ -7,3 +7,9 @@
 - Maybe double-tab a direction to run faster
 - Other entities - rabbits in plains
   - Eat mechanics??
+- Display lib:
+  - replace HighlihtStyle with a generic TextStyle for more flexibility
+  - add focusedStyle to all focusableElements - used when they are hovered over
+  - add editingStyle to textbox (inc number box) currently being edited
+  - add expandedStyle to combobox to use when it is expanded/open
+  - add selectedStyle to any input for either text selection, or to use when that option is selected/checked

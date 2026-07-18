@@ -99,6 +99,10 @@ export class SettingsController extends PopupController {
                         this.textboxTestValue = value;
                         return true;
                     },
+                    selectionStyle: {
+                        background: 'yellow',
+                        foreground: 'black'
+                    }
                 },
             ],
         ];
