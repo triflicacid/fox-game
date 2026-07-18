@@ -4,7 +4,7 @@ import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";
 import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
-import {FrameLoopController} from "./frames/FrameLoopController";
+import {FrameLoopController} from "./lib/frames/FrameLoopController";
 import {requireNonNull} from "./util";
 import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
