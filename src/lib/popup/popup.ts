@@ -34,7 +34,6 @@ const INTERACTABLE_DEFAULTS: InteractableDisplayDefaults = {
     cursorBlinkIntervalMs: POPUP_CONFIG.cursorBlinkIntervalMs,
     selectPadding: POPUP_CONFIG.selectPadding,
     selectArrowWidth: POPUP_CONFIG.selectArrowWidth,
-    focusHighlightPadding: POPUP_CONFIG.focusHighlightPadding,
     disabledOverlayColor: POPUP_CONFIG.disabledOverlayColor,
 };
 

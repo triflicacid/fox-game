@@ -1,6 +1,8 @@
 import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from "./display";
-import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HighlightStyle, Input, NumberInput, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
+import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, Input, NumberInput, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
+import {ResolvedStateStyle, resolveStateStyle} from "./state-style";
+import {TextStyle} from "./text-style";
 import {BoundingRect, pointInRect, rectsEqual} from "./bounding-rect";
 import {copyToClipboard, readFromClipboard} from "../../util";
 
@@ -29,8 +31,6 @@ export interface InteractableDisplayDefaults extends DisplayDefaults {
     selectPadding: number;
     /** Width of a select input's dropdown-arrow button, in canvas pixels. */
     selectArrowWidth: number;
-    /** Padding added around a number/select input's sunken box when drawing its focus highlight, in canvas pixels. */
-    focusHighlightPadding: number;
     /** Fill colour of the sheen painted over a disabled input to grey it out - its whole box for a number/select input, or just the marker/box for a radio option/checkbox. Buttons have no box to grey out - a disabled one just stops highlighting/activating. */
     disabledOverlayColor: string;
 }
@@ -49,7 +49,13 @@ interface ResolvedRadioOption {
     labelRuns: MeasuredRun[];
     labelWidth: number;
     onSelect: (key: string) => void;
-    highlightStyle: HighlightStyle;
+    focusedStyle: ResolvedStateStyle;
+    /** Style while this is the selected option, or `null` for none. */
+    selectedStyle: ResolvedStateStyle | null;
+    /** Marker-only style while selected - already folds in the `selectedStyle` fallback. */
+    inputSelectedStyle: ResolvedStateStyle;
+    /** Marker-only style at rest - already folds in the input's base `style` fallback. */
+    inputStyle: ResolvedStateStyle;
     /** Whether this option is disabled - true if the option itself is, or the owning {@link RadioInput} as a whole is. */
     disabled: boolean;
 }
@@ -68,7 +74,13 @@ interface ResolvedCheckboxElement {
     labelRuns: MeasuredRun[];
     labelWidth: number;
     onToggle: (checked: boolean) => void;
-    highlightStyle: HighlightStyle;
+    focusedStyle: ResolvedStateStyle;
+    /** Style while checked, or `null` for none. */
+    selectedStyle: ResolvedStateStyle | null;
+    /** Box-only style while checked - already folds in the `selectedStyle` fallback. */
+    inputSelectedStyle: ResolvedStateStyle;
+    /** Box-only style at rest - already folds in the input's base `style` fallback. */
+    inputStyle: ResolvedStateStyle;
     disabled: boolean;
     width: number;
 }
@@ -80,9 +92,11 @@ interface ResolvedNumberElement {
     step: number;
     allowDecimal: boolean;
     onChange: (value: number) => void;
-    highlightStyle: HighlightStyle;
-    /** Style a Shift+Arrow text selection is drawn with - see {@link TextBoxInputBase.selectionStyle}. */
-    selectionStyle: HighlightStyle;
+    focusedStyle: ResolvedStateStyle;
+    /** Style overlaid while the box is being edited. */
+    editingStyle: ResolvedStateStyle;
+    /** Style a Shift+Arrow text selection is drawn with. */
+    selectionStyle: ResolvedStateStyle;
     disabled: boolean;
     width: number;
 }
@@ -94,9 +108,11 @@ interface ResolvedTextboxElement {
     allowedChars: string[] | null;
     disallowedChars: string[] | null;
     onChange: (value: string) => boolean;
-    highlightStyle: HighlightStyle;
+    focusedStyle: ResolvedStateStyle;
+    /** Style overlaid while the box is being edited. */
+    editingStyle: ResolvedStateStyle;
     /** Style a Shift+Arrow text selection is drawn with. */
-    selectionStyle: HighlightStyle;
+    selectionStyle: ResolvedStateStyle;
     disabled: boolean;
     width: number;
 }
@@ -106,7 +122,7 @@ export interface ResolvedButtonElement {
     kind: "button";
     text: string;
     onClick: () => void;
-    highlightStyle: HighlightStyle;
+    focusedStyle: ResolvedStateStyle;
     disabled: boolean;
     width: number;
 }
@@ -116,8 +132,10 @@ interface ResolvedSelectOption {
     key: string;
     labelRuns: MeasuredRun[];
     labelWidth: number;
-    highlightStyle: HighlightStyle;
-    /** Whether this option is disabled: skipped by in-dropdown Arrow navigation and unselectable, drawn with a greyed-over sheen. Independent of the owning {@link SelectInput}'s own `disabled` - that gates the whole control instead. */
+    focusedStyle: ResolvedStateStyle;
+    /** Style while this is the selected option, or `null` for none. */
+    selectedStyle: ResolvedStateStyle | null;
+    /** Whether this option alone is disabled: unselectable and skipped by Arrow navigation, independent of the owning {@link SelectInput}. */
     disabled: boolean;
 }
 
@@ -131,7 +149,9 @@ interface ResolvedSelectElement {
     /** Index into `options` of the currently selected one; `0` if `selected` matched none. */
     selectedIndex: number;
     onSelect: (key: string) => void;
-    highlightStyle: HighlightStyle;
+    focusedStyle: ResolvedStateStyle;
+    /** Style overlaid on the closed box while its dropdown is open. */
+    expandedStyle: ResolvedStateStyle;
     disabled: boolean;
     width: number;
 }
@@ -169,6 +189,8 @@ interface SelectEditHandle {
     options: ResolvedSelectOption[];
     selectedKey: string;
     onSelect: (key: string) => void;
+    /** Ambient style for the dropdown's rows while open, overridden per-row by a highlighted/selected option's own style. */
+    expandedStyle: ResolvedStateStyle;
 }
 
 /** Anything an {@link InteractableDisplay}'s keyboard cursor can land on and activate. */
@@ -203,7 +225,6 @@ export const DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS: InteractableDisplayDefaults 
     cursorBlinkIntervalMs: 500,
     selectPadding: 4,
     selectArrowWidth: 18,
-    focusHighlightPadding: 2,
     disabledOverlayColor: "rgba(128, 128, 128, 0.5)",
 };
 
@@ -334,20 +355,44 @@ export class InteractableDisplay extends Display {
         this.keyDownInterceptor = fn;
     }
 
-    /** Style a focused element falls back to when it (or its owning input) doesn't specify its own. */
-    private fillHighlightStyle(highlightStyle: Partial<HighlightStyle> | null | undefined): HighlightStyle {
-        return {
-            background: highlightStyle?.background ?? this.theme.highlightBackground,
-            foreground: highlightStyle?.foreground ?? this.theme.highlightForeground,
-        };
+    /** The theme's default focused style, as a resolved base for focus/editing/expansion styles. */
+    private focusBase(): ResolvedStateStyle {
+        const style = this.theme.defaultFocusedStyle();
+        return {foreground: style.foreground, background: style.background};
     }
 
-    /** Style a textbox's text selection falls back to when it doesn't specify its own - `highlightStyle` (already resolved against the theme) field by field, rather than the theme directly. */
-    private fillSelectionStyle(selectionStyle: Partial<HighlightStyle> | null | undefined, highlightStyle: HighlightStyle): HighlightStyle {
-        return {
-            background: selectionStyle?.background ?? highlightStyle.background,
-            foreground: selectionStyle?.foreground ?? highlightStyle.foreground,
-        };
+    /** Resolves a plain optional style with no base of its own - the root of a fallback chain. */
+    private resolveBaseStyle(style: TextStyle | undefined): ResolvedStateStyle {
+        return resolveStateStyle(style, {foreground: undefined, background: undefined});
+    }
+
+    /** Resolves an input-level then optional option-level style over `base`, per field. */
+    private resolveLayeredStyle(inputStyle: TextStyle | undefined, base: ResolvedStateStyle, optionStyle?: TextStyle): ResolvedStateStyle {
+        const input = resolveStateStyle(inputStyle, base);
+        return optionStyle === undefined ? input : resolveStateStyle(optionStyle, input);
+    }
+
+    /** Resolves an input-level then optional option-level focused style over the theme's default focused style. */
+    private resolveFocusedStyle(inputStyle: TextStyle | undefined, optionStyle?: TextStyle): ResolvedStateStyle {
+        return this.resolveLayeredStyle(inputStyle, this.focusBase(), optionStyle);
+    }
+
+    /** Resolves a selected/checked style, or `null` when neither input nor option sets one so the marker/tick alone shows selection. */
+    private resolveSelectedStyle(inputStyle: TextStyle | undefined, optionStyle?: TextStyle): ResolvedStateStyle | null {
+        if (inputStyle === undefined && optionStyle === undefined) {
+            return null;
+        }
+        return this.resolveLayeredStyle(inputStyle, {foreground: undefined, background: undefined}, optionStyle);
+    }
+
+    /** Resolves a checked/selected marker's own style: input-level then optional option-level `inputSelectedStyle`, falling back field-by-field to the already-resolved `selectedStyle`. */
+    private resolveInputSelectedStyle(inputStyle: TextStyle | undefined, selectedStyle: ResolvedStateStyle | null, optionStyle?: TextStyle): ResolvedStateStyle {
+        return this.resolveLayeredStyle(inputStyle, selectedStyle ?? {foreground: undefined, background: undefined}, optionStyle);
+    }
+
+    /** Resolves a marker's own idle style: input-level then optional option-level `inputStyle`, falling back field-by-field to the resolved base `style`. */
+    private resolveInputStyle(inputStyle: TextStyle | undefined, baseStyle: TextStyle | undefined, optionStyle?: TextStyle): ResolvedStateStyle {
+        return this.resolveLayeredStyle(inputStyle, this.resolveBaseStyle(baseStyle), optionStyle);
     }
 
     /** Width a radio option's marker, marker/label gap, and label together occupy - excludes any gap to a sibling option. */
@@ -376,13 +421,18 @@ export class InteractableDisplay extends Display {
 
             width += (i > 0 ? this.defaults.radioOptionGap : 0) + this.radioOptionContentWidth(labelWidth);
 
+            const selectedStyle = this.resolveSelectedStyle(item.selectedStyle, option.selectedStyle);
+
             return {
                 key: option.key,
                 selected: option.key === item.selected,
                 labelRuns: measured,
                 labelWidth,
                 onSelect: item.onSelect,
-                highlightStyle: this.fillHighlightStyle(option.highlightStyle ?? item.highlightStyle),
+                focusedStyle: this.resolveFocusedStyle(item.focusedStyle, option.focusedStyle),
+                selectedStyle,
+                inputSelectedStyle: this.resolveInputSelectedStyle(item.inputSelectedStyle, selectedStyle, option.inputSelectedStyle),
+                inputStyle: this.resolveInputStyle(item.inputStyle, item.style, option.inputStyle),
                 disabled: (item.disabled ?? false) || (option.disabled ?? false),
             };
         });
@@ -393,6 +443,7 @@ export class InteractableDisplay extends Display {
     private resolveCheckbox(ctx: CanvasRenderingContext2D, item: CheckboxInput): {element: ResolvedCheckboxElement; maxFontSize: number} {
         const {runs: measured, width: labelWidth, maxFontSize} = this.resolveLine(ctx, item.content);
         const width = this.checkboxContentWidth(labelWidth);
+        const selectedStyle = this.resolveSelectedStyle(item.selectedStyle);
         return {
             element: {
                 kind: "checkbox",
@@ -400,7 +451,10 @@ export class InteractableDisplay extends Display {
                 labelRuns: measured,
                 labelWidth,
                 onToggle: item.onToggle,
-                highlightStyle: this.fillHighlightStyle(item.highlightStyle),
+                focusedStyle: this.resolveFocusedStyle(item.focusedStyle),
+                selectedStyle,
+                inputSelectedStyle: this.resolveInputSelectedStyle(item.inputSelectedStyle, selectedStyle),
+                inputStyle: this.resolveInputStyle(item.inputStyle, item.style),
                 disabled: item.disabled ?? false,
                 width,
             },
@@ -408,19 +462,8 @@ export class InteractableDisplay extends Display {
         };
     }
 
-    /**
-     * Fields shared by a resolved number input and textbox - they lay out
-     * and paint identically, differing only in their value type and edit
-     * behaviour. `width` is `item.maxWidth` verbatim when finite (a fixed
-     * box - long content clips/scrolls at paint time); when `Infinity`, the
-     * box instead grows to fit `contentText` (measured via `ctx`), bounded
-     * below by `item.minWidth`.
-     *
-     * @param ctx - Canvas context, used to measure `contentText` when `item.maxWidth` is `Infinity`.
-     * @param item - The input being resolved.
-     * @param contentText - `item.value` as it'll be displayed (stringified, for a number input).
-     */
-    private resolveTextBoxCommon(ctx: CanvasRenderingContext2D, item: TextBoxInputBase, contentText: string): {highlightStyle: HighlightStyle; selectionStyle: HighlightStyle; disabled: boolean; width: number} {
+    /** Resolves the layout, styles, and box width shared by a number input and textbox. `contentText` is the value as displayed, measured when `maxWidth` is `Infinity`. */
+    private resolveTextBoxCommon(ctx: CanvasRenderingContext2D, item: TextBoxInputBase, contentText: string): {focusedStyle: ResolvedStateStyle; editingStyle: ResolvedStateStyle; selectionStyle: ResolvedStateStyle; disabled: boolean; width: number} {
         const maxWidth = item.maxWidth ?? this.defaults.numberInputWidth;
         let width: number;
         if (Number.isFinite(maxWidth)) {
@@ -433,10 +476,11 @@ export class InteractableDisplay extends Display {
             const contentWidth = ctx.measureText(contentText).width + this.defaults.numberInputPadding * 2 + 3;
             width = Math.max(item.minWidth ?? 0, contentWidth);
         }
-        const highlightStyle = this.fillHighlightStyle(item.highlightStyle);
+        const focusedStyle = this.resolveFocusedStyle(item.focusedStyle);
         return {
-            highlightStyle,
-            selectionStyle: this.fillSelectionStyle(item.selectionStyle, highlightStyle),
+            focusedStyle,
+            editingStyle: resolveStateStyle(item.editingStyle, focusedStyle),
+            selectionStyle: resolveStateStyle(item.selectedStyle, focusedStyle),
             disabled: item.disabled ?? false,
             width,
         };
@@ -484,13 +528,15 @@ export class InteractableDisplay extends Display {
                 key: option.key,
                 labelRuns: measured,
                 labelWidth,
-                highlightStyle: this.fillHighlightStyle(option.highlightStyle ?? item.highlightStyle),
+                focusedStyle: this.resolveFocusedStyle(item.focusedStyle, option.focusedStyle),
+                selectedStyle: this.resolveSelectedStyle(item.selectedStyle, option.selectedStyle),
                 disabled: option.disabled ?? false,
             };
         });
 
         const width = this.defaults.selectPadding * 2 + maxLabelWidth + this.defaults.selectArrowWidth;
         const selectedIndex = Math.max(0, options.findIndex((option) => option.key === item.selected));
+        const focusedStyle = this.resolveFocusedStyle(item.focusedStyle);
 
         return {
             element: {
@@ -498,7 +544,8 @@ export class InteractableDisplay extends Display {
                 options,
                 selectedIndex,
                 onSelect: item.onSelect,
-                highlightStyle: this.fillHighlightStyle(item.highlightStyle),
+                focusedStyle,
+                expandedStyle: resolveStateStyle(item.expandedStyle, focusedStyle),
                 disabled: item.disabled ?? false,
                 width,
             },
@@ -506,11 +553,11 @@ export class InteractableDisplay extends Display {
         };
     }
 
-    /** Resolves a bracket-wrapped button label's width under this display's plain font, and its highlight colours. */
+    /** Resolves a bracket-wrapped button label's width under this display's plain font, and its focused style. */
     public resolveButton(ctx: CanvasRenderingContext2D, button: ButtonInput): ResolvedButtonElement {
         ctx.font = this.plainFont;
         const text = `[${button.label}]`;
-        return {kind: "button", text, onClick: button.onClick, highlightStyle: this.fillHighlightStyle(button.highlightStyle), disabled: button.disabled ?? false, width: ctx.measureText(text).width};
+        return {kind: "button", text, onClick: button.onClick, focusedStyle: this.resolveFocusedStyle(button.focusedStyle), disabled: button.disabled ?? false, width: ctx.measureText(text).width};
     }
 
     /**
@@ -579,12 +626,22 @@ export class InteractableDisplay extends Display {
         ctx.fill();
     }
 
-    /** Draws a checkbox's box (themed) plus a tick mark when `checked`. */
-    private drawCheckboxBox(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, checked: boolean): void {
+    /** Tints a themed box's fill (inset 1px so its bevel/outline stays visible) - used to apply a state style's `background` inside a box rather than around it. */
+    private fillBoxInterior(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
+        ctx.fillStyle = color;
+        ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+    }
+
+    /** Draws a checkbox's box (themed, tinted by `style`'s background) plus a tick mark (coloured by `style`'s foreground) when `checked`. */
+    private drawCheckboxBox(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, checked: boolean, style: ResolvedStateStyle): void {
         this.theme.drawBox(ctx, x, y, size, size, "sunken");
 
+        if (style.background) {
+            this.fillBoxInterior(ctx, x, y, size, size, style.background);
+        }
+
         if (checked) {
-            ctx.strokeStyle = this.theme.boxForeground;
+            ctx.strokeStyle = style.foreground ?? this.theme.boxForeground;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.moveTo(x + size * 0.2, y + size * 0.55);
@@ -619,19 +676,21 @@ export class InteractableDisplay extends Display {
             const optionWidth = this.radioOptionContentWidth(option.labelWidth);
             const rect: BoundingRect = {x: elemX, y, w: optionWidth, h: height};
             const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !option.disabled;
+            const active = focused ? option.focusedStyle : (option.selected ? option.selectedStyle : null);
+            const markerStyle = option.selected ? option.inputSelectedStyle : option.inputStyle;
 
-            if (focused) {
-                ctx.fillStyle = option.highlightStyle.background;
+            if (active?.background) {
+                ctx.fillStyle = active.background;
                 ctx.fillRect(elemX, y, optionWidth, this.defaults.fontSize);
             }
 
             const markerRadius = this.defaults.radioMarkerSize / 2;
             const markerCx = elemX + markerRadius;
             const markerCy = y + this.defaults.fontSize / 2;
-            this.theme.drawRadioMarker(ctx, markerCx, markerCy, markerRadius, option.selected);
+            this.theme.drawRadioMarker(ctx, markerCx, markerCy, markerRadius, option.selected, markerStyle.foreground, markerStyle.background);
 
             const labelX = elemX + this.defaults.radioMarkerSize + this.defaults.radioMarkerGap;
-            this.drawLine(ctx, option.labelRuns, labelX, y, height, focused ? option.highlightStyle.foreground : undefined);
+            this.drawLine(ctx, option.labelRuns, labelX, y, height, active?.foreground);
 
             if (option.disabled) {
                 this.paintDisabledCircleOverlay(ctx, markerCx, markerCy, markerRadius);
@@ -650,17 +709,19 @@ export class InteractableDisplay extends Display {
     private paintCheckbox(ctx: CanvasRenderingContext2D, element: ResolvedCheckboxElement, x: number, y: number, height: number, focusedRect: BoundingRect | null): void {
         const rect: BoundingRect = {x, y, w: element.width, h: height};
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
+        const active = focused ? element.focusedStyle : (element.checked ? element.selectedStyle : null);
+        const boxStyle = element.checked ? element.inputSelectedStyle : element.inputStyle;
 
-        if (focused) {
-            ctx.fillStyle = element.highlightStyle.background;
+        if (active?.background) {
+            ctx.fillStyle = active.background;
             ctx.fillRect(x, y, element.width, this.defaults.fontSize);
         }
 
         const boxY = y + (this.defaults.fontSize - this.defaults.checkboxSize) / 2;
-        this.drawCheckboxBox(ctx, x, boxY, this.defaults.checkboxSize, element.checked);
+        this.drawCheckboxBox(ctx, x, boxY, this.defaults.checkboxSize, element.checked, boxStyle);
 
         const labelX = x + this.defaults.checkboxSize + this.defaults.checkboxGap;
-        this.drawLine(ctx, element.labelRuns, labelX, y, height, focused ? element.highlightStyle.foreground : undefined);
+        this.drawLine(ctx, element.labelRuns, labelX, y, height, active?.foreground);
 
         if (element.disabled) {
             this.paintDisabledOverlay(ctx, {x, y: boxY, w: this.defaults.checkboxSize, h: this.defaults.checkboxSize});
@@ -696,21 +757,21 @@ export class InteractableDisplay extends Display {
         return Math.floor(Date.now() / this.defaults.cursorBlinkIntervalMs) % 2 === 0;
     }
 
-    /** Draws a number input's or textbox's sunken box plus its current text at `x` - shared paint core for {@link paintNumber}/{@link paintTextbox}, which render identically bar how `value` becomes displayable text. */
-    private paintTextBox(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, highlightStyle: HighlightStyle, disabled: boolean, focusedRect: BoundingRect | null, text: string, editing: boolean, editCursorPos: number | null, editSelection: {start: number; end: number} | null, selectionStyle: HighlightStyle): void {
+    /** Shared paint core for {@link paintNumber}/{@link paintTextbox}: draws the sunken box, its text, and any edit selection at `x`. */
+    private paintTextBox(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, activeStyle: ResolvedStateStyle | null, disabled: boolean, focusedRect: BoundingRect | null, text: string, editing: boolean, editCursorPos: number | null, editSelection: {start: number; end: number} | null, selectionStyle: ResolvedStateStyle): void {
         const rect: BoundingRect = {x, y, w: width, h: height};
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !disabled;
 
         const boxHeight = this.defaults.lineHeight - 4;
         const boxY = y + (this.defaults.fontSize - boxHeight) / 2;
 
-        if (focused) {
-            const pad = this.defaults.focusHighlightPadding;
-            ctx.fillStyle = highlightStyle.background;
-            ctx.fillRect(x - pad, boxY - pad, width + pad * 2, boxHeight + pad * 2);
+        this.theme.drawBox(ctx, x, boxY, width, boxHeight, "sunken");
+
+        if (focused && activeStyle?.background) {
+            this.fillBoxInterior(ctx, x, boxY, width, boxHeight, activeStyle.background);
         }
 
-        this.theme.drawBox(ctx, x, boxY, width, boxHeight, "sunken");
+        const textColor = focused ? (activeStyle?.foreground ?? this.theme.boxForeground) : this.theme.boxForeground;
 
         ctx.font = this.plainFont;
         const padding = this.defaults.numberInputPadding;
@@ -748,17 +809,17 @@ export class InteractableDisplay extends Display {
         if (editing && editSelection !== null) {
             const selStartX = ctx.measureText(text.slice(0, editSelection.start)).width;
             const selEndX = ctx.measureText(text.slice(0, editSelection.end)).width;
-            ctx.fillStyle = selectionStyle.background;
+            ctx.fillStyle = selectionStyle.background ?? this.theme.boxForeground;
             ctx.fillRect(textX - scrollX + selStartX, boxY + 2, selEndX - selStartX, boxHeight - 4);
 
-            ctx.fillStyle = this.theme.boxForeground;
+            ctx.fillStyle = textColor;
             ctx.fillText(text.slice(0, editSelection.start), textX - scrollX, textY);
-            ctx.fillStyle = selectionStyle.foreground;
+            ctx.fillStyle = selectionStyle.foreground ?? this.theme.surfaceBackground;
             ctx.fillText(text.slice(editSelection.start, editSelection.end), textX - scrollX + selStartX, textY);
-            ctx.fillStyle = this.theme.boxForeground;
+            ctx.fillStyle = textColor;
             ctx.fillText(text.slice(editSelection.end), textX - scrollX + selEndX, textY);
         } else {
-            ctx.fillStyle = this.theme.boxForeground;
+            ctx.fillStyle = textColor;
             ctx.fillText(text, textX - scrollX, textY);
         }
 
@@ -773,20 +834,22 @@ export class InteractableDisplay extends Display {
         }
     }
 
-    /** Draws a resolved number element's box at `x` - identical rendering to {@link paintTextbox}, but `value` is stringified and any in-progress `editSelection` is highlighted with `element.selectionStyle`. */
+    /** Draws a resolved number element's box at `x`; `value` is stringified for display. */
     private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, editText: string | null, editCursorPos: number | null, editSelection: {start: number; end: number} | null): void {
         const focused = focusedRect !== null && rectsEqual({x, y, w: element.width, h: height}, focusedRect) && !element.disabled;
         const editing = focused && editText !== null;
         const text = editing ? editText : String(element.value);
-        this.paintTextBox(ctx, x, y, element.width, height, element.highlightStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle);
+        const activeStyle = editing ? element.editingStyle : element.focusedStyle;
+        this.paintTextBox(ctx, x, y, element.width, height, activeStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle);
     }
 
-    /** Draws a resolved textbox element's box at `x` - identical rendering to {@link paintNumber}, but the value is shown as-is rather than stringified, and any in-progress `editSelection` is highlighted with `element.selectionStyle`. */
+    /** Draws a resolved textbox element's box at `x`; the value is shown as-is. */
     private paintTextbox(ctx: CanvasRenderingContext2D, element: ResolvedTextboxElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, editText: string | null, editCursorPos: number | null, editSelection: {start: number; end: number} | null): void {
         const focused = focusedRect !== null && rectsEqual({x, y, w: element.width, h: height}, focusedRect) && !element.disabled;
         const editing = focused && editText !== null;
         const text = editing ? editText : element.value;
-        this.paintTextBox(ctx, x, y, element.width, height, element.highlightStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle);
+        const activeStyle = editing ? element.editingStyle : element.focusedStyle;
+        this.paintTextBox(ctx, x, y, element.width, height, activeStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle);
     }
 
     /** Computes a resolved button's on-screen rect: its measured width, padded out by 2 canvas pixels on every side. */
@@ -799,13 +862,14 @@ export class InteractableDisplay extends Display {
         const rect: BoundingRect = {x: x - 2, y: y - 2, w: element.width + 4, h: height};
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
-        if (focused) {
-            ctx.fillStyle = element.highlightStyle.background;
+        const active = focused ? element.focusedStyle : null;
+        if (active?.background) {
+            ctx.fillStyle = active.background;
             ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
         }
 
         ctx.font = this.plainFont;
-        ctx.fillStyle = focused ? element.highlightStyle.foreground : this.defaults.foreground;
+        ctx.fillStyle = active?.foreground ?? this.defaults.foreground;
         ctx.fillText(element.text, x, y);
     }
 
@@ -826,6 +890,7 @@ export class InteractableDisplay extends Display {
                 options: element.options,
                 selectedKey: element.options[element.selectedIndex]?.key ?? "",
                 onSelect: element.onSelect,
+                expandedStyle: element.expandedStyle,
             },
             disabled: element.disabled,
         }];
@@ -841,17 +906,19 @@ export class InteractableDisplay extends Display {
         const arrowWidth = this.defaults.selectArrowWidth;
         const textBoxWidth = element.width - arrowWidth;
 
-        if (focused) {
-            const pad = this.defaults.focusHighlightPadding;
-            ctx.fillStyle = element.highlightStyle.background;
-            ctx.fillRect(x - pad, boxY - pad, element.width + pad * 2, boxHeight + pad * 2);
-        }
+        const selected = element.options[element.selectedIndex];
+        const stateStyle = open ? element.expandedStyle : (focused ? element.focusedStyle : null);
+        const foreground = selected?.selectedStyle?.foreground ?? stateStyle?.foreground;
+        const background = selected?.selectedStyle?.background ?? stateStyle?.background;
 
         this.theme.drawBox(ctx, x, boxY, textBoxWidth, boxHeight, "sunken");
 
-        const selected = element.options[element.selectedIndex];
+        if (background) {
+            this.fillBoxInterior(ctx, x, boxY, textBoxWidth, boxHeight, background);
+        }
+
         if (selected) {
-            this.drawLine(ctx, selected.labelRuns, x + this.defaults.selectPadding, y, height);
+            this.drawLine(ctx, selected.labelRuns, x + this.defaults.selectPadding, y, height, foreground);
         }
 
         this.theme.drawSelectArrowButton(ctx, x + textBoxWidth, boxY, arrowWidth, boxHeight, open);
@@ -877,14 +944,17 @@ export class InteractableDisplay extends Display {
         return selectEdit.options.map((option, i) => {
             const rowRect: BoundingRect = {x: listRect.x, y: listRect.y + i * rowHeight, w: listRect.w, h: rowHeight};
             const highlighted = i === highlightIndex && !option.disabled;
+            const rowStyle = highlighted ? option.focusedStyle : (option.key === selectEdit.selectedKey ? option.selectedStyle : null);
+            const background = rowStyle?.background ?? selectEdit.expandedStyle.background;
+            const foreground = rowStyle?.foreground ?? selectEdit.expandedStyle.foreground;
 
-            if (highlighted) {
-                ctx.fillStyle = option.highlightStyle.background;
+            if (background) {
+                ctx.fillStyle = background;
                 ctx.fillRect(rowRect.x, rowRect.y, rowRect.w, rowRect.h);
             }
 
             const textY = rowRect.y + (rowHeight - this.defaults.fontSize) / 2;
-            this.drawLine(ctx, option.labelRuns, rowRect.x + this.defaults.selectPadding, textY, rowHeight, highlighted ? option.highlightStyle.foreground : undefined);
+            this.drawLine(ctx, option.labelRuns, rowRect.x + this.defaults.selectPadding, textY, rowHeight, foreground);
 
             if (option.disabled) {
                 this.paintDisabledOverlay(ctx, rowRect);
