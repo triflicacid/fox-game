@@ -1,3 +1,5 @@
+import {COLORS} from "../popup/colors";
+
 /**
  * Colours, line widths, and layout used by the debug rendering overlay
  * (toggled with the `d` key - see {@link DebugController}). Edit these
@@ -15,11 +17,6 @@ export const DEBUG_CONFIG = {
     /** Padding between a chunk's top-left corner and its coordinate label, in canvas pixels. */
     chunkLabelPadding: 4,
 
-    /** Stroke colour for tile outlines. */
-    tileOutlineColor: "#00ff00",
-    /** Stroke width for tile outlines, in canvas pixels. */
-    tileOutlineWidth: 1,
-
     /** Stroke colour for entity bounding boxes. */
     boundingBoxColor: "#3399ff",
     /** Stroke width for entity bounding boxes, in canvas pixels. */
@@ -30,16 +27,24 @@ export const DEBUG_CONFIG = {
     /** Stroke width of an entity's facing-direction arrow, in canvas pixels. */
     facingArrowWidth: 2,
 
-    /** Text colour for the HUD (camera/viewport/entity readout). */
+    /** Text colour for the HUD's labels (camera/viewport/entity readout). */
     hudTextColor: "#ffffff",
+    /** Text colour for the HUD's string-valued values (e.g. a feature tag, biome name, facing direction). */
+    hudStringValueColor: COLORS.brightYellow,
+    /** Text colour for the HUD's numeric-valued values. */
+    hudNumberValueColor: COLORS.brightMagenta,
     /** Text colour for the HUD's spectator-mode indicator. */
     hudSpectatorColor: "#ffff00",
     /** Background colour behind the HUD text. */
     hudBackgroundColor: "rgba(0, 0, 0, 0.5)",
-    /** Font for the HUD text. */
-    hudFont: "14px monospace",
+    /** Font family for the HUD text. */
+    hudFontFamily: "monospace",
+    /** Font size for the HUD text, in canvas pixels. */
+    hudFontSize: 14,
     /** Padding around the HUD text block, in canvas pixels. */
     hudPadding: 8,
-    /** Vertical spacing between HUD lines, in canvas pixels. */
-    hudLineHeight: 18,
+    /** Minimum vertical spacing between HUD lines, in canvas pixels. */
+    hudLineHeight: 20,
+    /** How long the seed line's button shows "Copied" after being clicked, in milliseconds, before reverting to "Copy". */
+    hudCopyFeedbackDurationMs: 1500,
 } as const;

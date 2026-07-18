@@ -1,5 +1,5 @@
 import {Popup, PopupOptions} from "./popup";
-import {PopupLine} from "./text-style";
+import {DisplayLine} from "../display/input";
 import {KeyBinding} from "../help/key-binding";
 
 /**
@@ -71,7 +71,7 @@ export abstract class PopupController {
      *
      * @returns The lines to show in the popup.
      */
-    protected abstract buildContent(): PopupLine[];
+    protected abstract buildContent(): DisplayLine[];
 
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
         if (event.key === this.toggleKey) {

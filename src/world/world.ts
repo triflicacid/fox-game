@@ -4,7 +4,7 @@ import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
 import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
-import {DEBUG_CONFIG} from "../debug/debug-config";
+import {DebugHud} from "../debug/debug-hud";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk-generator";
 
@@ -38,6 +38,7 @@ export class World {
     };
     private readonly chunkGenerator: ChunkGenerator;
     private readonly worldSeed: number;
+    private readonly debugHud = new DebugHud();
     private mainEntity: MovableEntity;
 
     /** Sum of every generated chunk's {@link Chunk.generationTimeMs}, for {@link getAverageChunkGenerationTimeMs}. */
@@ -328,6 +329,8 @@ export class World {
         targetFps?: number,
         noiseFieldName?: string,
     ): void {
+        this.debugHud.setVisible(debugEnabled);
+
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
@@ -467,37 +470,30 @@ export class World {
         const frame = this.mainEntity.getCurrentFrame();
         const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);
 
-        const lines: {text: string; color: string}[] = [
-            {text: `camera: (${center.x.toFixed(1)}, ${center.y.toFixed(1)})`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `viewport: ${camera.getWidth()} x ${camera.getHeight()}`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `entity: (${position.x.toFixed(1)}, ${position.y.toFixed(1)}), facing: ${this.mainEntity.getFacing()}`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `chunk (${chunkX}, ${chunkY}), ${chunkBiome}`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `chunks: visible=${this.lastVisibleChunkCount}, loaded=${this.getLoadedChunkCount()}`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `chunk gen: latest=${this.getLatestChunkGenerationTimeMs().toFixed(6)} ms, avg=${this.getAverageChunkGenerationTimeMs().toFixed(4)} ms`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `feature: exact=${exactFeature}, nearby=${nearbyFeature}`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `velocity: (${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}), speed: ${speed.toFixed(1)} px/s`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `FPS: ${actualFps.toFixed(2)}/${targetFps !== undefined ? targetFps.toFixed(0) : "uncapped"}`, color: DEBUG_CONFIG.hudTextColor},
-            {text: `seed: ${this.worldSeed}`, color: DEBUG_CONFIG.hudTextColor},
-        ];
-        if (spectating) {
-            lines.push({text: "SPECTATOR MODE", color: DEBUG_CONFIG.hudSpectatorColor});
-        }
-
-        ctx.font = DEBUG_CONFIG.hudFont;
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
-
-        const padding = DEBUG_CONFIG.hudPadding;
-        const lineHeight = DEBUG_CONFIG.hudLineHeight;
-        const width = Math.max(...lines.map((line) => ctx.measureText(line.text).width)) + padding * 2;
-        const height = lines.length * lineHeight + padding * 2;
-
-        ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
-        ctx.fillRect(0, 0, width, height);
-
-        lines.forEach((line, i) => {
-            ctx.fillStyle = line.color;
-            ctx.fillText(line.text, padding, padding + i * lineHeight);
+        this.debugHud.draw(ctx, {
+            cameraCenterX: center.x,
+            cameraCenterY: center.y,
+            viewportWidth: camera.getWidth(),
+            viewportHeight: camera.getHeight(),
+            entityX: position.x,
+            entityY: position.y,
+            entityFacing: this.mainEntity.getFacing(),
+            chunkX,
+            chunkY,
+            chunkBiome,
+            visibleChunkCount: this.lastVisibleChunkCount,
+            loadedChunkCount: this.getLoadedChunkCount(),
+            latestChunkGenerationTimeMs: this.getLatestChunkGenerationTimeMs(),
+            averageChunkGenerationTimeMs: this.getAverageChunkGenerationTimeMs(),
+            exactFeature,
+            nearbyFeature,
+            velocityX: velocity.x,
+            velocityY: velocity.y,
+            speed,
+            actualFps,
+            targetFps,
+            worldSeed: this.worldSeed,
+            spectating,
         });
     }
 }
