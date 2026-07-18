@@ -72,6 +72,8 @@ export class WorldController {
             (spectating) => this.movementController.setSpectating(spectating),
             () => this.debugController.isEnabled(),
             (enabled) => this.debugController.setEnabled(enabled),
+            () => this.world.isGenerationEnabled(),
+            (enabled) => this.world.setGenerationEnabled(enabled),
             () => this.getTargetFps() ?? WorldController.DEFAULT_TARGET_FPS,
             (fps) => this.setTargetFps(fps),
             () => this.world.getNoiseFieldNames(),

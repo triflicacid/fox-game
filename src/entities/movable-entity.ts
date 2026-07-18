@@ -130,6 +130,23 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     }
 
     /**
+     * Clamps this entity's position into the given world-pixel bounds.
+     *
+     * @param minX - Minimum X position, in world pixels.
+     * @param minY - Minimum Y position, in world pixels.
+     * @param maxX - Maximum X position, in world pixels.
+     * @param maxY - Maximum Y position, in world pixels.
+     */
+    public clampPosition(minX: number, minY: number, maxX: number, maxY: number): void {
+        const position = this.getPosition();
+        const clampedX = Math.min(Math.max(position.x, minX), maxX);
+        const clampedY = Math.min(Math.max(position.y, minY), maxY);
+        if (clampedX !== position.x || clampedY !== position.y) {
+            this.setPosition(new Vector2d(clampedX, clampedY));
+        }
+    }
+
+    /**
      * Optional handler for a key press that {@link MovementController} didn't
      * already handle itself.
      *

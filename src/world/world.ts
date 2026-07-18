@@ -31,6 +31,9 @@ export class World {
     /** How many extra chunks to keep loaded beyond the camera's visible view, in every direction. */
     private static readonly CHUNK_BUFFER = 2;
 
+    /** Fill colour for the "void" - camera-visible area outside every loaded chunk. */
+    private static readonly VOID_COLOR = "#000000";
+
     private readonly chunks = new Map<string, Chunk>();
     private readonly entities: Entity[] = [];
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
@@ -49,6 +52,12 @@ export class World {
     private latestChunkGenerationTimeMs = 0;
     /** Chunk count the last {@link draw} call rendered, for the debug HUD. */
     private lastVisibleChunkCount = 0;
+
+    /**
+     * Whether new chunks may be generated. If areas outside generated
+     * chunks come into viewport, show void instead.
+     */
+    private generationEnabled = true;
 
     /**
      * @param tileSize - Width/height of a single tile, in canvas pixels.
@@ -165,11 +174,77 @@ export class World {
     }
 
     /**
-     * Drops every currently loaded chunk from memory,
-     * forcing all chunks to be regenerated.
+     * Drops every currently loaded chunk from memory.
      */
     public reloadAllChunks(): void {
         this.chunks.clear();
+    }
+
+    /**
+     * Whether new chunks may currently be generated.
+     *
+     * @returns `true` if chunk generation is enabled.
+     */
+    public isGenerationEnabled(): boolean {
+        return this.generationEnabled;
+    }
+
+    /**
+     * Enables/disables chunk generation.
+     *
+     * @param enabled - Whether chunk generation should be enabled.
+     */
+    public setGenerationEnabled(enabled: boolean): void {
+        this.generationEnabled = enabled;
+    }
+
+    /**
+     * Bounding rectangle, in world pixels, of every currently loaded chunk -
+     * the reachable area while {@link generationEnabled} is off.
+     *
+     * @returns The loaded chunks' bounds, or `undefined` if none are loaded.
+     */
+    private getLoadedChunkBounds(): {minX: number; minY: number; maxX: number; maxY: number} | undefined {
+        if (this.chunks.size === 0) {
+            return undefined;
+        }
+
+        let minChunkX = Infinity;
+        let minChunkY = Infinity;
+        let maxChunkX = -Infinity;
+        let maxChunkY = -Infinity;
+        for (const chunk of this.chunks.values()) {
+            minChunkX = Math.min(minChunkX, chunk.chunkX);
+            minChunkY = Math.min(minChunkY, chunk.chunkY);
+            maxChunkX = Math.max(maxChunkX, chunk.chunkX);
+            maxChunkY = Math.max(maxChunkY, chunk.chunkY);
+        }
+
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        return {
+            minX: minChunkX * chunkPixelSize,
+            minY: minChunkY * chunkPixelSize,
+            maxX: (maxChunkX + 1) * chunkPixelSize,
+            maxY: (maxChunkY + 1) * chunkPixelSize,
+        };
+    }
+
+    /**
+     * Clamps every {@link MovableEntity} in {@link entities} inside
+     * {@link getLoadedChunkBounds}.
+     */
+    private clampEntitiesToLoadedChunks(): void {
+        const bounds = this.getLoadedChunkBounds();
+        if (!bounds) {
+            return;
+        }
+
+        for (const entity of this.entities) {
+            if (entity instanceof MovableEntity) {
+                const frame = entity.getCurrentFrame();
+                entity.clampPosition(bounds.minX, bounds.minY, bounds.maxX - frame.w, bounds.maxY - frame.h);
+            }
+        }
     }
 
     /**
@@ -256,7 +331,9 @@ export class World {
 
     /**
      * Advances every entity in the world by one simulation tick, and streams
-     * chunks in/out around the camera (see {@link updateLoadedChunks}).
+     * chunks in/out around the camera (see {@link updateLoadedChunks}). While
+     * {@link generationEnabled} is off, entities are clamped inside the
+     * currently loaded chunks instead (see {@link clampEntitiesToLoadedChunks}).
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      * @param camera - Camera the world is currently being viewed through.
@@ -266,6 +343,9 @@ export class World {
             entity.update(deltaMs);
         }
         this.updateLoadedChunks(camera);
+        if (!this.generationEnabled) {
+            this.clampEntitiesToLoadedChunks();
+        }
     }
 
     /**
@@ -289,11 +369,17 @@ export class World {
      * {@link CHUNK_BUFFER} chunks, then unloads any loaded chunk that's
      * drifted further than that buffer outside the view. Keeps memory
      * bounded as the camera pans, while still keeping a margin of chunks
-     * pre-generated just outside the visible area.
+     * pre-generated just outside the visible area. A no-op while
+     * {@link generationEnabled} is off, freezing the currently loaded chunks
+     * as "the map" instead of streaming more in/out.
      *
      * @param camera - Camera to load/unload chunks around.
      */
     private updateLoadedChunks(camera: Camera): void {
+        if (!this.generationEnabled) {
+            return;
+        }
+
         const visible = this.getVisibleChunkRange(camera);
         const bufferedStartX = visible.startChunkX - World.CHUNK_BUFFER;
         const bufferedStartY = visible.startChunkY - World.CHUNK_BUFFER;
@@ -347,10 +433,16 @@ export class World {
         this.lastVisibleChunkCount = 0;
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                const chunk = this.getChunk(chunkX, chunkY);
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
 
+                if (!this.generationEnabled && !this.isChunkLoaded(chunkX, chunkY)) {
+                    ctx.fillStyle = World.VOID_COLOR;
+                    ctx.fillRect(originX, originY, chunkPixelSize, chunkPixelSize);
+                    continue;
+                }
+
+                const chunk = this.getChunk(chunkX, chunkY);
                 chunk.draw(ctx, originX, originY, this.tileSize);
                 this.lastVisibleChunkCount++;
 
