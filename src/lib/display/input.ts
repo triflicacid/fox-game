@@ -16,6 +16,8 @@ export interface InputBase {
     highlightStyle?: Partial<HighlightStyle>;
     /** Whether this input is disabled. Defaults to `false`. */
     disabled?: boolean;
+    /** If `true`, this input acts as if absent entirely - not laid out, not painted, not focusable. Defaults to `false`. */
+    hidden?: boolean;
 }
 
 /** A single selectable option within a {@link RadioInput}. */
@@ -28,6 +30,8 @@ export interface RadioOption {
     highlightStyle?: Partial<HighlightStyle>;
     /** Whether this option is disabled, independent of the owning {@link RadioInput}'s own `disabled`. Defaults to `false`. */
     disabled?: boolean;
+    /** If `true`, this option acts as if absent entirely - not laid out, not painted, not selectable. Defaults to `false`. */
+    hidden?: boolean;
 }
 
 /**
@@ -55,6 +59,8 @@ export interface SelectOption {
     highlightStyle?: Partial<HighlightStyle>;
     /** Whether this option is disabled, independent of the owning {@link SelectInput}'s own `disabled`. Defaults to `false`. */
     disabled?: boolean;
+    /** If `true`, this option acts as if absent entirely - not laid out, not painted, not selectable. Defaults to `false`. */
+    hidden?: boolean;
 }
 
 /**
@@ -85,9 +91,31 @@ export interface CheckboxInput extends InputBase {
 }
 
 /**
+ * Fields shared by {@link NumberInput} and {@link TextInput} - both render
+ * as a single-line sunken box sized to their content.
+ */
+export interface TextBoxInputBase extends InputBase {
+    /**
+     * Width the box is fixed at, in canvas pixels - content longer than
+     * this is clipped, scrolling horizontally to keep the caret visible
+     * while editing. Set to `Infinity` to instead size the box to exactly
+     * fit its content (bounded below by `minWidth`), in which case content
+     * is never clipped while unfocused - only a mid-edit value briefly
+     * longer than the last-committed content can still overflow, until the
+     * edit commits and the box resizes. Defaults to the display's default
+     * box width.
+     */
+    maxWidth?: number;
+    /** Minimum width the box may shrink to, in canvas pixels - only relevant when `maxWidth` is `Infinity`, to stop the box collapsing around short/empty content. Defaults to `0`. */
+    minWidth?: number;
+    /** Background/foreground colours to highlight a Shift+Arrow text selection with. Any field left unset falls back to that field of `highlightStyle`. */
+    selectionStyle?: Partial<HighlightStyle>;
+}
+
+/**
  * A single numeric text field. Must be focused to be edited.
  */
-export interface NumberInput extends InputBase {
+export interface NumberInput extends TextBoxInputBase {
     kind: "number";
     /** Current value. */
     value: number;
@@ -97,6 +125,23 @@ export interface NumberInput extends InputBase {
     allowDecimal?: boolean;
     /** Invoked with the new value once an edit commits (`Enter`/`Space`, focus moving away, or an `ArrowUp`/`ArrowDown` step while editing). */
     onChange: (value: number) => void;
+}
+
+/**
+ * A single generic text field. Must be focused to be edited. Looks
+ * identical to a {@link NumberInput}, but allows arbitrary text and has no
+ * `ArrowUp`/`ArrowDown` stepping behaviour.
+ */
+export interface TextInput extends TextBoxInputBase {
+    kind: "textbox";
+    /** Current value. */
+    value: string;
+    /** If set, only characters in this list may be typed. Mutually exclusive with `disallowedChars` - if both are set, `disallowedChars` is ignored. */
+    allowedChars?: string[];
+    /** If set, characters in this list may not be typed. Ignored if `allowedChars` is also set. */
+    disallowedChars?: string[];
+    /** Invoked with the new value once an edit commits (`Enter`, or focus moving away). Return `true` to accept it, or `false` to reject the edit - the field reverts to its previous `value`. */
+    onChange: (value: string) => boolean;
 }
 
 /**
@@ -115,7 +160,7 @@ export interface ButtonInput extends InputBase {
  * alongside plain text. Add further input kinds to this union as they're
  * introduced, each with its own `kind` literal.
  */
-export type Input = RadioInput | CheckboxInput | NumberInput | ButtonInput | SelectInput;
+export type Input = RadioInput | CheckboxInput | NumberInput | TextInput | ButtonInput | SelectInput;
 
 /** A single item within a {@link DisplayLine}: styled text, or an interactive input. */
 export type DisplayLineItem = TextSegment | Input;
