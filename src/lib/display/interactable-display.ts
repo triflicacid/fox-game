@@ -1298,8 +1298,8 @@ export class InteractableDisplay extends Display {
 
     /**
      * Handles every edit-buffer key a number input and a textbox share
-     * while in edit mode, except `Escape`/`Enter`/`Space` and
-     * (for a number input) `ArrowUp`/`ArrowDown`.
+     * while in edit mode, except `Escape`/`Enter`/`Space`/`Backspace`/`Delete`
+     * and (for a number input) `ArrowUp`/`ArrowDown`.
      *
      * @param cursor - Index of the focused input within {@link focusables}.
      * @param currentText - The buffer's current text.
@@ -1361,15 +1361,22 @@ export class InteractableDisplay extends Display {
 
         let nextText: string;
         let nextPos: number;
-        if (event.key === "Backspace") {
+        if (event.key === "Backspace" || event.key === "Delete") {
             if (selection) {
                 nextText = textWithoutSelection;
                 nextPos = selection.start;
-            } else if (pos === 0) {
-                return;
-            } else {
+            } else if (event.key === "Backspace") {
+                if (pos === 0) {
+                    return;
+                }
                 nextText = currentText.slice(0, pos - 1) + currentText.slice(pos);
                 nextPos = pos - 1;
+            } else {
+                if (pos === currentText.length) {
+                    return;
+                }
+                nextText = currentText.slice(0, pos) + currentText.slice(pos + 1);
+                nextPos = pos;
             }
         } else if (event.key.length === 1 && acceptsChar(event.key, textWithoutSelection)) {
             const insertAt = selection ? selection.start : pos;
