@@ -1,10 +1,15 @@
 import {KeyBinding} from "../help/key-binding";
 
-/** Toggles debug rendering mode on/off in response to the `d` key. */
+/**
+ * Toggles debug rendering mode on/off in response to the `d` key.
+ */
 export class DebugController {
     private enabled = false;
 
-    public constructor() {
+    /**
+     * @param onReloadChunks - Called when the `r` key is pressed while debug mode is enabled.
+     */
+    public constructor(private readonly onReloadChunks: () => void) {
         window.addEventListener("keydown", this.handleKeyDown);
     }
 
@@ -27,18 +32,25 @@ export class DebugController {
     }
 
     /**
-     * This controller's key binding, for the help popup.
+     * This controller's key bindings.
      *
      * @returns This controller's key bindings.
      */
     public getKeyBindings(): KeyBinding[] {
-        return [{key: "D", description: "Toggle debug overlay"}];
+        const bindings: KeyBinding[] = [{key: "D", description: "Toggle debug overlay"}];
+        if (this.enabled) {
+            bindings.push({key: "R", description: "Reload all chunks"});
+        }
+        return bindings;
     }
 
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
-        if (event.key !== "d" && event.key !== "D") {
+        if (event.key === "d" || event.key === "D") {
+            this.enabled = !this.enabled;
             return;
         }
-        this.enabled = !this.enabled;
+        if (this.enabled && (event.key === "r" || event.key === "R")) {
+            this.onReloadChunks();
+        }
     };
 }

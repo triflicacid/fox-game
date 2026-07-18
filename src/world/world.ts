@@ -165,6 +165,14 @@ export class World {
     }
 
     /**
+     * Drops every currently loaded chunk from memory,
+     * forcing all chunks to be regenerated.
+     */
+    public reloadAllChunks(): void {
+        this.chunks.clear();
+    }
+
+    /**
      * Looks up the tile at the given world tile position, generating its
      * containing chunk first if necessary.
      *
