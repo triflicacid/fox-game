@@ -71,9 +71,6 @@ export class SettingsController extends PopupController {
                     kind: "radio",
                     selected: this.getCameraFollowMode() ?? "",
                     onSelect: (key) => this.setCameraFollowMode(key as CameraFollowMode),
-                    inputStyle: {background: 'gold'},
-                    inputSelectedStyle: {background: 'purple', foreground: 'white'},
-                    selectedStyle: {background: 'pink', foreground: 'blue'},
                     options: [
                         {key: "edge", content: [{content: "Edge"}]},
                         {key: "center", content: [{content: "Centre"}]},
@@ -81,8 +78,7 @@ export class SettingsController extends PopupController {
                 },
             ],
             [
-                {kind: "checkbox", checked: this.getSpectating(), onToggle: this.setSpectating, content: [{content: "Spectator mode"}],
-                selectedStyle: {foreground: 'red', background: 'yellow'}},
+                {kind: "checkbox", checked: this.getSpectating(), onToggle: this.setSpectating, content: [{content: "Spectator mode"}], selectedStyle:{fontSizeDelta:10, background: 'gold'}},
             ],
             [
                 {kind: "checkbox", checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: [{content: "Debug mode"}]},

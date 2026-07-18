@@ -22,7 +22,7 @@ function drawOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
  */
 class FlatTheme extends ChromeTheme {
     public constructor() {
-        super(SURFACE_COLOR, BORDER_COLOR, 1);
+        super(SURFACE_COLOR, BORDER_COLOR, SURFACE_COLOR, 1);
     }
 
     public override defaultFocusedStyle(): TextStyle {

@@ -11,9 +11,9 @@ export interface RadioOption {
     focusedStyle?: TextStyle;
     /** Style overlaid on this option while it is the selected one. Falls back to the owning {@link RadioInput}'s `selectedStyle`. */
     selectedStyle?: TextStyle;
-    /** Style colouring just this option's marker while selected. Falls back to the owning {@link RadioInput}'s `inputSelectedStyle`, then this option's `selectedStyle`. */
+    /** Style colouring just this option's marker while selected. Falls back to the owning {@link RadioInput}'s `inputSelectedStyle`, then this option's `selectedStyle`, then the theme's default marker look. */
     inputSelectedStyle?: TextStyle;
-    /** Style colouring just this option's marker at rest (unselected, unfocused). Falls back to the owning {@link RadioInput}'s `inputStyle`, then its `style`. */
+    /** Style colouring just this option's marker at rest (unselected, unfocused). Falls back to the owning {@link RadioInput}'s `inputStyle`, then its `style`, then the theme's default marker look. */
     inputStyle?: TextStyle;
     /** Whether this option is disabled, independent of the owning {@link RadioInput}. Defaults to `false`. */
     disabled?: boolean;
@@ -29,8 +29,10 @@ export interface RadioOption {
  * independently) and per option: label and its background rect -
  * `focusedStyle` while focused > `selectedStyle` while selected > default.
  * The marker is unaffected by focus: `inputSelectedStyle` (falls back to
- * `selectedStyle`) while selected > `inputStyle` (falls back to `style`) at
- * rest.
+ * `selectedStyle`, then the theme's default marker look) while selected >
+ * `inputStyle` (falls back to `style`, then the theme's default marker
+ * look) at rest. That default is always concrete, so `invert` on either
+ * always has a colour pair to swap even with nothing else set.
  */
 export interface RadioInput extends InputBase {
     kind: "radio";
@@ -38,9 +40,9 @@ export interface RadioInput extends InputBase {
     options: RadioOption[];
     /** `key` of the currently selected option. */
     selected: string;
-    /** Style colouring the selected option's marker. Falls back to `selectedStyle`. */
+    /** Style colouring the selected option's marker. Falls back to `selectedStyle`, then the theme's default marker look. */
     inputSelectedStyle?: TextStyle;
-    /** Style colouring an unselected, unfocused option's marker. Falls back to `style`. */
+    /** Style colouring an unselected, unfocused option's marker. Falls back to `style`, then the theme's default marker look. */
     inputStyle?: TextStyle;
     /** Invoked with an option's `key` when the user selects it. */
     onSelect: (key: string) => void;
