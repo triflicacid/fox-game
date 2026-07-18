@@ -15,6 +15,8 @@ export class SettingsController extends PopupController {
      * @param setSpectating - Invoked when the user toggles the spectator mode checkbox.
      * @param getDebugEnabled - Called on every {@link draw} to read whether debug mode is on.
      * @param setDebugEnabled - Invoked when the user toggles the debug mode checkbox.
+     * @param getGenerationEnabled - Called on every {@link draw} to read whether chunk generation is enabled.
+     * @param setGenerationEnabled - Invoked when the user toggles the chunk generation checkbox.
      * @param getTargetFps - Called on every {@link draw} to read the current target FPS.
      * @param setTargetFps - Invoked when the user edits the target FPS field.
      * @param getNoiseFieldNames - Called on every {@link draw} to list the noise fields available to visualise.
@@ -29,6 +31,8 @@ export class SettingsController extends PopupController {
         private readonly setSpectating: (spectating: boolean) => void,
         private readonly getDebugEnabled: () => boolean,
         private readonly setDebugEnabled: (enabled: boolean) => void,
+        private readonly getGenerationEnabled: () => boolean,
+        private readonly setGenerationEnabled: (enabled: boolean) => void,
         private readonly getTargetFps: () => number,
         private readonly setTargetFps: (fps: number) => void,
         private readonly getNoiseFieldNames: () => readonly string[],
@@ -94,6 +98,9 @@ export class SettingsController extends PopupController {
                         ...this.getNoiseFieldNames().map((name) => ({key: name, content: [{content: name}]})),
                     ],
                 },
+            ]);
+            lines.push([
+                {kind: "checkbox", checked: this.getGenerationEnabled(), onToggle: this.setGenerationEnabled, content: [{content: "Chunk generation"}]},
             ]);
         }
 
