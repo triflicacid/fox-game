@@ -121,9 +121,13 @@ export class Display {
 
     /**
      * Recursively flattens `segment` into {@link ResolvedRun}s, resolving
-     * each one's style against whatever it inherits from its parent.
+     * each one's style against whatever it inherits from its parent. A
+     * `hidden` segment (or its children) contributes nothing, as if absent.
      */
     private flattenSegment(segment: TextSegment, inherited: ResolvedStyle): ResolvedRun[] {
+        if (segment.hidden) {
+            return [];
+        }
         const style = this.resolveStyle(segment.style, inherited);
         if (typeof segment.content === "string") {
             return [{
