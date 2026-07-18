@@ -87,24 +87,6 @@ export class SettingsController extends PopupController {
                 {content: "Target FPS: "},
                 {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
             ],
-            [
-                {content: "Textbox test: "},
-                {
-                    kind: "textbox",
-                    value: this.textboxTestValue,
-                    maxWidth: 64,
-                    minWidth: 48,
-                    onChange: (value) => {
-                        console.log(value);
-                        this.textboxTestValue = value;
-                        return true;
-                    },
-                    selectionStyle: {
-                        background: 'yellow',
-                        foreground: 'black'
-                    }
-                },
-            ],
         ];
 
         if (this.getDebugEnabled()) {
