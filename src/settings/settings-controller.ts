@@ -8,6 +8,9 @@ import {CameraFollowMode} from "../entities/movement-controller";
  * with `Esc` or `#` again (or by selecting its `Close` button).
  */
 export class SettingsController extends PopupController {
+    /** Value of the test textbox added below "Target FPS" - purely for exercising the textbox input kind, not wired to any real setting. */
+    private textboxTestValue = "Hello, world";
+
     /**
      * @param getCameraFollowMode - Called on every {@link draw} to read the current camera follow mode.
      * @param setCameraFollowMode - Invoked when the user selects a different camera follow mode.
@@ -83,6 +86,20 @@ export class SettingsController extends PopupController {
             [
                 {content: "Target FPS: "},
                 {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
+            ],
+            [
+                {content: "Textbox test: "},
+                {
+                    kind: "textbox",
+                    value: this.textboxTestValue,
+                    maxWidth: 64,
+                    minWidth: 48,
+                    onChange: (value) => {
+                        console.log(value);
+                        this.textboxTestValue = value;
+                        return true;
+                    },
+                },
             ],
         ];
 
