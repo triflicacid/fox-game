@@ -1,7 +1,7 @@
-import {FocusableElement, InteractableDisplay} from "../display/interactable-display";
-import {DisplayLine} from "../display/input";
-import {TextSegment} from "../display/text-style";
-import {FLAT_THEME} from "../display/flat-theme";
+import {FocusableElement, InteractableDisplay} from "../lib/display/interactable-display";
+import {DisplayLine} from "../lib/display/input";
+import {TextSegment} from "../lib/display/text-style";
+import {FLAT_THEME} from "../lib/display/flat-theme";
 import {DEBUG_CONFIG} from "./debug-config";
 import {copyToClipboard} from "../util";
 

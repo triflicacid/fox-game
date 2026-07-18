@@ -1,4 +1,4 @@
-import {COLORS} from "../popup/colors";
+import {COLORS} from "../lib/popup/colors";
 
 /**
  * Colours, line widths, and layout used by the debug rendering overlay
