@@ -1,7 +1,7 @@
 import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from "./display";
 import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HighlightStyle, Input, NumberInput, RadioInput, SelectInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
-import {Rect, pointInRect, rectsEqual} from "../geometry/rect";
+import {Rect, pointInRect, rectsEqual} from "../../geometry/rect";
 
 /** Whether keyboard input reaches an {@link InteractableDisplay} whenever it's active ("always"), or only after it's been clicked into ("click"). */
 export type FocusMode = "always" | "click";

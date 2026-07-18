@@ -9,7 +9,7 @@ import {requireNonNull} from "./util";
 import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
 import {SettingsController} from "./settings/settings-controller";
-import {PopupController} from "./popup/popup-controller";
+import {PopupController} from "./lib/popup/popup-controller";
 
 /**
  * Owns everything needed to run the game against a canvas.
