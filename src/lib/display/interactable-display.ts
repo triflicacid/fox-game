@@ -345,12 +345,14 @@ export class InteractableDisplay extends Display {
     /**
      * Resolves and measures a {@link RadioInput}'s options, separated by
      * {@link InteractableDisplayDefaults.radioOptionGap} (none before the
-     * first or after the last).
+     * first or after the last). A `hidden` option contributes nothing, as
+     * if absent - it's excluded before gaps are counted, so it leaves no
+     * gap behind either.
      */
     private resolveRadio(ctx: CanvasRenderingContext2D, item: RadioInput): {element: ResolvedRadioElement; maxFontSize: number} {
         let width = 0;
         let maxFontSize = 0;
-        const options: ResolvedRadioOption[] = item.options.map((option, i) => {
+        const options: ResolvedRadioOption[] = item.options.filter((option) => !option.hidden).map((option, i) => {
             const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = this.resolveLine(ctx, option.content);
             maxFontSize = Math.max(maxFontSize, labelFontSize);
 
@@ -450,11 +452,11 @@ export class InteractableDisplay extends Display {
         };
     }
 
-    /** Resolves and measures a {@link SelectInput}'s options. */
+    /** Resolves and measures a {@link SelectInput}'s options. A `hidden` option contributes nothing, as if absent - it's excluded from the closed box's width, the dropdown, and selection entirely. */
     private resolveSelect(ctx: CanvasRenderingContext2D, item: SelectInput): {element: ResolvedSelectElement; maxFontSize: number} {
         let maxLabelWidth = 0;
         let maxFontSize = 0;
-        const options: ResolvedSelectOption[] = item.options.map((option) => {
+        const options: ResolvedSelectOption[] = item.options.filter((option) => !option.hidden).map((option) => {
             const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = this.resolveLine(ctx, option.content);
             maxFontSize = Math.max(maxFontSize, labelFontSize);
             maxLabelWidth = Math.max(maxLabelWidth, labelWidth);
