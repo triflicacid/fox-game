@@ -514,26 +514,30 @@ export class InteractableDisplay extends Display {
 
     /**
      * Resolves and measures every item in `line` - plain text segments
-     * flatten to styled runs; inputs resolve via {@link resolveInput}. The
-     * line's overall height is at least this display's minimum line height,
-     * but grows to fit whichever element uses the largest font.
+     * flatten to styled runs; inputs resolve via {@link resolveInput}. A
+     * `hidden` input contributes nothing, as if absent. The line's overall
+     * height is at least this display's minimum line height, but grows to
+     * fit whichever element uses the largest font.
      */
     public resolveElements(ctx: CanvasRenderingContext2D, line: DisplayLine): ResolvedElementLine {
         let width = 0;
         let maxFontSize = 0;
 
-        const elements: ResolvedElement[] = line.map((item): ResolvedElement => {
+        const elements: ResolvedElement[] = line.flatMap((item): ResolvedElement[] => {
             if (isInput(item)) {
+                if (item.hidden) {
+                    return [];
+                }
                 const {element, maxFontSize: inputFontSize} = this.resolveInput(ctx, item);
                 maxFontSize = Math.max(maxFontSize, inputFontSize);
                 width += element.width;
-                return element;
+                return [element];
             }
 
             const {runs: measured, width: textWidth, maxFontSize: textFontSize} = this.resolveLine(ctx, [item]);
             maxFontSize = Math.max(maxFontSize, textFontSize);
             width += textWidth;
-            return {kind: "text", runs: measured, width: textWidth};
+            return [{kind: "text", runs: measured, width: textWidth}];
         });
 
         return {elements, width, height: this.lineHeightFor(maxFontSize)};

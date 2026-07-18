@@ -16,6 +16,8 @@ export interface InputBase {
     highlightStyle?: Partial<HighlightStyle>;
     /** Whether this input is disabled. Defaults to `false`. */
     disabled?: boolean;
+    /** If `true`, this input acts as if absent entirely - not laid out, not painted, not focusable. Defaults to `false`. */
+    hidden?: boolean;
 }
 
 /** A single selectable option within a {@link RadioInput}. */
