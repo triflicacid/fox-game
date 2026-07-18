@@ -7,4 +7,3 @@
 - Maybe double-tab a direction to run faster
 - Other entities - rabbits in plains
   - Eat mechanics??
-- Debug HUD: same formatting driving as popups, but without background and border. Extract this into a shared `display` class?

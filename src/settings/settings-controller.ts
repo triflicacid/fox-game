@@ -1,4 +1,4 @@
-import {PopupLine} from "../popup/text-style";
+import {DisplayLine} from "../display/input";
 import {KeyBinding} from "../help/key-binding";
 import {PopupController} from "../popup/popup-controller";
 import {CameraFollowMode} from "../entities/movement-controller";
@@ -56,8 +56,8 @@ export class SettingsController extends PopupController {
      *
      * @returns The lines to show in the settings popup.
      */
-    protected buildContent(): PopupLine[] {
-        const lines: PopupLine[] = [
+    protected buildContent(): DisplayLine[] {
+        const lines: DisplayLine[] = [
             [
                 {content: "Camera follow mode: "},
                 {

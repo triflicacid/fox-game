@@ -1,22 +1,12 @@
-import {COLORS} from "./colors";
-
 /**
- * Colours, fonts, and layout used by every {@link Popup}.
+ * Fonts and layout used by every {@link Popup}. Colours belonging to its
+ * chrome (panel background/border, control faces, focus highlight) live in
+ * whichever {@link ChromeTheme} it's built with instead - see
+ * {@link WIN98_THEME}.
  */
 export const POPUP_CONFIG = {
     /** Colour of the dimming layer drawn behind the popup. */
     dimColor: "rgba(0, 0, 0, 0.4)",
-    /** Background colour of the popup itself. */
-    backgroundColor: "#c0c0c0",
-
-    /** Outer bevel edge colour (top/left), the lightest tone. */
-    borderHighlightColor: "#ffffff",
-    /** Inner bevel edge colour (top/left). */
-    borderLightColor: "#dfdfdf",
-    /** Inner bevel edge colour (bottom/right). */
-    borderShadowColor: "#808080",
-    /** Outer bevel edge colour (bottom/right), the darkest tone. */
-    borderDarkShadowColor: "#000000",
 
     /** Text colour for the popup's title. */
     titleColor: "#000000",
@@ -34,10 +24,6 @@ export const POPUP_CONFIG = {
     /** Minimum vertical spacing between lines of text (and the button row), in canvas pixels. */
     lineHeight: 20,
 
-    /** Background colour drawn behind whichever button the cursor is on. */
-    highlightBackgroundColor: COLORS.navy,
-    /** Text colour for whichever button the cursor is on. */
-    highlightTextColor: "#ffffff",
     /** Horizontal gap between buttons in the button row, in canvas pixels. */
     buttonGap: 16,
     /** Vertical gap between the last line of text and the button row, in canvas pixels. */
@@ -72,6 +58,9 @@ export const POPUP_CONFIG = {
      * box when drawing its focus highlight.
      */
     focusHighlightPadding: 2,
+
+    /** Fill colour of the sheen painted over a disabled input, e.g. a translucent grey. */
+    disabledOverlayColor: "rgba(128, 128, 128, 0.5)",
 
     /** Padding around the popup's content, in canvas pixels. */
     padding: 12,
