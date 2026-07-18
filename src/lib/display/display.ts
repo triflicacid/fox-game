@@ -182,6 +182,9 @@ export class Display {
      * @returns The line height to draw at, in canvas pixels.
      */
     public lineHeightFor(maxFontSize: number): number {
+        if (maxFontSize === 0) {
+            return 0;
+        }
         return Math.max(this.lineHeight, maxFontSize + 6);
     }
 

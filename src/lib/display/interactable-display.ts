@@ -1,7 +1,8 @@
 import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from "./display";
-import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HighlightStyle, Input, NumberInput, RadioInput, SelectInput} from "./input";
+import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HighlightStyle, Input, NumberInput, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
 import {BoundingRect, pointInRect, rectsEqual} from "./bounding-rect";
+import {copyToClipboard, readFromClipboard} from "../../util";
 
 /** Whether keyboard input reaches an {@link InteractableDisplay} whenever it's active ("always"), or only after it's been clicked into ("click"). */
 export type FocusMode = "always" | "click";
@@ -80,6 +81,22 @@ interface ResolvedNumberElement {
     allowDecimal: boolean;
     onChange: (value: number) => void;
     highlightStyle: HighlightStyle;
+    /** Style a Shift+Arrow text selection is drawn with - see {@link TextBoxInputBase.selectionStyle}. */
+    selectionStyle: HighlightStyle;
+    disabled: boolean;
+    width: number;
+}
+
+/** A resolved, measured textbox input within a line. */
+interface ResolvedTextboxElement {
+    kind: "textbox";
+    value: string;
+    allowedChars: string[] | null;
+    disallowedChars: string[] | null;
+    onChange: (value: string) => boolean;
+    highlightStyle: HighlightStyle;
+    /** Style a Shift+Arrow text selection is drawn with. */
+    selectionStyle: HighlightStyle;
     disabled: boolean;
     width: number;
 }
@@ -120,7 +137,7 @@ interface ResolvedSelectElement {
 }
 
 /** Every kind of resolved, measured input element a line can contain - mirrors {@link Input}. */
-type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement | ResolvedNumberElement | ResolvedButtonElement | ResolvedSelectElement;
+type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement | ResolvedNumberElement | ResolvedTextboxElement | ResolvedButtonElement | ResolvedSelectElement;
 
 type ResolvedElement = ResolvedTextElement | ResolvedInputElement;
 
@@ -139,6 +156,14 @@ interface NumberEditHandle {
     onChange: (value: number) => void;
 }
 
+/** Config to support editing for a {@link ResolvedTextboxElement}. */
+interface TextEditHandle {
+    getValue: () => string;
+    allowedChars: string[] | null;
+    disallowedChars: string[] | null;
+    onChange: (value: string) => boolean;
+}
+
 /** Config to support opening/navigating a {@link ResolvedSelectElement}. */
 interface SelectEditHandle {
     options: ResolvedSelectOption[];
@@ -152,11 +177,18 @@ export interface FocusableElement {
     activate: () => void;
     /** Present only for number-input focusables - see {@link InteractableDisplay.handleNumberInputKey}. */
     numberEdit?: NumberEditHandle;
+    /** Present only for textbox focusables - see {@link InteractableDisplay.handleTextboxInputKey}. */
+    textEdit?: TextEditHandle;
     /** Present only for select-input focusables - see {@link InteractableDisplay.handleSelectInputKey}. */
     selectEdit?: SelectEditHandle;
     /** Whether this element is disabled - skipped by arrow-key navigation and unclickable/unactivatable. It can still be the current cursor position (e.g. if it became disabled while focused), just not drawn highlighted. */
     disabled: boolean;
 }
+
+/**
+ * `KeyboardEvent.key` values for pure modifier keys.
+ */
+const MODIFIER_KEYS = new Set(["Alt", "AltGraph", "CapsLock", "Control", "Fn", "FnLock", "Hyper", "Meta", "NumLock", "ScrollLock", "Shift", "Super", "Symbol", "SymbolLock"]);
 
 /** Fallback {@link InteractableDisplayDefaults} used for any field an {@link InteractableDisplay} isn't given. */
 export const DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS: InteractableDisplayDefaults = {
@@ -204,10 +236,14 @@ export class InteractableDisplay extends Display {
 
     private focusables: FocusableElement[] = [];
     private cursor: number | null = null;
-    /** The in-progress typed text for whichever number input is being edited, if any - kept in lockstep with {@link editingNumberCursor}. */
-    private numberEditBuffer: {cursor: number; text: string} | null = null;
+    /** The in-progress typed text (plus caret position within it) for whichever number input is being edited, if any. `anchor` is the fixed end of an in-progress Shift+Arrow selection (`null` when there's no selection), with `pos` as its moving end. */
+    private numberEditBuffer: {cursor: number; text: string; pos: number; anchor: number | null} | null = null;
     /** Index into {@link focusables} of the number input currently in edit mode, if any. */
     private editingNumberCursor: number | null = null;
+    /** The in-progress typed text (plus caret position within it) for whichever textbox is being edited, if any - kept in lockstep with {@link editingTextCursor}. `anchor` is the fixed end of an in-progress Shift+Arrow selection (`null` when there's no selection), with `pos` as its moving end. */
+    private textEditBuffer: {cursor: number; text: string; pos: number; anchor: number | null} | null = null;
+    /** Index into {@link focusables} of the textbox currently in edit mode, if any. */
+    private editingTextCursor: number | null = null;
     /** Index into {@link focusables} of the select input whose dropdown is currently open, if any. */
     private openSelectCursor: number | null = null;
     /** Index into the open select's `options` currently highlighted, while a dropdown is open. */
@@ -245,11 +281,14 @@ export class InteractableDisplay extends Display {
             this.cursor = this.initialFocusIndex;
             this.numberEditBuffer = null;
             this.editingNumberCursor = null;
+            this.textEditBuffer = null;
+            this.editingTextCursor = null;
             this.openSelectCursor = null;
             this.openSelectHighlight = 0;
             this.focused = this.focusMode === "always";
         } else {
             this.commitPendingNumberEdit();
+            this.commitPendingTextEdit();
             this.active = false;
             this.focused = false;
         }
@@ -303,6 +342,14 @@ export class InteractableDisplay extends Display {
         };
     }
 
+    /** Style a textbox's text selection falls back to when it doesn't specify its own - `highlightStyle` (already resolved against the theme) field by field, rather than the theme directly. */
+    private fillSelectionStyle(selectionStyle: Partial<HighlightStyle> | null | undefined, highlightStyle: HighlightStyle): HighlightStyle {
+        return {
+            background: selectionStyle?.background ?? highlightStyle.background,
+            foreground: selectionStyle?.foreground ?? highlightStyle.foreground,
+        };
+    }
+
     /** Width a radio option's marker, marker/label gap, and label together occupy - excludes any gap to a sibling option. */
     private radioOptionContentWidth(labelWidth: number): number {
         return this.defaults.radioMarkerSize + this.defaults.radioMarkerGap + labelWidth;
@@ -316,12 +363,14 @@ export class InteractableDisplay extends Display {
     /**
      * Resolves and measures a {@link RadioInput}'s options, separated by
      * {@link InteractableDisplayDefaults.radioOptionGap} (none before the
-     * first or after the last).
+     * first or after the last). A `hidden` option contributes nothing, as
+     * if absent - it's excluded before gaps are counted, so it leaves no
+     * gap behind either.
      */
     private resolveRadio(ctx: CanvasRenderingContext2D, item: RadioInput): {element: ResolvedRadioElement; maxFontSize: number} {
         let width = 0;
         let maxFontSize = 0;
-        const options: ResolvedRadioOption[] = item.options.map((option, i) => {
+        const options: ResolvedRadioOption[] = item.options.filter((option) => !option.hidden).map((option, i) => {
             const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = this.resolveLine(ctx, option.content);
             maxFontSize = Math.max(maxFontSize, labelFontSize);
 
@@ -359,8 +408,42 @@ export class InteractableDisplay extends Display {
         };
     }
 
+    /**
+     * Fields shared by a resolved number input and textbox - they lay out
+     * and paint identically, differing only in their value type and edit
+     * behaviour. `width` is `item.maxWidth` verbatim when finite (a fixed
+     * box - long content clips/scrolls at paint time); when `Infinity`, the
+     * box instead grows to fit `contentText` (measured via `ctx`), bounded
+     * below by `item.minWidth`.
+     *
+     * @param ctx - Canvas context, used to measure `contentText` when `item.maxWidth` is `Infinity`.
+     * @param item - The input being resolved.
+     * @param contentText - `item.value` as it'll be displayed (stringified, for a number input).
+     */
+    private resolveTextBoxCommon(ctx: CanvasRenderingContext2D, item: TextBoxInputBase, contentText: string): {highlightStyle: HighlightStyle; selectionStyle: HighlightStyle; disabled: boolean; width: number} {
+        const maxWidth = item.maxWidth ?? this.defaults.numberInputWidth;
+        let width: number;
+        if (Number.isFinite(maxWidth)) {
+            width = maxWidth;
+        } else {
+            ctx.font = this.plainFont;
+            // +3 leaves room for the blinking caret drawn just past the text
+            // (see paintTextBox) - without it, a caret sitting at the very
+            // end of the content would fall outside the box's clip rect.
+            const contentWidth = ctx.measureText(contentText).width + this.defaults.numberInputPadding * 2 + 3;
+            width = Math.max(item.minWidth ?? 0, contentWidth);
+        }
+        const highlightStyle = this.fillHighlightStyle(item.highlightStyle);
+        return {
+            highlightStyle,
+            selectionStyle: this.fillSelectionStyle(item.selectionStyle, highlightStyle),
+            disabled: item.disabled ?? false,
+            width,
+        };
+    }
+
     /** Resolves a {@link NumberInput}. */
-    private resolveNumber(item: NumberInput): {element: ResolvedNumberElement; maxFontSize: number} {
+    private resolveNumber(ctx: CanvasRenderingContext2D, item: NumberInput): {element: ResolvedNumberElement; maxFontSize: number} {
         return {
             element: {
                 kind: "number",
@@ -368,19 +451,32 @@ export class InteractableDisplay extends Display {
                 step: item.step ?? 1,
                 allowDecimal: item.allowDecimal ?? false,
                 onChange: item.onChange,
-                highlightStyle: this.fillHighlightStyle(item.highlightStyle),
-                disabled: item.disabled ?? false,
-                width: this.defaults.numberInputWidth,
+                ...this.resolveTextBoxCommon(ctx, item, String(item.value)),
             },
             maxFontSize: this.defaults.fontSize,
         };
     }
 
-    /** Resolves and measures a {@link SelectInput}'s options. */
+    /** Resolves a {@link TextInput}. */
+    private resolveTextbox(ctx: CanvasRenderingContext2D, item: TextInput): {element: ResolvedTextboxElement; maxFontSize: number} {
+        return {
+            element: {
+                kind: "textbox",
+                value: item.value,
+                allowedChars: item.allowedChars ?? null,
+                disallowedChars: item.disallowedChars ?? null,
+                onChange: item.onChange,
+                ...this.resolveTextBoxCommon(ctx, item, item.value),
+            },
+            maxFontSize: this.defaults.fontSize,
+        };
+    }
+
+    /** Resolves and measures a {@link SelectInput}'s options. A `hidden` option contributes nothing, as if absent - it's excluded from the closed box's width, the dropdown, and selection entirely. */
     private resolveSelect(ctx: CanvasRenderingContext2D, item: SelectInput): {element: ResolvedSelectElement; maxFontSize: number} {
         let maxLabelWidth = 0;
         let maxFontSize = 0;
-        const options: ResolvedSelectOption[] = item.options.map((option) => {
+        const options: ResolvedSelectOption[] = item.options.filter((option) => !option.hidden).map((option) => {
             const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = this.resolveLine(ctx, option.content);
             maxFontSize = Math.max(maxFontSize, labelFontSize);
             maxLabelWidth = Math.max(maxLabelWidth, labelWidth);
@@ -428,7 +524,9 @@ export class InteractableDisplay extends Display {
             case "checkbox":
                 return this.resolveCheckbox(ctx, item);
             case "number":
-                return this.resolveNumber(item);
+                return this.resolveNumber(ctx, item);
+            case "textbox":
+                return this.resolveTextbox(ctx, item);
             case "button":
                 return {element: this.resolveButton(ctx, item), maxFontSize: this.defaults.fontSize};
             case "select":
@@ -438,26 +536,30 @@ export class InteractableDisplay extends Display {
 
     /**
      * Resolves and measures every item in `line` - plain text segments
-     * flatten to styled runs; inputs resolve via {@link resolveInput}. The
-     * line's overall height is at least this display's minimum line height,
-     * but grows to fit whichever element uses the largest font.
+     * flatten to styled runs; inputs resolve via {@link resolveInput}. A
+     * `hidden` input contributes nothing, as if absent. The line's overall
+     * height is at least this display's minimum line height, but grows to
+     * fit whichever element uses the largest font.
      */
     public resolveElements(ctx: CanvasRenderingContext2D, line: DisplayLine): ResolvedElementLine {
         let width = 0;
         let maxFontSize = 0;
 
-        const elements: ResolvedElement[] = line.map((item): ResolvedElement => {
+        const elements: ResolvedElement[] = line.flatMap((item): ResolvedElement[] => {
             if (isInput(item)) {
+                if (item.hidden) {
+                    return [];
+                }
                 const {element, maxFontSize: inputFontSize} = this.resolveInput(ctx, item);
                 maxFontSize = Math.max(maxFontSize, inputFontSize);
                 width += element.width;
-                return element;
+                return [element];
             }
 
             const {runs: measured, width: textWidth, maxFontSize: textFontSize} = this.resolveLine(ctx, [item]);
             maxFontSize = Math.max(maxFontSize, textFontSize);
             width += textWidth;
-            return {kind: "text", runs: measured, width: textWidth};
+            return [{kind: "text", runs: measured, width: textWidth}];
         });
 
         return {elements, width, height: this.lineHeightFor(maxFontSize)};
@@ -565,14 +667,28 @@ export class InteractableDisplay extends Display {
         }
     }
 
+    /** Computes a number input's or textbox's on-screen rect - identical for both, differing only in which edit handle is attached. */
+    private layoutTextBoxFocusable(x: number, y: number, width: number, height: number, disabled: boolean, edit: Pick<FocusableElement, "numberEdit"> | Pick<FocusableElement, "textEdit">): FocusableElement[] {
+        return [{
+            rect: {x, y, w: width, h: height},
+            activate: () => undefined,
+            disabled,
+            ...edit,
+        }];
+    }
+
     /** Computes a resolved number element's on-screen rect. */
     private layoutNumber(element: ResolvedNumberElement, x: number, y: number, height: number): FocusableElement[] {
-        return [{
-            rect: {x, y, w: element.width, h: height},
-            activate: () => undefined,
+        return this.layoutTextBoxFocusable(x, y, element.width, height, element.disabled, {
             numberEdit: {getValue: () => element.value, step: element.step, allowDecimal: element.allowDecimal, onChange: element.onChange},
-            disabled: element.disabled,
-        }];
+        });
+    }
+
+    /** Computes a resolved textbox element's on-screen rect. */
+    private layoutTextbox(element: ResolvedTextboxElement, x: number, y: number, height: number): FocusableElement[] {
+        return this.layoutTextBoxFocusable(x, y, element.width, height, element.disabled, {
+            textEdit: {getValue: () => element.value, allowedChars: element.allowedChars, disallowedChars: element.disallowedChars, onChange: element.onChange},
+        });
     }
 
     /** Whether a blinking edit cursor should currently be drawn, per this display's cursor-blink interval. */
@@ -580,38 +696,97 @@ export class InteractableDisplay extends Display {
         return Math.floor(Date.now() / this.defaults.cursorBlinkIntervalMs) % 2 === 0;
     }
 
-    /** Draws a resolved number element's box at `x`. */
-    private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, editText: string | null): void {
-        const rect: BoundingRect = {x, y, w: element.width, h: height};
-        const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
+    /** Draws a number input's or textbox's sunken box plus its current text at `x` - shared paint core for {@link paintNumber}/{@link paintTextbox}, which render identically bar how `value` becomes displayable text. */
+    private paintTextBox(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, highlightStyle: HighlightStyle, disabled: boolean, focusedRect: BoundingRect | null, text: string, editing: boolean, editCursorPos: number | null, editSelection: {start: number; end: number} | null, selectionStyle: HighlightStyle): void {
+        const rect: BoundingRect = {x, y, w: width, h: height};
+        const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !disabled;
 
         const boxHeight = this.defaults.lineHeight - 4;
         const boxY = y + (this.defaults.fontSize - boxHeight) / 2;
 
         if (focused) {
             const pad = this.defaults.focusHighlightPadding;
-            ctx.fillStyle = element.highlightStyle.background;
-            ctx.fillRect(x - pad, boxY - pad, element.width + pad * 2, boxHeight + pad * 2);
+            ctx.fillStyle = highlightStyle.background;
+            ctx.fillRect(x - pad, boxY - pad, width + pad * 2, boxHeight + pad * 2);
         }
 
-        this.theme.drawBox(ctx, x, boxY, element.width, boxHeight, "sunken");
+        this.theme.drawBox(ctx, x, boxY, width, boxHeight, "sunken");
 
-        const editing = focused && editText !== null;
-        const text = focused && editText !== null ? editText : String(element.value);
         ctx.font = this.plainFont;
-        ctx.fillStyle = this.theme.boxForeground;
-        const textX = x + this.defaults.numberInputPadding;
+        const padding = this.defaults.numberInputPadding;
+        const textX = x + padding;
         const textY = y;
-        ctx.fillText(text, textX, textY);
+        const innerWidth = Math.max(0, width - padding * 2);
+
+        // Content wider than the box scrolls horizontally to keep the caret
+        // in view - `scrollX` is recomputed fresh each frame straight from
+        // the caret's pixel position, rather than tracked as sticky state.
+        // The caret is kept `caretMargin` px clear of the clip edge, rather
+        // than flush against it, so its own 1px-wide rect never falls
+        // outside the clip rect. While a selection is active, the scroll is
+        // instead driven by whichever of the caret/selection's far edge
+        // sits furthest right - so extending a selection rightward keeps
+        // scrolling to follow it - unless that would push the caret itself
+        // off the left edge, in which case the caret wins and the
+        // selection's far edge is left to scroll out of view instead.
+        const caretMargin = 2;
+        const caretVisibleWidth = Math.max(0, innerWidth - caretMargin);
+        const totalWidth = ctx.measureText(text).width;
+        const caretX = editCursorPos !== null ? ctx.measureText(text.slice(0, editCursorPos)).width : 0;
+        const selectionEndX = editSelection !== null ? ctx.measureText(text.slice(0, editSelection.end)).width : caretX;
+        const rightAnchorX = Math.max(caretX, selectionEndX);
+        let scrollX = Math.max(0, Math.min(rightAnchorX - caretVisibleWidth, totalWidth - caretVisibleWidth));
+        if (caretX < scrollX) {
+            scrollX = caretX;
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(textX, boxY, innerWidth, boxHeight);
+        ctx.clip();
+
+        if (editing && editSelection !== null) {
+            const selStartX = ctx.measureText(text.slice(0, editSelection.start)).width;
+            const selEndX = ctx.measureText(text.slice(0, editSelection.end)).width;
+            ctx.fillStyle = selectionStyle.background;
+            ctx.fillRect(textX - scrollX + selStartX, boxY + 2, selEndX - selStartX, boxHeight - 4);
+
+            ctx.fillStyle = this.theme.boxForeground;
+            ctx.fillText(text.slice(0, editSelection.start), textX - scrollX, textY);
+            ctx.fillStyle = selectionStyle.foreground;
+            ctx.fillText(text.slice(editSelection.start, editSelection.end), textX - scrollX + selStartX, textY);
+            ctx.fillStyle = this.theme.boxForeground;
+            ctx.fillText(text.slice(editSelection.end), textX - scrollX + selEndX, textY);
+        } else {
+            ctx.fillStyle = this.theme.boxForeground;
+            ctx.fillText(text, textX - scrollX, textY);
+        }
 
         if (editing && this.isCursorBlinkVisible()) {
-            const textWidth = ctx.measureText(text).width;
-            ctx.fillRect(textX + textWidth + 1, boxY + 2, 1, boxHeight - 4);
+            ctx.fillRect(textX - scrollX + caretX + 1, boxY + 2, 1, boxHeight - 4);
         }
 
-        if (element.disabled) {
-            this.paintDisabledOverlay(ctx, {x, y: boxY, w: element.width, h: boxHeight});
+        ctx.restore();
+
+        if (disabled) {
+            this.paintDisabledOverlay(ctx, {x, y: boxY, w: width, h: boxHeight});
         }
+    }
+
+    /** Draws a resolved number element's box at `x` - identical rendering to {@link paintTextbox}, but `value` is stringified and any in-progress `editSelection` is highlighted with `element.selectionStyle`. */
+    private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, editText: string | null, editCursorPos: number | null, editSelection: {start: number; end: number} | null): void {
+        const focused = focusedRect !== null && rectsEqual({x, y, w: element.width, h: height}, focusedRect) && !element.disabled;
+        const editing = focused && editText !== null;
+        const text = editing ? editText : String(element.value);
+        this.paintTextBox(ctx, x, y, element.width, height, element.highlightStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle);
+    }
+
+    /** Draws a resolved textbox element's box at `x` - identical rendering to {@link paintNumber}, but the value is shown as-is rather than stringified, and any in-progress `editSelection` is highlighted with `element.selectionStyle`. */
+    private paintTextbox(ctx: CanvasRenderingContext2D, element: ResolvedTextboxElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, editText: string | null, editCursorPos: number | null, editSelection: {start: number; end: number} | null): void {
+        const focused = focusedRect !== null && rectsEqual({x, y, w: element.width, h: height}, focusedRect) && !element.disabled;
+        const editing = focused && editText !== null;
+        const text = editing ? editText : element.value;
+        this.paintTextBox(ctx, x, y, element.width, height, element.highlightStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle);
     }
 
     /** Computes a resolved button's on-screen rect: its measured width, padded out by 2 canvas pixels on every side. */
@@ -746,6 +921,8 @@ export class InteractableDisplay extends Display {
                 return this.layoutCheckbox(element, x, y, height);
             case "number":
                 return this.layoutNumber(element, x, y, height);
+            case "textbox":
+                return this.layoutTextbox(element, x, y, height);
             case "button":
                 return this.layoutButton(element, x, y, height);
             case "select":
@@ -762,6 +939,8 @@ export class InteractableDisplay extends Display {
         height: number,
         focusedRect: BoundingRect | null,
         editText: string | null,
+        editCursorPos: number | null,
+        editSelection: {start: number; end: number} | null,
         openRect: BoundingRect | null,
     ): void {
         switch (element.kind) {
@@ -772,7 +951,10 @@ export class InteractableDisplay extends Display {
                 this.paintCheckbox(ctx, element, x, y, height, focusedRect);
                 break;
             case "number":
-                this.paintNumber(ctx, element, x, y, height, focusedRect, editText);
+                this.paintNumber(ctx, element, x, y, height, focusedRect, editText, editCursorPos, editSelection);
+                break;
+            case "textbox":
+                this.paintTextbox(ctx, element, x, y, height, focusedRect, editText, editCursorPos, editSelection);
                 break;
             case "button":
                 this.paintButton(ctx, element, x, y, height, focusedRect);
@@ -807,6 +989,8 @@ export class InteractableDisplay extends Display {
     public drawElements(ctx: CanvasRenderingContext2D, line: ResolvedElementLine, x: number, y: number): void {
         const focusedRect = this.getFocusedRect();
         const editText = this.getEditText();
+        const editCursorPos = this.getEditCursorPos();
+        const editSelection = this.getEditSelection();
         const openRect = this.getOpenRect();
 
         let elemX = x;
@@ -814,7 +998,7 @@ export class InteractableDisplay extends Display {
             if (element.kind === "text") {
                 this.drawLine(ctx, element.runs, elemX, y, line.height);
             } else {
-                this.paintInput(ctx, element, elemX, y, line.height, focusedRect, editText, openRect);
+                this.paintInput(ctx, element, elemX, y, line.height, focusedRect, editText, editCursorPos, editSelection, openRect);
             }
             elemX += element.width;
         }
@@ -842,6 +1026,10 @@ export class InteractableDisplay extends Display {
             this.editingNumberCursor = null;
             this.numberEditBuffer = null;
         }
+        if (this.editingTextCursor !== null && (this.editingTextCursor !== this.cursor || !this.focusables[this.editingTextCursor]?.textEdit)) {
+            this.editingTextCursor = null;
+            this.textEditBuffer = null;
+        }
     }
 
     /** The currently focused element's rect, if any - `null` whenever this display itself isn't {@link isFocused focused} (e.g. blurred in `"click"` mode), even if a cursor position is still remembered. */
@@ -849,9 +1037,40 @@ export class InteractableDisplay extends Display {
         return this.isFocused() && this.cursor !== null ? this.focusables[this.cursor]?.rect ?? null : null;
     }
 
-    /** The focused number input's in-progress edit text, if it's the one currently being edited. */
+    /** The focused number input or textbox's in-progress edit text, if it's the one currently being edited - they're mutually exclusive, so at most one of {@link numberEditBuffer}/{@link textEditBuffer} ever matches {@link cursor}. */
     private getEditText(): string | null {
-        return this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor ? this.numberEditBuffer.text : null;
+        if (this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor) {
+            return this.numberEditBuffer.text;
+        }
+        if (this.cursor !== null && this.textEditBuffer?.cursor === this.cursor) {
+            return this.textEditBuffer.text;
+        }
+        return null;
+    }
+
+    /** The focused number input or textbox's in-progress edit caret position (a character index into {@link getEditText}), if it's the one currently being edited. */
+    private getEditCursorPos(): number | null {
+        if (this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor) {
+            return this.numberEditBuffer.pos;
+        }
+        if (this.cursor !== null && this.textEditBuffer?.cursor === this.cursor) {
+            return this.textEditBuffer.pos;
+        }
+        return null;
+    }
+
+    /** The focused number input or textbox's in-progress Shift+Arrow selection range (character indices into {@link getEditText}), if it has an active one. */
+    private getEditSelection(): {start: number; end: number} | null {
+        let buffer: {pos: number; anchor: number | null} | null = null;
+        if (this.cursor !== null && this.numberEditBuffer?.cursor === this.cursor) {
+            buffer = this.numberEditBuffer;
+        } else if (this.cursor !== null && this.textEditBuffer?.cursor === this.cursor) {
+            buffer = this.textEditBuffer;
+        }
+        if (buffer === null || buffer.anchor === null || buffer.anchor === buffer.pos) {
+            return null;
+        }
+        return {start: Math.min(buffer.pos, buffer.anchor), end: Math.max(buffer.pos, buffer.anchor)};
     }
 
     /** The open select input's box rect, if a dropdown is currently open. */
@@ -950,8 +1169,10 @@ export class InteractableDisplay extends Display {
             return;
         }
         this.commitPendingNumberEdit();
+        this.commitPendingTextEdit();
         this.openSelectCursor = null;
         this.editingNumberCursor = null;
+        this.editingTextCursor = null;
         this.cursor = cursor;
     }
 
@@ -975,6 +1196,27 @@ export class InteractableDisplay extends Display {
     }
 
     /**
+     * If {@link textEditBuffer} holds an edit for the currently focused
+     * element, calls that textbox's `onChange` with the result, then clears
+     * the buffer either way. Whether `onChange` accepts or rejects (returns
+     * `false`) the edit is left entirely to the caller - either way the
+     * buffer is discarded, so the next paint shows the textbox's `value` as
+     * last resolved, which only reflects the edit if the caller applied it.
+     */
+    private commitPendingTextEdit(): void {
+        const buffer = this.textEditBuffer;
+        this.textEditBuffer = null;
+        if (buffer === null || this.cursor === null || buffer.cursor !== this.cursor) {
+            return;
+        }
+        const textEdit = this.focusables[this.cursor]?.textEdit;
+        if (!textEdit) {
+            return;
+        }
+        textEdit.onChange(buffer.text);
+    }
+
+    /**
      * The focused number input's current value: the in-progress {@link
      * numberEditBuffer}'s parsed value if it's mid-edit and parses cleanly,
      * otherwise its last committed `value`.
@@ -994,12 +1236,163 @@ export class InteractableDisplay extends Display {
     }
 
     /**
+     * Handles Ctrl+A/C/X/V.
+     *
+     * @param cursor - Index of the focused input within {@link focusables}.
+     * @param currentText - The buffer's current text.
+     * @param pos - The buffer's current caret position.
+     * @param anchor - The buffer's current selection anchor, if any.
+     * @param event - The keyboard event.
+     * @param sanitizePaste - Filters clipboard text down to what may be inserted - e.g. digits-only for a number input.
+     * @param isStillEditing - Whether the buffer this call started with is still the one being edited - checked before a Ctrl+V's clipboard read is applied, in case focus moved elsewhere while it was pending.
+     * @param setBuffer - Applies the buffer's next value.
+     * @returns Whether `event` was one of these Ctrl-combinations, handled either way (a no-op Ctrl+C/X still counts).
+     */
+    private handleClipboardShortcut(
+        cursor: number,
+        currentText: string,
+        pos: number,
+        anchor: number | null,
+        event: KeyboardEvent,
+        sanitizePaste: (pasted: string) => string,
+        isStillEditing: () => boolean,
+        setBuffer: (buffer: {cursor: number; text: string; pos: number; anchor: number | null}) => void,
+    ): boolean {
+        if (!event.ctrlKey && !event.metaKey) {
+            return false;
+        }
+        const key = event.key.toLowerCase();
+        const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
+
+        if (key === "a") {
+            setBuffer({cursor, text: currentText, pos: currentText.length, anchor: 0});
+            return true;
+        }
+        if (key === "c") {
+            if (selection) {
+                copyToClipboard(currentText.slice(selection.start, selection.end));
+            }
+            return true;
+        }
+        if (key === "x") {
+            if (selection) {
+                copyToClipboard(currentText.slice(selection.start, selection.end));
+                setBuffer({cursor, text: currentText.slice(0, selection.start) + currentText.slice(selection.end), pos: selection.start, anchor: null});
+            }
+            return true;
+        }
+        if (key === "v") {
+            void readFromClipboard().then((pasted) => {
+                if (!isStillEditing()) {
+                    return;
+                }
+                const clean = sanitizePaste(pasted);
+                const insertAt = selection ? selection.start : pos;
+                const base = selection ? currentText.slice(0, selection.start) + currentText.slice(selection.end) : currentText;
+                setBuffer({cursor, text: base.slice(0, insertAt) + clean + base.slice(insertAt), pos: insertAt + clean.length, anchor: null});
+            });
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Handles every edit-buffer key a number input and a textbox share
+     * while in edit mode, except `Escape`/`Enter`/`Space`/`Backspace`/`Delete`
+     * and (for a number input) `ArrowUp`/`ArrowDown`.
+     *
+     * @param cursor - Index of the focused input within {@link focusables}.
+     * @param currentText - The buffer's current text.
+     * @param pos - The buffer's current caret position.
+     * @param anchor - The buffer's current selection anchor, if any.
+     * @param event - The keyboard event.
+     * @param acceptsChar - Whether `char` may be inserted (typed or pasted), given `textWithoutChar` - the buffer's text with any active selection (or, mid-paste, everything already accepted from earlier in the pasted string) removed. E.g. a number input rejects a second `.`.
+     * @param isStillEditing - Forwarded to {@link handleClipboardShortcut}.
+     * @param setBuffer - Applies the buffer's next value.
+     */
+    private handleTextEditingKey(
+        cursor: number,
+        currentText: string,
+        pos: number,
+        anchor: number | null,
+        event: KeyboardEvent,
+        acceptsChar: (char: string, textWithoutChar: string) => boolean,
+        isStillEditing: () => boolean,
+        setBuffer: (buffer: {cursor: number; text: string; pos: number; anchor: number | null}) => void,
+    ): void {
+        if (this.handleClipboardShortcut(
+            cursor, currentText, pos, anchor, event,
+            (pasted) => {
+                const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
+                let building = selection ? currentText.slice(0, selection.start) + currentText.slice(selection.end) : currentText;
+                let accepted = "";
+                for (const char of pasted) {
+                    if (acceptsChar(char, building)) {
+                        accepted += char;
+                        building += char;
+                    }
+                }
+                return accepted;
+            },
+            isStillEditing,
+            setBuffer,
+        )) {
+            return;
+        }
+
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            const delta = event.key === "ArrowLeft" ? -1 : 1;
+            if (event.shiftKey) {
+                const nextPos = Math.max(0, Math.min(currentText.length, pos + delta));
+                setBuffer({cursor, text: currentText, pos: nextPos, anchor: anchor ?? pos});
+                return;
+            }
+            if (anchor !== null && anchor !== pos) {
+                const collapsed = delta < 0 ? Math.min(pos, anchor) : Math.max(pos, anchor);
+                setBuffer({cursor, text: currentText, pos: collapsed, anchor: null});
+                return;
+            }
+            setBuffer({cursor, text: currentText, pos: Math.max(0, Math.min(currentText.length, pos + delta)), anchor: null});
+            return;
+        }
+
+        const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
+        const textWithoutSelection = selection ? currentText.slice(0, selection.start) + currentText.slice(selection.end) : currentText;
+
+        let nextText: string;
+        let nextPos: number;
+        if (event.key === "Backspace" || event.key === "Delete") {
+            if (selection) {
+                nextText = textWithoutSelection;
+                nextPos = selection.start;
+            } else if (event.key === "Backspace") {
+                if (pos === 0) {
+                    return;
+                }
+                nextText = currentText.slice(0, pos - 1) + currentText.slice(pos);
+                nextPos = pos - 1;
+            } else {
+                if (pos === currentText.length) {
+                    return;
+                }
+                nextText = currentText.slice(0, pos) + currentText.slice(pos + 1);
+                nextPos = pos;
+            }
+        } else if (event.key.length === 1 && acceptsChar(event.key, textWithoutSelection)) {
+            const insertAt = selection ? selection.start : pos;
+            nextText = textWithoutSelection.slice(0, insertAt) + event.key + textWithoutSelection.slice(insertAt);
+            nextPos = insertAt + 1;
+        } else {
+            return;
+        }
+
+        setBuffer({cursor, text: nextText, pos: nextPos, anchor: null});
+    }
+
+    /**
      * Enters edit mode for the number input at `cursor` (see {@link
      * editingNumberCursor}), seeding {@link numberEditBuffer} with
-     * `initialText` - callers work out what that should be for the key (or
-     * click) that triggered it: `value`'s current string for `Enter`/
-     * `Space`/a click, the typed digit alone for a digit key, or `value`'s
-     * string with its last character dropped for `Backspace`.
+     * `initialText` and placing the caret at its end.
      *
      * @param cursor - Index of the number input within {@link focusables}.
      * @param numberEdit - The number input's edit handle.
@@ -1007,22 +1400,12 @@ export class InteractableDisplay extends Display {
      */
     private startEditingNumber(cursor: number, numberEdit: NumberEditHandle, initialText: string): void {
         this.editingNumberCursor = cursor;
-        this.numberEditBuffer = {cursor, text: initialText};
+        this.numberEditBuffer = {cursor, text: initialText, pos: initialText.length, anchor: null};
     }
 
     /**
      * Handles a key press while a number input is in edit mode (see {@link
      * editingNumberCursor}).
-     *
-     * Digits (and `.`, if `numberEdit.allowDecimal`) append to {@link
-     * numberEditBuffer} without touching `value`; `Backspace` removes the
-     * buffer's last character the same way. `ArrowUp`/`ArrowDown` step
-     * {@link getEffectiveNumberValue} by `numberEdit.step`, committing
-     * immediately and refreshing the buffer to match, staying in edit mode.
-     * `Enter`/`Space` commit the buffer (via {@link commitPendingNumberEdit})
-     * and leave edit mode. `Escape` discards the buffer without committing
-     * and leaves edit mode, reverting to `value`. Every other key is
-     * ignored.
      *
      * @param cursor - Index of the focused number input within {@link focusables}.
      * @param numberEdit - The focused number input's edit handle.
@@ -1043,23 +1426,91 @@ export class InteractableDisplay extends Display {
             const delta = event.key === "ArrowUp" ? numberEdit.step : -numberEdit.step;
             const next = this.getEffectiveNumberValue(cursor, numberEdit) + delta;
             numberEdit.onChange(next);
-            this.numberEditBuffer = {cursor, text: String(next)};
+            const text = String(next);
+            this.numberEditBuffer = {cursor, text, pos: text.length, anchor: null};
             return;
         }
 
-        const currentText = this.numberEditBuffer?.cursor === cursor ? this.numberEditBuffer.text : String(numberEdit.getValue());
-        let nextText: string;
-        if (event.key === "Backspace") {
-            nextText = currentText.slice(0, -1);
-        } else if (/^[0-9]$/.test(event.key)) {
-            nextText = currentText + event.key;
-        } else if (event.key === "." && numberEdit.allowDecimal && !currentText.includes(".")) {
-            nextText = currentText + event.key;
-        } else {
+        const current = this.numberEditBuffer?.cursor === cursor ? this.numberEditBuffer : null;
+        const currentText = current?.text ?? String(numberEdit.getValue());
+        const pos = current?.pos ?? currentText.length;
+        const anchor = current?.anchor ?? null;
+
+        this.handleTextEditingKey(
+            cursor, currentText, pos, anchor, event,
+            (char, textWithoutChar) => /^[0-9]$/.test(char) || (char === "." && numberEdit.allowDecimal && !textWithoutChar.includes(".")),
+            () => this.editingNumberCursor === cursor,
+            (buffer) => {
+                this.numberEditBuffer = buffer;
+            },
+        );
+    }
+
+    /**
+     * Enters edit mode for the textbox at `cursor` (see {@link
+     * editingTextCursor}), seeding {@link textEditBuffer} with `initialText`
+     * - the current `value` for `Enter`/a click, or `value` with its last
+     * character dropped for `Backspace`. The caret always starts at the end
+     * of `initialText`.
+     *
+     * @param cursor - Index of the textbox within {@link focusables}.
+     * @param textEdit - The textbox's edit handle.
+     * @param initialText - The buffer's starting text.
+     */
+    private startEditingText(cursor: number, textEdit: TextEditHandle, initialText: string): void {
+        this.editingTextCursor = cursor;
+        this.textEditBuffer = {cursor, text: initialText, pos: initialText.length, anchor: null};
+    }
+
+    /**
+     * Whether `char` (a single character) may be typed into a textbox per
+     * its `allowedChars`/`disallowedChars` - allowed if `allowedChars` is
+     * set and includes it, or unset and `disallowedChars` is set but
+     * doesn't include it, or neither is set.
+     */
+    private isTextCharAllowed(textEdit: TextEditHandle, char: string): boolean {
+        if (textEdit.allowedChars !== null) {
+            return textEdit.allowedChars.includes(char);
+        }
+        if (textEdit.disallowedChars !== null) {
+            return !textEdit.disallowedChars.includes(char);
+        }
+        return true;
+    }
+
+    /**
+     * Handles a key press while a textbox is in edit mode (see {@link
+     * editingTextCursor}).
+     *
+     * @param cursor - Index of the focused textbox within {@link focusables}.
+     * @param textEdit - The focused textbox's edit handle.
+     * @param event - The keyboard event.
+     */
+    private handleTextboxInputKey(cursor: number, textEdit: TextEditHandle, event: KeyboardEvent): void {
+        if (event.key === "Escape") {
+            this.textEditBuffer = null;
+            this.editingTextCursor = null;
+            return;
+        }
+        if (event.key === "Enter") {
+            this.commitPendingTextEdit();
+            this.editingTextCursor = null;
             return;
         }
 
-        this.numberEditBuffer = {cursor, text: nextText};
+        const current = this.textEditBuffer?.cursor === cursor ? this.textEditBuffer : null;
+        const currentText = current?.text ?? textEdit.getValue();
+        const pos = current?.pos ?? currentText.length;
+        const anchor = current?.anchor ?? null;
+
+        this.handleTextEditingKey(
+            cursor, currentText, pos, anchor, event,
+            (char) => char !== "\r" && char !== "\n" && this.isTextCharAllowed(textEdit, char),
+            () => this.editingTextCursor === cursor,
+            (buffer) => {
+                this.textEditBuffer = buffer;
+            },
+        );
     }
 
     /**
@@ -1111,27 +1562,12 @@ export class InteractableDisplay extends Display {
 
     /**
      * While focused, intercepts every key press before any other
-     * key-driven controller sees it. A select-dropdown-open/number-editing
-     * cursor routes every key there first, taking priority even over
-     * {@link keyDownInterceptor}. Otherwise, the interceptor runs next (e.g.
-     * a popup's close keys); if it doesn't handle the key,
-     * `ArrowLeft`/`ArrowRight` move the cursor between {@link focusables} in
-     * their sorted order, `ArrowUp`/`ArrowDown` move it to the closest
-     * element in the row above/below (see {@link moveCursorVertical}), and
-     * `Enter`/`Space` activates whichever one the cursor is currently on (if
-     * any) - or, for a select input, opens its dropdown, or for a number
-     * input, enters edit mode. Typing a digit or `Backspace` while a number
-     * input is focused (but not yet editing) also enters edit mode. Disabled
-     * elements are skipped by Arrow-key navigation (see {@link
-     * moveCursorHorizontal}/{@link moveCursorVertical}); if the cursor is
-     * still sitting on one anyway (e.g. it became disabled after being
-     * focused), digit/`Backspace`/`Enter`/`Space` handling for it is
-     * suppressed.
+     * key-driven controller sees it.
      *
      * @param event - The keyboard event.
      */
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
-        if (!this.isFocused()) {
+        if (!this.isFocused() || MODIFIER_KEYS.has(event.key)) {
             return;
         }
         event.preventDefault();
@@ -1155,6 +1591,14 @@ export class InteractableDisplay extends Display {
             }
         }
 
+        if (cursor !== null && this.editingTextCursor === cursor) {
+            const textEdit = this.focusables[cursor].textEdit;
+            if (textEdit) {
+                this.handleTextboxInputKey(cursor, textEdit, event);
+                return;
+            }
+        }
+
         if (this.keyDownInterceptor?.(event)) {
             return;
         }
@@ -1164,6 +1608,7 @@ export class InteractableDisplay extends Display {
 
         const focusedDisabled = cursor !== null ? this.focusables[cursor].disabled : false;
         const focusedNumberEdit = cursor !== null && !focusedDisabled ? this.focusables[cursor].numberEdit : undefined;
+        const focusedTextEdit = cursor !== null && !focusedDisabled ? this.focusables[cursor].textEdit : undefined;
 
         if (event.key === "ArrowLeft") {
             this.moveCursorHorizontal(-1);
@@ -1174,18 +1619,27 @@ export class InteractableDisplay extends Display {
         } else if (event.key === "ArrowDown") {
             this.moveCursorVertical(1);
         } else if (cursor !== null && focusedNumberEdit && /^[0-9]$/.test(event.key)) {
-            this.startEditingNumber(cursor, focusedNumberEdit, event.key);
+            this.startEditingNumber(cursor, focusedNumberEdit, String(focusedNumberEdit.getValue()) + event.key);
         } else if (cursor !== null && focusedNumberEdit && event.key === "Backspace") {
             this.startEditingNumber(cursor, focusedNumberEdit, String(focusedNumberEdit.getValue()).slice(0, -1));
+        } else if (cursor !== null && focusedTextEdit && event.key.length === 1 && this.isTextCharAllowed(focusedTextEdit, event.key)) {
+            this.startEditingText(cursor, focusedTextEdit, focusedTextEdit.getValue() + event.key);
+        } else if (cursor !== null && focusedTextEdit && event.key === "Backspace") {
+            this.startEditingText(cursor, focusedTextEdit, focusedTextEdit.getValue().slice(0, -1));
         } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null && !focusedDisabled) {
             const focusable = this.focusables[this.cursor];
             const selectEdit = focusable.selectEdit;
             const numberEdit = focusable.numberEdit;
+            const textEdit = focusable.textEdit;
             if (selectEdit) {
                 this.openSelectCursor = this.cursor;
                 this.openSelectHighlight = Math.max(0, selectEdit.options.findIndex((option) => option.key === selectEdit.selectedKey));
             } else if (numberEdit) {
                 this.startEditingNumber(this.cursor, numberEdit, String(numberEdit.getValue()));
+            } else if (textEdit) {
+                if (event.key === "Enter") {
+                    this.startEditingText(this.cursor, textEdit, textEdit.getValue());
+                }
             } else {
                 focusable.activate();
             }
@@ -1282,12 +1736,17 @@ export class InteractableDisplay extends Display {
         this.setCursor(index);
         const selectEdit = focusable.selectEdit;
         const numberEdit = focusable.numberEdit;
+        const textEdit = focusable.textEdit;
         if (selectEdit) {
             this.openSelectCursor = index;
             this.openSelectHighlight = Math.max(0, selectEdit.options.findIndex((option) => option.key === selectEdit.selectedKey));
         } else if (numberEdit) {
             if (this.editingNumberCursor !== index) {
                 this.startEditingNumber(index, numberEdit, String(numberEdit.getValue()));
+            }
+        } else if (textEdit) {
+            if (this.editingTextCursor !== index) {
+                this.startEditingText(index, textEdit, textEdit.getValue());
             }
         } else {
             focusable.activate();
