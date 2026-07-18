@@ -1403,23 +1403,7 @@ export class InteractableDisplay extends Display {
 
     /**
      * While focused, intercepts every key press before any other
-     * key-driven controller sees it. A select-dropdown-open/number-or-text-
-     * editing cursor routes every key there first, taking priority even over
-     * {@link keyDownInterceptor}. Otherwise, the interceptor runs next (e.g.
-     * a popup's close keys); if it doesn't handle the key,
-     * `ArrowLeft`/`ArrowRight` move the cursor between {@link focusables} in
-     * their sorted order, `ArrowUp`/`ArrowDown` move it to the closest
-     * element in the row above/below (see {@link moveCursorVertical}), and
-     * `Enter`/`Space` activates whichever one the cursor is currently on (if
-     * any) - or, for a select input, opens its dropdown, or for a number
-     * input/textbox, enters edit mode. Typing a digit or `Backspace` while a
-     * number input is focused (but not yet editing) also enters edit mode,
-     * as does typing any character {@link isTextCharAllowed} accepts (or
-     * `Backspace`) while a textbox is focused. Disabled elements are skipped
-     * by Arrow-key navigation (see {@link moveCursorHorizontal}/{@link
-     * moveCursorVertical}); if the cursor is still sitting on one anyway
-     * (e.g. it became disabled after being focused), digit/character/
-     * `Backspace`/`Enter`/`Space` handling for it is suppressed.
+     * key-driven controller sees it.
      *
      * @param event - The keyboard event.
      */
@@ -1476,11 +1460,11 @@ export class InteractableDisplay extends Display {
         } else if (event.key === "ArrowDown") {
             this.moveCursorVertical(1);
         } else if (cursor !== null && focusedNumberEdit && /^[0-9]$/.test(event.key)) {
-            this.startEditingNumber(cursor, focusedNumberEdit, event.key);
+            this.startEditingNumber(cursor, focusedNumberEdit, String(focusedNumberEdit.getValue()) + event.key);
         } else if (cursor !== null && focusedNumberEdit && event.key === "Backspace") {
             this.startEditingNumber(cursor, focusedNumberEdit, String(focusedNumberEdit.getValue()).slice(0, -1));
         } else if (cursor !== null && focusedTextEdit && event.key.length === 1 && this.isTextCharAllowed(focusedTextEdit, event.key)) {
-            this.startEditingText(cursor, focusedTextEdit, event.key);
+            this.startEditingText(cursor, focusedTextEdit, focusedTextEdit.getValue() + event.key);
         } else if (cursor !== null && focusedTextEdit && event.key === "Backspace") {
             this.startEditingText(cursor, focusedTextEdit, focusedTextEdit.getValue().slice(0, -1));
         } else if ((event.key === "Enter" || event.key === " ") && this.cursor !== null && !focusedDisabled) {
