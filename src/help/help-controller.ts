@@ -1,8 +1,8 @@
 import {KeyBinding} from "./key-binding";
-import {DisplayLine} from "../display/input";
-import {TextFormat} from "../display/text-style";
-import {COLORS} from "../popup/colors";
-import {PopupController} from "../popup/popup-controller";
+import {DisplayLine} from "../lib/display/input";
+import {TextFormat} from "../lib/display/text-style";
+import {COLORS} from "../lib/display/colors";
+import {PopupController} from "../lib/popup/popup-controller";
 
 /** Gap, in characters, between a key's label and its description. */
 const KEY_DESCRIPTION_GAP = 2;

@@ -1,6 +1,6 @@
 import {Popup, PopupOptions} from "./popup";
 import {DisplayLine} from "../display/input";
-import {KeyBinding} from "../help/key-binding";
+import {KeyBinding} from "../../help/key-binding";
 
 /**
  * Base for anything that owns a {@link Popup}, toggled independently of

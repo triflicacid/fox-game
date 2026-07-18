@@ -1,6 +1,6 @@
-import {DisplayLine} from "../display/input";
+import {DisplayLine} from "../lib/display/input";
 import {KeyBinding} from "../help/key-binding";
-import {PopupController} from "../popup/popup-controller";
+import {PopupController} from "../lib/popup/popup-controller";
 import {CameraFollowMode} from "../entities/movement-controller";
 
 /**
