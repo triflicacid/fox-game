@@ -8,4 +8,8 @@
 - Other entities - rabbits in plains
   - Eat mechanics??
 - Tests for libraries?
-- Settings popup: show seed in text box, with copy and refres buttons next to it
+- Settings popup: show seed in text box, with copy and refresh buttons next to it
+- Display lib:
+  - Full test suite, with unit and playwright tests that capture screenshots
+  - a 'title' attribute which shows on hover.
+  - textAlignment property - where text sits in the line, y-axis wise

@@ -53,6 +53,9 @@ export const POPUP_CONFIG = {
     /** Width of a select input's dropdown-arrow button, in canvas pixels. */
     selectArrowWidth: 18,
 
+    /** Padding, in canvas pixels, added around a number/textbox's sunken box when drawing its `focusedStyle` background. */
+    focusHighlightPadding: 2,
+
     /** Fill colour of the sheen painted over a disabled input, e.g. a translucent grey. */
     disabledOverlayColor: "rgba(128, 128, 128, 0.5)",
 

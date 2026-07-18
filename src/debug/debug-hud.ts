@@ -160,6 +160,7 @@ export class DebugHud {
         ctx.textBaseline = "top";
 
         const padding = DEBUG_CONFIG.hudPadding;
+        this.display.beginResolvePass();
         const resolvedLines = lines.map((line) => this.display.resolveElements(ctx, line));
         const width = Math.max(0, ...resolvedLines.map((line) => line.width)) + padding * 2;
         const height = resolvedLines.reduce((sum, line) => sum + line.height, 0) + padding * 2;
