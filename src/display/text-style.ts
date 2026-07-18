@@ -38,4 +38,6 @@ export interface TextSegment {
     content: string | TextSegment[];
     /** Style for this segment; children inherit whichever fields they don't override. */
     style?: TextStyle;
+    /** If `true`, this segment (and any children) acts as if absent entirely. Defaults to `false`. */
+    hidden?: boolean;
 }
