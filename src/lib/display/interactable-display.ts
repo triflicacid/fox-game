@@ -2,6 +2,7 @@ import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from ".
 import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HighlightStyle, Input, NumberInput, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
 import {BoundingRect, pointInRect, rectsEqual} from "./bounding-rect";
+import {copyToClipboard, readFromClipboard} from "../../util";
 
 /** Whether keyboard input reaches an {@link InteractableDisplay} whenever it's active ("always"), or only after it's been clicked into ("click"). */
 export type FocusMode = "always" | "click";
@@ -1235,6 +1236,153 @@ export class InteractableDisplay extends Display {
     }
 
     /**
+     * Handles Ctrl+A/C/X/V.
+     *
+     * @param cursor - Index of the focused input within {@link focusables}.
+     * @param currentText - The buffer's current text.
+     * @param pos - The buffer's current caret position.
+     * @param anchor - The buffer's current selection anchor, if any.
+     * @param event - The keyboard event.
+     * @param sanitizePaste - Filters clipboard text down to what may be inserted - e.g. digits-only for a number input.
+     * @param isStillEditing - Whether the buffer this call started with is still the one being edited - checked before a Ctrl+V's clipboard read is applied, in case focus moved elsewhere while it was pending.
+     * @param setBuffer - Applies the buffer's next value.
+     * @returns Whether `event` was one of these Ctrl-combinations, handled either way (a no-op Ctrl+C/X still counts).
+     */
+    private handleClipboardShortcut(
+        cursor: number,
+        currentText: string,
+        pos: number,
+        anchor: number | null,
+        event: KeyboardEvent,
+        sanitizePaste: (pasted: string) => string,
+        isStillEditing: () => boolean,
+        setBuffer: (buffer: {cursor: number; text: string; pos: number; anchor: number | null}) => void,
+    ): boolean {
+        if (!event.ctrlKey && !event.metaKey) {
+            return false;
+        }
+        const key = event.key.toLowerCase();
+        const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
+
+        if (key === "a") {
+            setBuffer({cursor, text: currentText, pos: currentText.length, anchor: 0});
+            return true;
+        }
+        if (key === "c") {
+            if (selection) {
+                copyToClipboard(currentText.slice(selection.start, selection.end));
+            }
+            return true;
+        }
+        if (key === "x") {
+            if (selection) {
+                copyToClipboard(currentText.slice(selection.start, selection.end));
+                setBuffer({cursor, text: currentText.slice(0, selection.start) + currentText.slice(selection.end), pos: selection.start, anchor: null});
+            }
+            return true;
+        }
+        if (key === "v") {
+            void readFromClipboard().then((pasted) => {
+                if (!isStillEditing()) {
+                    return;
+                }
+                const clean = sanitizePaste(pasted);
+                const insertAt = selection ? selection.start : pos;
+                const base = selection ? currentText.slice(0, selection.start) + currentText.slice(selection.end) : currentText;
+                setBuffer({cursor, text: base.slice(0, insertAt) + clean + base.slice(insertAt), pos: insertAt + clean.length, anchor: null});
+            });
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Handles every edit-buffer key a number input and a textbox share
+     * while in edit mode, except `Escape`/`Enter`/`Space` and
+     * (for a number input) `ArrowUp`/`ArrowDown`.
+     *
+     * @param cursor - Index of the focused input within {@link focusables}.
+     * @param currentText - The buffer's current text.
+     * @param pos - The buffer's current caret position.
+     * @param anchor - The buffer's current selection anchor, if any.
+     * @param event - The keyboard event.
+     * @param acceptsChar - Whether `char` may be inserted (typed or pasted), given `textWithoutChar` - the buffer's text with any active selection (or, mid-paste, everything already accepted from earlier in the pasted string) removed. E.g. a number input rejects a second `.`.
+     * @param isStillEditing - Forwarded to {@link handleClipboardShortcut}.
+     * @param setBuffer - Applies the buffer's next value.
+     */
+    private handleTextEditingKey(
+        cursor: number,
+        currentText: string,
+        pos: number,
+        anchor: number | null,
+        event: KeyboardEvent,
+        acceptsChar: (char: string, textWithoutChar: string) => boolean,
+        isStillEditing: () => boolean,
+        setBuffer: (buffer: {cursor: number; text: string; pos: number; anchor: number | null}) => void,
+    ): void {
+        if (this.handleClipboardShortcut(
+            cursor, currentText, pos, anchor, event,
+            (pasted) => {
+                const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
+                let building = selection ? currentText.slice(0, selection.start) + currentText.slice(selection.end) : currentText;
+                let accepted = "";
+                for (const char of pasted) {
+                    if (acceptsChar(char, building)) {
+                        accepted += char;
+                        building += char;
+                    }
+                }
+                return accepted;
+            },
+            isStillEditing,
+            setBuffer,
+        )) {
+            return;
+        }
+
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            const delta = event.key === "ArrowLeft" ? -1 : 1;
+            if (event.shiftKey) {
+                const nextPos = Math.max(0, Math.min(currentText.length, pos + delta));
+                setBuffer({cursor, text: currentText, pos: nextPos, anchor: anchor ?? pos});
+                return;
+            }
+            if (anchor !== null && anchor !== pos) {
+                const collapsed = delta < 0 ? Math.min(pos, anchor) : Math.max(pos, anchor);
+                setBuffer({cursor, text: currentText, pos: collapsed, anchor: null});
+                return;
+            }
+            setBuffer({cursor, text: currentText, pos: Math.max(0, Math.min(currentText.length, pos + delta)), anchor: null});
+            return;
+        }
+
+        const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
+        const textWithoutSelection = selection ? currentText.slice(0, selection.start) + currentText.slice(selection.end) : currentText;
+
+        let nextText: string;
+        let nextPos: number;
+        if (event.key === "Backspace") {
+            if (selection) {
+                nextText = textWithoutSelection;
+                nextPos = selection.start;
+            } else if (pos === 0) {
+                return;
+            } else {
+                nextText = currentText.slice(0, pos - 1) + currentText.slice(pos);
+                nextPos = pos - 1;
+            }
+        } else if (event.key.length === 1 && acceptsChar(event.key, textWithoutSelection)) {
+            const insertAt = selection ? selection.start : pos;
+            nextText = textWithoutSelection.slice(0, insertAt) + event.key + textWithoutSelection.slice(insertAt);
+            nextPos = insertAt + 1;
+        } else {
+            return;
+        }
+
+        setBuffer({cursor, text: nextText, pos: nextPos, anchor: null});
+    }
+
+    /**
      * Enters edit mode for the number input at `cursor` (see {@link
      * editingNumberCursor}), seeding {@link numberEditBuffer} with
      * `initialText` and placing the caret at its end.
@@ -1251,23 +1399,6 @@ export class InteractableDisplay extends Display {
     /**
      * Handles a key press while a number input is in edit mode (see {@link
      * editingNumberCursor}).
-     *
-     * `ArrowLeft`/`ArrowRight` move the caret within {@link numberEditBuffer}
-     * without touching its text (clamped to the text's bounds). Held with
-     * `Shift`, they instead grow/shrink a selection the same way as a
-     * textbox's (see {@link handleTextboxInputKey}'s `anchor` behaviour -
-     * the selection likewise outlives `Shift` being released). Digits (and
-     * `.`, if `numberEdit.allowDecimal` and no selection-excluded `.`
-     * remains) insert at the caret and advance it, or replace an active
-     * selection and land the caret just after it; `Backspace` removes the
-     * character just before the caret the same way, or the whole selection
-     * if one is active. `ArrowUp`/`ArrowDown` step {@link
-     * getEffectiveNumberValue} by `numberEdit.step`, committing immediately
-     * and replacing the buffer (caret moving to its end, selection
-     * dropped), staying in edit mode. `Enter`/`Space` commit the buffer
-     * (via {@link commitPendingNumberEdit}) and leave edit mode. `Escape`
-     * discards the buffer without committing and leaves edit mode,
-     * reverting to `value`. Every other key is ignored.
      *
      * @param cursor - Index of the focused number input within {@link focusables}.
      * @param numberEdit - The focused number input's edit handle.
@@ -1298,50 +1429,14 @@ export class InteractableDisplay extends Display {
         const pos = current?.pos ?? currentText.length;
         const anchor = current?.anchor ?? null;
 
-        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-            const delta = event.key === "ArrowLeft" ? -1 : 1;
-            if (event.shiftKey) {
-                const nextPos = Math.max(0, Math.min(currentText.length, pos + delta));
-                this.numberEditBuffer = {cursor, text: currentText, pos: nextPos, anchor: anchor ?? pos};
-                return;
-            }
-            if (anchor !== null && anchor !== pos) {
-                const collapsed = delta < 0 ? Math.min(pos, anchor) : Math.max(pos, anchor);
-                this.numberEditBuffer = {cursor, text: currentText, pos: collapsed, anchor: null};
-                return;
-            }
-            this.numberEditBuffer = {cursor, text: currentText, pos: Math.max(0, Math.min(currentText.length, pos + delta)), anchor: null};
-            return;
-        }
-
-        const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
-        const textAfterSelection = selection ? currentText.slice(0, selection.start) + currentText.slice(selection.end) : currentText;
-
-        let nextText: string;
-        let nextPos: number;
-        if (event.key === "Backspace") {
-            if (selection) {
-                nextText = textAfterSelection;
-                nextPos = selection.start;
-            } else if (pos === 0) {
-                return;
-            } else {
-                nextText = currentText.slice(0, pos - 1) + currentText.slice(pos);
-                nextPos = pos - 1;
-            }
-        } else if (/^[0-9]$/.test(event.key) || (event.key === "." && numberEdit.allowDecimal && !textAfterSelection.includes("."))) {
-            if (selection) {
-                nextText = currentText.slice(0, selection.start) + event.key + currentText.slice(selection.end);
-                nextPos = selection.start + 1;
-            } else {
-                nextText = currentText.slice(0, pos) + event.key + currentText.slice(pos);
-                nextPos = pos + 1;
-            }
-        } else {
-            return;
-        }
-
-        this.numberEditBuffer = {cursor, text: nextText, pos: nextPos, anchor: null};
+        this.handleTextEditingKey(
+            cursor, currentText, pos, anchor, event,
+            (char, textWithoutChar) => /^[0-9]$/.test(char) || (char === "." && numberEdit.allowDecimal && !textWithoutChar.includes(".")),
+            () => this.editingNumberCursor === cursor,
+            (buffer) => {
+                this.numberEditBuffer = buffer;
+            },
+        );
     }
 
     /**
@@ -1380,23 +1475,6 @@ export class InteractableDisplay extends Display {
      * Handles a key press while a textbox is in edit mode (see {@link
      * editingTextCursor}).
      *
-     * `ArrowLeft`/`ArrowRight` move the caret within {@link textEditBuffer}
-     * without touching its text (clamped to the text's bounds). Held with
-     * `Shift`, they instead grow/shrink a selection from the caret position
-     * where the shift-select began (see {@link textEditBuffer}'s `anchor`)
-     * to the new caret position - the selection outlives `Shift` being
-     * released, and only goes away once an arrow key is pressed without
-     * `Shift` (collapsing it to that side instead of moving the caret
-     * further), or it's replaced/deleted by typing/`Backspace`. Single
-     * characters allowed by {@link
-     * isTextCharAllowed} (including `Space`) insert at the caret and advance
-     * it, or replace an active selection and land the caret just after it;
-     * `Backspace` removes the character just before the caret the same way,
-     * or the whole selection if one is active. `Enter` commits the buffer
-     * (via {@link commitPendingTextEdit}) and leaves edit mode. `Escape`
-     * discards the buffer without committing and leaves edit mode,
-     * reverting to `value`. Every other key is ignored.
-     *
      * @param cursor - Index of the focused textbox within {@link focusables}.
      * @param textEdit - The focused textbox's edit handle.
      * @param event - The keyboard event.
@@ -1418,49 +1496,14 @@ export class InteractableDisplay extends Display {
         const pos = current?.pos ?? currentText.length;
         const anchor = current?.anchor ?? null;
 
-        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-            const delta = event.key === "ArrowLeft" ? -1 : 1;
-            if (event.shiftKey) {
-                const nextPos = Math.max(0, Math.min(currentText.length, pos + delta));
-                this.textEditBuffer = {cursor, text: currentText, pos: nextPos, anchor: anchor ?? pos};
-                return;
-            }
-            if (anchor !== null && anchor !== pos) {
-                const collapsed = delta < 0 ? Math.min(pos, anchor) : Math.max(pos, anchor);
-                this.textEditBuffer = {cursor, text: currentText, pos: collapsed, anchor: null};
-                return;
-            }
-            this.textEditBuffer = {cursor, text: currentText, pos: Math.max(0, Math.min(currentText.length, pos + delta)), anchor: null};
-            return;
-        }
-
-        const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
-
-        let nextText: string;
-        let nextPos: number;
-        if (event.key === "Backspace") {
-            if (selection) {
-                nextText = currentText.slice(0, selection.start) + currentText.slice(selection.end);
-                nextPos = selection.start;
-            } else if (pos === 0) {
-                return;
-            } else {
-                nextText = currentText.slice(0, pos - 1) + currentText.slice(pos);
-                nextPos = pos - 1;
-            }
-        } else if (event.key.length === 1 && this.isTextCharAllowed(textEdit, event.key)) {
-            if (selection) {
-                nextText = currentText.slice(0, selection.start) + event.key + currentText.slice(selection.end);
-                nextPos = selection.start + 1;
-            } else {
-                nextText = currentText.slice(0, pos) + event.key + currentText.slice(pos);
-                nextPos = pos + 1;
-            }
-        } else {
-            return;
-        }
-
-        this.textEditBuffer = {cursor, text: nextText, pos: nextPos, anchor: null};
+        this.handleTextEditingKey(
+            cursor, currentText, pos, anchor, event,
+            (char) => char !== "\r" && char !== "\n" && this.isTextCharAllowed(textEdit, char),
+            () => this.editingTextCursor === cursor,
+            (buffer) => {
+                this.textEditBuffer = buffer;
+            },
+        );
     }
 
     /**
