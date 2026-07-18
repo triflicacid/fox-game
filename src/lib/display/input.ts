@@ -30,6 +30,8 @@ export interface RadioOption {
     highlightStyle?: Partial<HighlightStyle>;
     /** Whether this option is disabled, independent of the owning {@link RadioInput}'s own `disabled`. Defaults to `false`. */
     disabled?: boolean;
+    /** If `true`, this option acts as if absent entirely - not laid out, not painted, not selectable. Defaults to `false`. */
+    hidden?: boolean;
 }
 
 /**
@@ -57,6 +59,8 @@ export interface SelectOption {
     highlightStyle?: Partial<HighlightStyle>;
     /** Whether this option is disabled, independent of the owning {@link SelectInput}'s own `disabled`. Defaults to `false`. */
     disabled?: boolean;
+    /** If `true`, this option acts as if absent entirely - not laid out, not painted, not selectable. Defaults to `false`. */
+    hidden?: boolean;
 }
 
 /**
