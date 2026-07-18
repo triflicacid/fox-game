@@ -1,7 +1,7 @@
 import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from "./display";
 import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HighlightStyle, Input, NumberInput, RadioInput, SelectInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
-import {Rect, pointInRect, rectsEqual} from "../../geometry/rect";
+import {BoundingRect, pointInRect, rectsEqual} from "./bounding-rect";
 
 /** Whether keyboard input reaches an {@link InteractableDisplay} whenever it's active ("always"), or only after it's been clicked into ("click"). */
 export type FocusMode = "always" | "click";
@@ -148,7 +148,7 @@ interface SelectEditHandle {
 
 /** Anything an {@link InteractableDisplay}'s keyboard cursor can land on and activate. */
 export interface FocusableElement {
-    rect: Rect;
+    rect: BoundingRect;
     activate: () => void;
     /** Present only for number-input focusables - see {@link InteractableDisplay.handleNumberInputKey}. */
     numberEdit?: NumberEditHandle;
@@ -198,7 +198,7 @@ export class InteractableDisplay extends Display {
 
     private active = false;
     private focused = false;
-    private bounds: Rect | null = null;
+    private bounds: BoundingRect | null = null;
     private keyDownInterceptor: ((event: KeyboardEvent) => boolean) | undefined;
     private readonly initialFocusIndex: number | null;
 
@@ -213,7 +213,7 @@ export class InteractableDisplay extends Display {
     /** Index into the open select's `options` currently highlighted, while a dropdown is open. */
     private openSelectHighlight = 0;
     /** The open select's option rows' on-screen rects, as last painted - for hit-testing clicks. */
-    private openSelectDropdownRects: Rect[] | null = null;
+    private openSelectDropdownRects: BoundingRect[] | null = null;
 
     /**
      * @param defaults - Default text style, minimum line height, and input geometry. Any field left unset falls back to {@link DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS}.
@@ -279,7 +279,7 @@ export class InteractableDisplay extends Display {
      *
      * @param rect - This display's current on-screen bounds, or `null` if not shown.
      */
-    public setBounds(rect: Rect | null): void {
+    public setBounds(rect: BoundingRect | null): void {
         this.bounds = rect;
     }
 
@@ -464,7 +464,7 @@ export class InteractableDisplay extends Display {
     }
 
     /** Paints a translucent grey sheen over `rect`, marking a disabled element. Must be drawn last, on top of the element's normal painting. */
-    private paintDisabledOverlay(ctx: CanvasRenderingContext2D, rect: Rect): void {
+    private paintDisabledOverlay(ctx: CanvasRenderingContext2D, rect: BoundingRect): void {
         ctx.fillStyle = this.defaults.disabledOverlayColor;
         ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
@@ -508,14 +508,14 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved radio element's marker circle plus label per option, walking left-to-right from `x`. */
-    private paintRadio(ctx: CanvasRenderingContext2D, element: ResolvedRadioElement, x: number, y: number, height: number, focusedRect: Rect | null): void {
+    private paintRadio(ctx: CanvasRenderingContext2D, element: ResolvedRadioElement, x: number, y: number, height: number, focusedRect: BoundingRect | null): void {
         let elemX = x;
         element.options.forEach((option, i) => {
             if (i > 0) {
                 elemX += this.defaults.radioOptionGap;
             }
             const optionWidth = this.radioOptionContentWidth(option.labelWidth);
-            const rect: Rect = {x: elemX, y, w: optionWidth, h: height};
+            const rect: BoundingRect = {x: elemX, y, w: optionWidth, h: height};
             const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !option.disabled;
 
             if (focused) {
@@ -545,8 +545,8 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved checkbox element's box plus label at `x`. */
-    private paintCheckbox(ctx: CanvasRenderingContext2D, element: ResolvedCheckboxElement, x: number, y: number, height: number, focusedRect: Rect | null): void {
-        const rect: Rect = {x, y, w: element.width, h: height};
+    private paintCheckbox(ctx: CanvasRenderingContext2D, element: ResolvedCheckboxElement, x: number, y: number, height: number, focusedRect: BoundingRect | null): void {
+        const rect: BoundingRect = {x, y, w: element.width, h: height};
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
         if (focused) {
@@ -581,8 +581,8 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved number element's box at `x`. */
-    private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, height: number, focusedRect: Rect | null, editText: string | null): void {
-        const rect: Rect = {x, y, w: element.width, h: height};
+    private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, editText: string | null): void {
+        const rect: BoundingRect = {x, y, w: element.width, h: height};
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
         const boxHeight = this.defaults.lineHeight - 4;
@@ -620,8 +620,8 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved button's bracket-wrapped label at `(x, y)`, highlighted when `focusedRect` matches its rect. */
-    private paintButton(ctx: CanvasRenderingContext2D, element: ResolvedButtonElement, x: number, y: number, height: number, focusedRect: Rect | null): void {
-        const rect: Rect = {x: x - 2, y: y - 2, w: element.width + 4, h: height};
+    private paintButton(ctx: CanvasRenderingContext2D, element: ResolvedButtonElement, x: number, y: number, height: number, focusedRect: BoundingRect | null): void {
+        const rect: BoundingRect = {x: x - 2, y: y - 2, w: element.width + 4, h: height};
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
         if (focused) {
@@ -657,8 +657,8 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved select element's closed combo box at `x`: a themed box showing the selected option's label, plus a dropdown-arrow button. */
-    private paintSelect(ctx: CanvasRenderingContext2D, element: ResolvedSelectElement, x: number, y: number, height: number, focusedRect: Rect | null, open: boolean): void {
-        const rect: Rect = {x, y, w: element.width, h: height};
+    private paintSelect(ctx: CanvasRenderingContext2D, element: ResolvedSelectElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, open: boolean): void {
+        const rect: BoundingRect = {x, y, w: element.width, h: height};
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
         const boxHeight = this.defaults.lineHeight - 4;
@@ -692,15 +692,15 @@ export class InteractableDisplay extends Display {
      *
      * @returns Each option row's on-screen rect, top to bottom, for hit-testing clicks.
      */
-    private paintSelectDropdownRows(ctx: CanvasRenderingContext2D, selectEdit: SelectEditHandle, boxRect: Rect, highlightIndex: number): Rect[] {
+    private paintSelectDropdownRows(ctx: CanvasRenderingContext2D, selectEdit: SelectEditHandle, boxRect: BoundingRect, highlightIndex: number): BoundingRect[] {
         const rowHeight = this.defaults.lineHeight;
         const listHeight = rowHeight * selectEdit.options.length;
-        const listRect: Rect = {x: boxRect.x, y: boxRect.y + boxRect.h, w: boxRect.w, h: listHeight};
+        const listRect: BoundingRect = {x: boxRect.x, y: boxRect.y + boxRect.h, w: boxRect.w, h: listHeight};
 
         this.theme.drawBox(ctx, listRect.x, listRect.y, listRect.w, listRect.h, "sunken");
 
         return selectEdit.options.map((option, i) => {
-            const rowRect: Rect = {x: listRect.x, y: listRect.y + i * rowHeight, w: listRect.w, h: rowHeight};
+            const rowRect: BoundingRect = {x: listRect.x, y: listRect.y + i * rowHeight, w: listRect.w, h: rowHeight};
             const highlighted = i === highlightIndex && !option.disabled;
 
             if (highlighted) {
@@ -760,9 +760,9 @@ export class InteractableDisplay extends Display {
         x: number,
         y: number,
         height: number,
-        focusedRect: Rect | null,
+        focusedRect: BoundingRect | null,
         editText: string | null,
-        openRect: Rect | null,
+        openRect: BoundingRect | null,
     ): void {
         switch (element.kind) {
             case "radio":
@@ -845,7 +845,7 @@ export class InteractableDisplay extends Display {
     }
 
     /** The currently focused element's rect, if any - `null` whenever this display itself isn't {@link isFocused focused} (e.g. blurred in `"click"` mode), even if a cursor position is still remembered. */
-    private getFocusedRect(): Rect | null {
+    private getFocusedRect(): BoundingRect | null {
         return this.isFocused() && this.cursor !== null ? this.focusables[this.cursor]?.rect ?? null : null;
     }
 
@@ -855,7 +855,7 @@ export class InteractableDisplay extends Display {
     }
 
     /** The open select input's box rect, if a dropdown is currently open. */
-    private getOpenRect(): Rect | null {
+    private getOpenRect(): BoundingRect | null {
         return this.openSelectCursor !== null ? this.focusables[this.openSelectCursor]?.rect ?? null : null;
     }
 
