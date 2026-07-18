@@ -1,5 +1,5 @@
 import {ChromeTheme} from "./chrome-theme";
-import {COLORS} from "../popup/colors";
+import {COLORS} from "./colors";
 
 /** Background colour for every flat-themed surface (panel body, control faces). */
 const SURFACE_COLOR = COLORS.black;

@@ -1,5 +1,5 @@
 import {BoxKind, ChromeTheme} from "./chrome-theme";
-import {COLORS} from "../popup/colors";
+import {COLORS} from "./colors";
 
 /** Outer bevel edge colour (top/left), the lightest tone. */
 const BORDER_HIGHLIGHT_COLOR = "#ffffff";
