@@ -13,3 +13,4 @@
   - Full test suite, with unit and playwright tests that capture screenshots
   - a 'title' attribute which shows on hover.
   - textAlignment property - where text sits in the line, y-axis wise
+- Optimisation: currently, a chunk blits it's content. Do the same for various noise fields, if needed, when drawing them.
