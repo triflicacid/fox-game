@@ -21,8 +21,8 @@ export const POPUP_CONFIG = {
     fontFamily: "monospace",
     /** Default font size for a line's segments and for buttons, in canvas pixels. */
     fontSize: 14,
-    /** Minimum vertical spacing between lines of text (and the button row), in canvas pixels. */
-    lineHeight: 20,
+    /** Vertical gap placed between consecutive lines of text (and before the button row), in canvas pixels. */
+    lineSpacing: 20,
 
     /** Horizontal gap between buttons in the button row, in canvas pixels. */
     buttonGap: 16,
@@ -55,6 +55,13 @@ export const POPUP_CONFIG = {
 
     /** Padding, in canvas pixels, added around a number/textbox's sunken box when drawing its `focusedStyle` background. */
     focusHighlightPadding: 2,
+
+    /** Horizontal padding inside a button's box around its label, in canvas pixels. */
+    buttonPaddingX: 8,
+    /** Vertical padding inside a button's box around its label, in canvas pixels. */
+    buttonPaddingY: 4,
+    /** How far a button's label shifts right/down while pressed, in canvas pixels. */
+    buttonPressedTextOffset: 1,
 
     /** Fill colour of the sheen painted over a disabled input, e.g. a translucent grey. */
     disabledOverlayColor: "rgba(128, 128, 128, 0.5)",

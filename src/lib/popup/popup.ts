@@ -24,7 +24,6 @@ const INTERACTABLE_DEFAULTS: InteractableDisplayDefaults = {
     foreground: POPUP_CONFIG.textColor,
     fontFamily: POPUP_CONFIG.fontFamily,
     fontSize: POPUP_CONFIG.fontSize,
-    lineHeight: POPUP_CONFIG.lineHeight,
     radioMarkerSize: POPUP_CONFIG.radioMarkerSize,
     radioMarkerGap: POPUP_CONFIG.radioMarkerGap,
     radioOptionGap: POPUP_CONFIG.radioOptionGap,
@@ -36,6 +35,9 @@ const INTERACTABLE_DEFAULTS: InteractableDisplayDefaults = {
     selectPadding: POPUP_CONFIG.selectPadding,
     selectArrowWidth: POPUP_CONFIG.selectArrowWidth,
     focusHighlightPadding: POPUP_CONFIG.focusHighlightPadding,
+    buttonPaddingX: POPUP_CONFIG.buttonPaddingX,
+    buttonPaddingY: POPUP_CONFIG.buttonPaddingY,
+    buttonPressedTextOffset: POPUP_CONFIG.buttonPressedTextOffset,
     disabledOverlayColor: POPUP_CONFIG.disabledOverlayColor,
 };
 
@@ -63,6 +65,7 @@ export class Popup {
     public constructor(options: PopupOptions = {}) {
         this.closeKeys = new Set(options.closeKeys ?? ["Escape"]);
         this.onOpenChange = options.onOpenChange;
+        this.display.setDebug(true); // TODO remove - temporary bounding-rect debug overlay
         this.display.setKeyDownInterceptor((event) => {
             if (this.closeKeys.has(event.key)) {
                 this.close();
@@ -168,8 +171,10 @@ export class Popup {
         const width = contentWidth + POPUP_CONFIG.padding * 2;
 
         const titleHeight = this.title ? POPUP_CONFIG.titleHeight : 0;
-        const linesHeight = lineRows.reduce((sum, row) => sum + row.height, 0);
-        const buttonRowHeight = this.buttons.length > 0 ? POPUP_CONFIG.buttonRowGap + POPUP_CONFIG.lineHeight : 0;
+        const linesHeight = lineRows.reduce((sum, row) => sum + row.height, 0)
+            + POPUP_CONFIG.lineSpacing * Math.max(lineRows.length - 1, 0);
+        const buttonHeight = Math.max(POPUP_CONFIG.lineSpacing, ...resolvedButtons.map((button) => button.height));
+        const buttonRowHeight = this.buttons.length > 0 ? POPUP_CONFIG.buttonRowGap + buttonHeight : 0;
         const height = titleHeight + linesHeight + buttonRowHeight + POPUP_CONFIG.padding * 2;
 
         const x = (canvasWidth - width) / 2;
@@ -183,14 +188,14 @@ export class Popup {
         let lineY = linesStartY;
         for (const row of lineRows) {
             inputFocusables.push(...this.display.layoutFocusables(row, x + POPUP_CONFIG.padding, lineY));
-            lineY += row.height;
+            lineY += row.height + POPUP_CONFIG.lineSpacing;
         }
 
         const buttonRowY = linesStartY + linesHeight + (this.buttons.length > 0 ? POPUP_CONFIG.buttonRowGap : 0);
         const buttonFocusables: FocusableElement[] = [];
         let buttonLayoutX = x + POPUP_CONFIG.padding;
         for (const button of resolvedButtons) {
-            buttonFocusables.push(...this.display.layoutButton(button, buttonLayoutX, buttonRowY, POPUP_CONFIG.lineHeight));
+            buttonFocusables.push(...this.display.layoutButton(button, buttonLayoutX, buttonRowY, buttonHeight));
             buttonLayoutX += button.width + POPUP_CONFIG.buttonGap;
         }
 
@@ -221,16 +226,17 @@ export class Popup {
         lineY = linesStartY;
         for (const row of lineRows) {
             this.display.drawElements(ctx, row, x + POPUP_CONFIG.padding, lineY);
-            lineY += row.height;
+            lineY += row.height + POPUP_CONFIG.lineSpacing;
         }
 
         let buttonX = x + POPUP_CONFIG.padding;
         for (const button of resolvedButtons) {
-            this.display.drawButton(ctx, button, buttonX, buttonRowY, POPUP_CONFIG.lineHeight);
+            this.display.drawButton(ctx, button, buttonX, buttonRowY, buttonHeight);
             buttonX += button.width + POPUP_CONFIG.buttonGap;
         }
 
         // Open select's dropdown paints last, on top of everything below it.
         this.display.drawOpenSelectDropdown(ctx);
+        this.display.drawDebugBounds(ctx);
     }
 }
