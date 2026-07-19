@@ -1,4 +1,4 @@
-import {FocusableElement, InteractableDisplay} from "../lib/display/interactable-display";
+import {InteractableDisplay} from "../lib/display/interactable-display";
 import {DisplayLine} from "../lib/display/input";
 import {TextSegment} from "../lib/display/text-style";
 import {FLAT_THEME} from "../lib/display/flat-theme";
@@ -143,7 +143,7 @@ export class DebugHud {
         }
         this.display.setActive(visible);
         if (!visible) {
-            this.display.setBounds(null);
+            this.display.setClickRegion(null);
         }
     }
 
@@ -161,29 +161,17 @@ export class DebugHud {
 
         const padding = DEBUG_CONFIG.hudPadding;
         this.display.beginResolvePass();
-        const resolvedLines = lines.map((line) => this.display.resolveElements(ctx, line));
-        const width = Math.max(0, ...resolvedLines.map((line) => line.width)) + padding * 2;
-        const height = resolvedLines.reduce((sum, line) => sum + line.height, 0)
-            + DEBUG_CONFIG.hudLineSpacing * Math.max(resolvedLines.length - 1, 0) + padding * 2;
+        const {rows, width: contentWidth, height: contentHeight} = this.display.resolveLines(ctx, lines, DEBUG_CONFIG.hudLineSpacing);
+        const width = contentWidth + padding * 2;
+        const height = contentHeight + padding * 2;
 
-        this.display.setBounds({x: 0, y: 0, w: width, h: height});
-
-        const focusables: FocusableElement[] = [];
-        let lineY = padding;
-        for (const line of resolvedLines) {
-            focusables.push(...this.display.layoutFocusables(line, padding, lineY));
-            lineY += line.height + DEBUG_CONFIG.hudLineSpacing;
-        }
-        this.display.setFocusables(focusables);
+        this.display.setClickRegion({x: 0, y: 0, w: width, h: height});
+        this.display.setFocusables(this.display.layoutLineFocusables(rows, padding, padding, DEBUG_CONFIG.hudLineSpacing));
 
         ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
         ctx.fillRect(0, 0, width, height);
 
-        lineY = padding;
-        for (const line of resolvedLines) {
-            this.display.drawElements(ctx, line, padding, lineY);
-            lineY += line.height + DEBUG_CONFIG.hudLineSpacing;
-        }
-        this.display.drawDebugBounds(ctx);
+        this.display.drawLines(ctx, rows, padding, padding, DEBUG_CONFIG.hudLineSpacing);
+        this.display.drawOverlays(ctx);
     }
 }
