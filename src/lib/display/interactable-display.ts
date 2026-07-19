@@ -57,6 +57,8 @@ interface ResolvedHrElement {
     width: number;
     thickness: number;
     color: string;
+    /** Fills the element's content+padding rect behind the bar, or `undefined` for none. */
+    background: string | undefined;
     /** See {@link HrInput.length}. */
     length: HrLength;
 }
@@ -837,6 +839,7 @@ export class InteractableDisplay extends Display {
             width: 0,
             thickness: item.thickness ?? 1,
             color: item.style?.foreground ?? this.theme.boxForeground,
+            background: item.style?.background,
             length: item.length ?? "max",
         };
     }
@@ -1016,8 +1019,14 @@ export class InteractableDisplay extends Display {
         return rect.y + (rect.h - size) / 2;
     }
 
-    /** Draws a resolved hr element's bar: a solid `element.thickness`-tall, `element.width`-wide rect in `element.color`, from `(x, y)`. */
-    private paintHr(ctx: CanvasRenderingContext2D, element: ResolvedHrElement, x: number, y: number): void {
+    /** Draws a resolved hr element's `background` (if set) across its content+padding rect, then its bar: a solid `element.thickness`-tall, `element.width`-wide rect in `element.color`, from `(x, y)`. */
+    private paintHr(ctx: CanvasRenderingContext2D, element: ResolvedHrElement, x: number, y: number, padding: ResolvedSpacing): void {
+        if (element.background) {
+            const rect = expandRect({x, y, w: element.width, h: element.thickness}, padding);
+            ctx.fillStyle = element.background;
+            ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        }
+
         ctx.fillStyle = element.color;
         ctx.fillRect(x, y, element.width, element.thickness);
     }
@@ -1067,7 +1076,7 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved radio element's marker circle plus label per option, walking left-to-right from `x`. Each option's own `align` positions it within the radio's own natural height, independent of its siblings. `padding` (the whole radio input's) matches {@link layoutRadio}'s rect, for focus comparison. */
-    private paintRadio(ctx: CanvasRenderingContext2D, element: ResolvedRadioElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, padding: ResolvedSpacing): void {
+    private paintRadio(ctx: CanvasRenderingContext2D, element: ResolvedRadioElement, x: number, y: number, focusedRect: BoundingRect | null, padding: ResolvedSpacing): void {
         const ownHeight = this.radioOwnHeight(element);
         let elemX = x;
         element.options.forEach((option, i) => {
@@ -1084,7 +1093,7 @@ export class InteractableDisplay extends Display {
 
             if (active?.background) {
                 ctx.fillStyle = active.background;
-                ctx.fillRect(highlightRect.x, highlightRect.y, highlightRect.w, highlightRect.h);
+                ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
             }
 
             const markerRadius = this.defaults.radioMarkerSize / 2;
@@ -1093,7 +1102,7 @@ export class InteractableDisplay extends Display {
             this.theme.drawRadioMarker(ctx, markerCx, markerCy, markerRadius, option.selected, markerStyle.foreground, markerStyle.background);
 
             const labelX = elemX + this.defaults.radioMarkerSize + this.defaults.radioMarkerGap;
-            this.drawLine(ctx, option.labelRuns, labelX, optionY, height, active?.foreground);
+            this.drawLine(ctx, option.labelRuns, labelX, optionY, option.fontSize, active?.foreground);
 
             if (option.disabled) {
                 this.paintDisabledCircleOverlay(ctx, markerCx, markerCy, markerRadius);
@@ -1112,7 +1121,7 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved checkbox element's box plus label at `x`. `padding` matches {@link layoutCheckbox}'s rect, for focus comparison. */
-    private paintCheckbox(ctx: CanvasRenderingContext2D, element: ResolvedCheckboxElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, padding: ResolvedSpacing): void {
+    private paintCheckbox(ctx: CanvasRenderingContext2D, element: ResolvedCheckboxElement, x: number, y: number, focusedRect: BoundingRect | null, padding: ResolvedSpacing): void {
         const highlightRect: BoundingRect = {x, y, w: element.width, h: element.fontSize};
         const rect = expandRect(highlightRect, padding);
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
@@ -1121,13 +1130,13 @@ export class InteractableDisplay extends Display {
 
         if (active?.background) {
             ctx.fillStyle = active.background;
-            ctx.fillRect(highlightRect.x, highlightRect.y, highlightRect.w, highlightRect.h);
+            ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
         }
 
         this.drawCheckboxBox(ctx, highlightRect, this.defaults.checkboxSize, element.checked, boxStyle);
 
         const labelX = x + this.defaults.checkboxSize + this.defaults.checkboxGap;
-        this.drawLine(ctx, element.labelRuns, labelX, y, height, active?.foreground);
+        this.drawLine(ctx, element.labelRuns, labelX, y, element.fontSize, active?.foreground);
 
         if (element.disabled) {
             const boxY = this.centeredBoxY(highlightRect, this.defaults.checkboxSize);
@@ -1317,7 +1326,7 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws an interactive-text element's runs, with the same focus/press overlay a button gets, but no box. `padding` matches {@link layoutInteractiveText}'s rect, for focus/press comparison. */
-    private paintInteractiveText(ctx: CanvasRenderingContext2D, element: ResolvedInteractiveTextElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, pressedRect: BoundingRect | null, padding: ResolvedSpacing): void {
+    private paintInteractiveText(ctx: CanvasRenderingContext2D, element: ResolvedInteractiveTextElement, x: number, y: number, focusedRect: BoundingRect | null, pressedRect: BoundingRect | null, padding: ResolvedSpacing): void {
         const rect = expandRect({x, y, w: element.width, h: element.fontSize}, padding);
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
         const pressed = pressedRect !== null && rectsEqual(rect, pressedRect) && !element.disabled;
@@ -1325,10 +1334,10 @@ export class InteractableDisplay extends Display {
 
         if (active?.background) {
             ctx.fillStyle = active.background;
-            ctx.fillRect(x, y, element.width, element.fontSize);
+            ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
         }
 
-        this.drawLine(ctx, element.runs, x, y, height, active?.foreground);
+        this.drawLine(ctx, element.runs, x, y, element.fontSize, active?.foreground);
         this.strokeDebugRect(ctx, {x, y, w: element.width, h: element.fontSize}, CONTENT_DEBUG_COLOR);
     }
 
@@ -1356,7 +1365,7 @@ export class InteractableDisplay extends Display {
     }
 
     /** Draws a resolved select element's closed combo box at `x`: a themed box showing the selected option's label, plus a dropdown-arrow button. `padding` matches {@link layoutSelect}'s rect, for focus/open comparison. */
-    private paintSelect(ctx: CanvasRenderingContext2D, element: ResolvedSelectElement, x: number, y: number, height: number, focusedRect: BoundingRect | null, open: boolean, padding: ResolvedSpacing): void {
+    private paintSelect(ctx: CanvasRenderingContext2D, element: ResolvedSelectElement, x: number, y: number, focusedRect: BoundingRect | null, open: boolean, padding: ResolvedSpacing): void {
         const rect = expandRect({x, y, w: element.width, h: element.rowFontSize}, padding);
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
 
@@ -1376,7 +1385,7 @@ export class InteractableDisplay extends Display {
         }
 
         if (selected) {
-            this.drawLine(ctx, element.closedBoxLabelRuns, x + this.defaults.selectPadding, y, height, foreground);
+            this.drawLine(ctx, element.closedBoxLabelRuns, x + this.defaults.selectPadding, y, boxHeight, foreground);
         }
 
         this.theme.drawSelectArrowButton(ctx, x + textBoxWidth, boxY, arrowWidth, boxHeight, open);
@@ -1537,7 +1546,6 @@ export class InteractableDisplay extends Display {
         element: ResolvedFocusableElement,
         x: number,
         y: number,
-        height: number,
         focusedRect: BoundingRect | null,
         pressedRect: BoundingRect | null,
         editText: string | null,
@@ -1548,10 +1556,10 @@ export class InteractableDisplay extends Display {
     ): void {
         switch (element.kind) {
             case "radio":
-                this.paintRadio(ctx, element, x, y, height, focusedRect, padding);
+                this.paintRadio(ctx, element, x, y, focusedRect, padding);
                 break;
             case "checkbox":
-                this.paintCheckbox(ctx, element, x, y, height, focusedRect, padding);
+                this.paintCheckbox(ctx, element, x, y, focusedRect, padding);
                 break;
             case "number":
                 this.paintNumber(ctx, element, x, y, focusedRect, editText, editCursorPos, editSelection, padding);
@@ -1563,10 +1571,10 @@ export class InteractableDisplay extends Display {
                 this.paintButtonBox(ctx, element, x, y, focusedRect, pressedRect, padding);
                 break;
             case "select":
-                this.paintSelect(ctx, element, x, y, height, focusedRect, openRect !== null && rectsEqual(expandRect({x, y, w: element.width, h: element.rowFontSize}, padding), openRect), padding);
+                this.paintSelect(ctx, element, x, y, focusedRect, openRect !== null && rectsEqual(expandRect({x, y, w: element.width, h: element.rowFontSize}, padding), openRect), padding);
                 break;
             case "interactive-text":
-                this.paintInteractiveText(ctx, element, x, y, height, focusedRect, pressedRect, padding);
+                this.paintInteractiveText(ctx, element, x, y, focusedRect, pressedRect, padding);
                 break;
         }
     }
@@ -1662,12 +1670,12 @@ export class InteractableDisplay extends Display {
             const {x: contentX, y: contentY} = this.contentPosition(elemX, elemY, element.padding, element.margin);
             this.strokeSpacingDebugRects(ctx, {x: contentX, y: contentY, w: element.width, h: this.ownHeight(element)}, element.padding, element.margin);
             if (element.kind === "text") {
-                this.drawLine(ctx, element.runs, contentX, contentY, line.height);
+                this.drawLine(ctx, element.runs, contentX, contentY, element.fontSize);
                 this.strokeDebugRect(ctx, {x: contentX, y: contentY, w: element.width, h: element.fontSize}, CONTENT_DEBUG_COLOR);
             } else if (element.kind === "hr") {
-                this.paintHr(ctx, element, contentX, contentY);
+                this.paintHr(ctx, element, contentX, contentY, element.padding);
             } else {
-                this.paintInput(ctx, element, contentX, contentY, line.height, focusedRect, pressedRect, editText, editCursorPos, editSelection, openRect, element.padding);
+                this.paintInput(ctx, element, contentX, contentY, focusedRect, pressedRect, editText, editCursorPos, editSelection, openRect, element.padding);
             }
             elemX += this.outerWidth(element);
         }
