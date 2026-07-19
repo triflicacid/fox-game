@@ -329,12 +329,13 @@ export class InteractableDisplay extends Display {
     private active = false;
     private focused = false;
     private debug = false;
-    private bounds: BoundingRect | null = null;
+    /** On-screen hit box used in `"click"` focus mode to decide whether a click focuses/blurs this display - see {@link setClickRegion}. Unrelated to {@link getOccupiedBounds}. */
+    private clickRegion: BoundingRect | null = null;
     private keyDownInterceptor: ((event: KeyboardEvent) => boolean) | undefined;
     private readonly initialFocusIndex: number | null;
 
     private focusables: FocusableElement[] = [];
-    /** Memoised {@link getBounds} result - `undefined` means not yet computed since the last {@link setFocusables} call. */
+    /** Memoised {@link getOccupiedBounds} result - `undefined` means not yet computed since the last {@link setFocusables} call. */
     private cachedBounds: BoundingRect | null | undefined = undefined;
     private cursor: number | null = null;
     /** Index of the `pressable` focusable currently held down by the mouse, if any. */
@@ -426,13 +427,14 @@ export class InteractableDisplay extends Display {
     }
 
     /**
-     * Sets this display's on-screen bounds, used in `"click"` focus mode to
-     * decide whether a click focuses or blurs it. Unused in `"always"` mode.
+     * Sets this display's on-screen click region, used in `"click"` focus
+     * mode to decide whether a click focuses or blurs it. Unused in
+     * `"always"` mode.
      *
      * @param rect - This display's current on-screen bounds, or `null` if not shown.
      */
-    public setBounds(rect: BoundingRect | null): void {
-        this.bounds = rect;
+    public setClickRegion(rect: BoundingRect | null): void {
+        this.clickRegion = rect;
     }
 
     /** Toggles debug mode - see {@link drawDebugBounds}. */
@@ -916,6 +918,14 @@ export class InteractableDisplay extends Display {
         return {elements, width, height: Math.max(maxFontSize, maxOuterHeight)};
     }
 
+    /** Resolves each of `lines` via {@link resolveElements}, plus the widest row's width and every row's height summed (`lineSpacing` apart). */
+    public resolveLines(ctx: CanvasRenderingContext2D, lines: DisplayLine[], lineSpacing: number): {rows: ResolvedElementLine[]; width: number; height: number} {
+        const rows = lines.map((line) => this.resolveElements(ctx, line));
+        const width = Math.max(0, ...rows.map((row) => row.width));
+        const height = rows.reduce((sum, row) => sum + row.height, 0) + lineSpacing * Math.max(rows.length - 1, 0);
+        return {rows, width, height};
+    }
+
     /** Paints a translucent grey sheen over `rect`, marking a disabled element. Must be drawn last, on top of the element's normal painting. */
     private paintDisabledOverlay(ctx: CanvasRenderingContext2D, rect: BoundingRect): void {
         ctx.fillStyle = this.defaults.disabledOverlayColor;
@@ -1344,11 +1354,11 @@ export class InteractableDisplay extends Display {
     }
 
     /**
-     * Draws the currently-open select input's dropdown, if any - must be
-     * called after everything else, so it paints on top. A no-op if no
-     * select is open.
+     * Draws the currently-open select input's dropdown, if any, on top of
+     * everything else - see {@link drawOverlays}. A no-op if no select is
+     * open.
      */
-    public drawOpenSelectDropdown(ctx: CanvasRenderingContext2D): void {
+    private drawOpenSelectDropdown(ctx: CanvasRenderingContext2D): void {
         if (this.openSelectCursor === null) {
             this.openSelectDropdownRects = null;
             return;
@@ -1361,14 +1371,20 @@ export class InteractableDisplay extends Display {
         this.openSelectDropdownRects = this.paintSelectDropdownRows(ctx, selectEdit, selectEdit.boxRect, this.openSelectHighlight);
     }
 
-    /** Outlines every current focusable's coarse click/keyboard-nav rect, when {@link setDebug} is on - call last, after everything else. Separate from each element's own content/padding/margin rings (see {@link strokeSpacingDebugRects}) - green for an enabled focusable, red for a disabled one. */
-    public drawDebugBounds(ctx: CanvasRenderingContext2D): void {
+    /** Outlines every current focusable's coarse click/keyboard-nav rect, when {@link setDebug} is on - see {@link drawOverlays}. Separate from each element's own content/padding/margin rings (see {@link strokeSpacingDebugRects}) - green for an enabled focusable, red for a disabled one. */
+    private drawDebugBounds(ctx: CanvasRenderingContext2D): void {
         if (!this.debug) {
             return;
         }
         for (const focusable of this.focusables) {
             this.strokeDebugRect(ctx, focusable.rect, this.debugRectColor(focusable.disabled));
         }
+    }
+
+    /** Draws every trailing, content-independent overlay - the open select's dropdown, then debug bounds. Call once, last, after a frame's own content is drawn. Safe to call unconditionally: each overlay is a no-op when it has nothing to draw. */
+    public drawOverlays(ctx: CanvasRenderingContext2D): void {
+        this.drawOpenSelectDropdown(ctx);
+        this.drawDebugBounds(ctx);
     }
 
     /** Focusable-rect debug colour: green for an enabled focusable, red for a disabled one. */
@@ -1404,9 +1420,11 @@ export class InteractableDisplay extends Display {
     }
 
     /**
-     * The bounding rect of everything this display currently occupies.
+     * The bounding rect of everything this display currently occupies -
+     * every focusable plus any open select's dropdown. Unrelated to {@link
+     * setClickRegion}'s click region.
      */
-    public getBounds(): BoundingRect | null {
+    public getOccupiedBounds(): BoundingRect | null {
         if (this.cachedBounds !== undefined) {
             return this.cachedBounds;
         }
@@ -1542,6 +1560,17 @@ export class InteractableDisplay extends Display {
         return focusables;
     }
 
+    /** Lays out every row's focusables top to bottom from `(x, y)` via {@link layoutFocusables}, `lineSpacing` apart. Doesn't call {@link setFocusables} - callers merging multiple stacks (e.g. a popup's lines plus its buttons) do that themselves. */
+    public layoutLineFocusables(rows: ResolvedElementLine[], x: number, y: number, lineSpacing: number): FocusableElement[] {
+        const focusables: FocusableElement[] = [];
+        let lineY = y;
+        for (const row of rows) {
+            focusables.push(...this.layoutFocusables(row, x, lineY));
+            lineY += row.height + lineSpacing;
+        }
+        return focusables;
+    }
+
     /**
      * Draws a resolved line's elements left-to-right from `x`: plain text
      * runs as-is, inputs via {@link paintInput} - reading this display's own
@@ -1571,12 +1600,27 @@ export class InteractableDisplay extends Display {
         }
     }
 
+    /** Draws every row top to bottom from `(x, y)`, via {@link drawElements}, `lineSpacing` apart. */
+    public drawLines(ctx: CanvasRenderingContext2D, rows: ResolvedElementLine[], x: number, y: number, lineSpacing: number): void {
+        let lineY = y;
+        for (const row of rows) {
+            this.drawElements(ctx, row, x, lineY);
+            lineY += row.height + lineSpacing;
+        }
+    }
+
+    /** Merges multiple focusable groups (e.g. a popup's lines plus its footer buttons) into the single top-down, then left-to-right order {@link setFocusables} expects. */
+    public mergeFocusables(...groups: FocusableElement[][]): FocusableElement[] {
+        return groups.flat().sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
+    }
+
     /**
      * Replaces the full set of focusable elements this frame - every input
      * across every line, plus any standalone buttons (e.g. a popup's footer
      * row), sorted into the order the cursor should navigate them in
-     * (top-down, then left-to-right). Clamps the cursor and clears any
-     * stale open-select/editing-number state that no longer matches.
+     * (top-down, then left-to-right) - see {@link mergeFocusables}. Clamps
+     * the cursor and clears any stale open-select/editing-number state that
+     * no longer matches.
      *
      * @param focusables - Every focusable element, pre-sorted by the caller.
      */
@@ -2248,7 +2292,7 @@ export class InteractableDisplay extends Display {
             return;
         }
         const focused = this.isFocused();
-        const aboutToFocus = !focused && this.focusMode === "click" && this.bounds !== null && pointInRect(event.clientX, event.clientY, this.bounds);
+        const aboutToFocus = !focused && this.focusMode === "click" && this.clickRegion !== null && pointInRect(event.clientX, event.clientY, this.clickRegion);
         if (!focused && !aboutToFocus) {
             return;
         }
@@ -2310,7 +2354,7 @@ export class InteractableDisplay extends Display {
             return;
         }
 
-        if (this.focusMode === "click" && this.bounds && !pointInRect(event.clientX, event.clientY, this.bounds)) {
+        if (this.focusMode === "click" && this.clickRegion && !pointInRect(event.clientX, event.clientY, this.clickRegion)) {
             this.focused = false;
             return;
         }
