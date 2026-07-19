@@ -1,5 +1,5 @@
 import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from "./display";
-import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, Input, NumberInput, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
+import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HrInput, HrLength, Input, NumberInput, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
 import {ResolvedStateStyle, resolveStateStyle} from "./state-style";
 import {Alignment, TextSegment, TextStyle} from "./text-style";
@@ -49,6 +49,16 @@ interface ResolvedTextElement {
     kind: "text";
     runs: MeasuredRun[];
     width: number;
+}
+
+/** A resolved, measured {@link HrInput}: a plain bar, `width` wide and `thickness` tall, filled with `color`. Never focusable, so it sits outside {@link ResolvedFocusableElement} rather than {@link ResolvedInputElement}. */
+interface ResolvedHrElement {
+    kind: "hr";
+    width: number;
+    thickness: number;
+    color: string;
+    /** See {@link HrInput.length}. */
+    length: HrLength;
 }
 
 /** A single resolved, measured option within a resolved radio input. */
@@ -223,7 +233,7 @@ interface LineItemMeta {
     margin: ResolvedSpacing;
 }
 
-type ResolvedElement = (ResolvedTextElement | ResolvedFocusableElement) & LineItemMeta;
+type ResolvedElement = (ResolvedTextElement | ResolvedHrElement | ResolvedFocusableElement) & LineItemMeta;
 
 /** A line's resolved elements, plus its measured layout - see {@link InteractableDisplay.resolveElements}. */
 export interface ResolvedElementLine {
@@ -820,11 +830,23 @@ export class InteractableDisplay extends Display {
         };
     }
 
+    /** Resolves an {@link HrInput}'s thickness, colour, and `length` mode. `width` stays `0` - {@link resolveHrLengths} patches it in once every row's width is known. */
+    private resolveHr(item: HrInput): ResolvedHrElement {
+        return {
+            kind: "hr",
+            width: 0,
+            thickness: item.thickness ?? 1,
+            color: item.style?.foreground ?? this.theme.boxForeground,
+            length: item.length ?? "max",
+        };
+    }
+
     /**
-     * Resolves and measures an {@link Input} into its {@link
-     * ResolvedInputElement}, dispatching on `kind`.
+     * Resolves and measures an {@link Input} (any kind but {@link HrInput},
+     * which {@link resolveElements} handles separately since it isn't
+     * focusable) into its {@link ResolvedInputElement}, dispatching on `kind`.
      */
-    private resolveInput(ctx: CanvasRenderingContext2D, item: Input): {element: ResolvedInputElement; maxFontSize: number} {
+    private resolveInput(ctx: CanvasRenderingContext2D, item: Exclude<Input, HrInput>): {element: ResolvedInputElement; maxFontSize: number} {
         switch (item.kind) {
             case "radio":
                 return this.resolveRadio(ctx, item);
@@ -869,9 +891,11 @@ export class InteractableDisplay extends Display {
     /**
      * Resolves and measures every item in `line` - plain text segments
      * flatten to styled runs; `interactive` text and inputs resolve via
-     * {@link resolveInteractiveText}/{@link resolveInput}. A `hidden` item
-     * contributes nothing, as if absent. Line height fits the largest font
-     * or an element's own outer (padded/margined) height, whichever is taller.
+     * {@link resolveInteractiveText}/{@link resolveInput}; an {@link
+     * HrInput} resolves via {@link resolveHr} (its bar stays `0` wide until
+     * {@link resolveHrLengths} sizes it). A `hidden` item contributes
+     * nothing, as if absent. Line height fits the largest font or an
+     * element's own outer (padded/margined) height, whichever is taller.
      */
     public resolveElements(ctx: CanvasRenderingContext2D, line: DisplayLine): ResolvedElementLine {
         let width = 0;
@@ -882,6 +906,18 @@ export class InteractableDisplay extends Display {
             const align = item.align ?? "top";
             const padding = resolveSpacing(item.padding);
             const margin = resolveSpacing(item.margin);
+
+            if (isInput(item) && item.kind === "hr") {
+                if (item.hidden) {
+                    return [];
+                }
+                const element = this.resolveHr(item);
+                maxFontSize = Math.max(maxFontSize, element.thickness);
+                const resolved: ResolvedElement = {...element, fontSize: element.thickness, align, padding, margin};
+                width += this.outerWidth(resolved);
+                maxOuterHeight = Math.max(maxOuterHeight, this.outerHeight(resolved));
+                return [resolved];
+            }
 
             if (isInput(item)) {
                 if (item.hidden) {
@@ -918,9 +954,38 @@ export class InteractableDisplay extends Display {
         return {elements, width, height: Math.max(maxFontSize, maxOuterHeight)};
     }
 
-    /** Resolves each of `lines` via {@link resolveElements}, plus the widest row's width and every row's height summed (`lineSpacing` apart). */
+    /** Picks which neighbouring row's width an hr's bar matches, per its own `length` - `above`/`below` are `undefined` at the first/last row respectively, treated as `0`. */
+    private resolveHrReference(length: HrLength, above: number | undefined, below: number | undefined): number {
+        switch (length) {
+            case "top":
+                return above ?? 0;
+            case "bottom":
+                return below ?? 0;
+            case "max":
+                return Math.max(above ?? 0, below ?? 0);
+        }
+    }
+
+    /** Patches every hr's `width` across `rows` in place, per {@link resolveHrReference}. Neighbour widths are snapshotted up front, so two adjacent hrs each see the other's pre-patch (`0`) width. Adjusts each patched row's own `width` total to match. */
+    private resolveHrLengths(rows: ResolvedElementLine[]): void {
+        const rowWidths = rows.map((row) => row.width);
+        rows.forEach((row, i) => {
+            for (const element of row.elements) {
+                if (element.kind !== "hr") {
+                    continue;
+                }
+                const reference = this.resolveHrReference(element.length, rowWidths[i - 1], rowWidths[i + 1]);
+                const barWidth = Math.max(0, reference - this.horizontalSpacing(element.padding));
+                row.width += barWidth - element.width;
+                element.width = barWidth;
+            }
+        });
+    }
+
+    /** Resolves each of `lines` via {@link resolveElements}, then sizes every hr's bar against its neighbouring row(s) via {@link resolveHrLengths} - plus the widest row's width and every row's height summed (`lineSpacing` apart). */
     public resolveLines(ctx: CanvasRenderingContext2D, lines: DisplayLine[], lineSpacing: number): {rows: ResolvedElementLine[]; width: number; height: number} {
         const rows = lines.map((line) => this.resolveElements(ctx, line));
+        this.resolveHrLengths(rows);
         const width = Math.max(0, ...rows.map((row) => row.width));
         const height = rows.reduce((sum, row) => sum + row.height, 0) + lineSpacing * Math.max(rows.length - 1, 0);
         return {rows, width, height};
@@ -949,6 +1014,12 @@ export class InteractableDisplay extends Display {
     /** Top-left y a `size`-tall box centres at vertically within `rect`. */
     private centeredBoxY(rect: BoundingRect, size: number): number {
         return rect.y + (rect.h - size) / 2;
+    }
+
+    /** Draws a resolved hr element's bar: a solid `element.thickness`-tall, `element.width`-wide rect in `element.color`, from `(x, y)`. */
+    private paintHr(ctx: CanvasRenderingContext2D, element: ResolvedHrElement, x: number, y: number): void {
+        ctx.fillStyle = element.color;
+        ctx.fillRect(x, y, element.width, element.thickness);
     }
 
     /** Draws a checkbox's box (themed, tinted by `style`'s background) plus a tick mark (coloured by `style`'s foreground) when `checked`, centred vertically within `rect` - the same rect its focus/selection highlight fills. */
@@ -1552,7 +1623,7 @@ export class InteractableDisplay extends Display {
         for (const element of line.elements) {
             const elemY = y + this.verticalOffset(element.align, this.outerHeight(element), line.height);
             const {x: contentX, y: contentY} = this.contentPosition(elemX, elemY, element.padding, element.margin);
-            if (element.kind !== "text") {
+            if (element.kind !== "text" && element.kind !== "hr") {
                 focusables.push(...this.layoutInput(element, contentX, contentY, element.padding));
             }
             elemX += this.outerWidth(element);
@@ -1593,6 +1664,8 @@ export class InteractableDisplay extends Display {
             if (element.kind === "text") {
                 this.drawLine(ctx, element.runs, contentX, contentY, line.height);
                 this.strokeDebugRect(ctx, {x: contentX, y: contentY, w: element.width, h: element.fontSize}, CONTENT_DEBUG_COLOR);
+            } else if (element.kind === "hr") {
+                this.paintHr(ctx, element, contentX, contentY);
             } else {
                 this.paintInput(ctx, element, contentX, contentY, line.height, focusedRect, pressedRect, editText, editCursorPos, editSelection, openRect, element.padding);
             }

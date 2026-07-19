@@ -4,21 +4,24 @@ import {CheckboxInput} from "./checkbox";
 import {NumberInput, TextInput} from "./text-box";
 import {ButtonInput} from "./button";
 import {SelectInput} from "./select";
+import {HrInput} from "./hr";
 
 export * from "./base";
 export * from "./button";
 export * from "./checkbox";
+export * from "./hr";
 export * from "./radio";
 export * from "./select";
 export * from "./text-box";
 
 /**
- * Every kind of interactive input an {@link InteractableDisplay} can embed
- * alongside plain text. Each kind carries its own `kind` literal.
+ * Every kind of input an {@link InteractableDisplay} can embed alongside
+ * plain text - interactive controls, plus the non-interactive {@link
+ * HrInput} divider. Each kind carries its own `kind` literal.
  */
-export type Input = RadioInput | CheckboxInput | NumberInput | TextInput | ButtonInput | SelectInput;
+export type Input = RadioInput | CheckboxInput | NumberInput | TextInput | ButtonInput | SelectInput | HrInput;
 
-/** A single item within a {@link DisplayLine}: styled text, or an interactive input. */
+/** A single item within a {@link DisplayLine}: styled text, or an {@link Input}. */
 export type DisplayLineItem = TextSegment | Input;
 
 /** A single line an {@link InteractableDisplay} can lay out, made of one or more top-level items. */
