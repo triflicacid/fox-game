@@ -41,6 +41,9 @@ export abstract class ChromeTheme {
     /** Draws a button's face for the `w`x`h` box at `x, y` - raised at rest, sunken while `pressed`, same face colour either way. */
     public abstract drawButtonBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pressed: boolean): void;
 
+    /** Draws a themed line from `(x1, y1)` to `(x2, y2)`, `thickness` canvas pixels wide - a flat stroke, or (for horizontal/vertical lines) a bevelled groove, per theme. Used for an {@link HrInput} today; general-purpose for any future straight-line chrome. */
+    public abstract drawLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, thickness: number): void;
+
     /** Draws a button's focus indicator over its box - default fills `style.background` inset by `borderWidth`, overridable. */
     public drawButtonFocus(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, style: ResolvedStateStyle): void {
         if (style.background === undefined) {
