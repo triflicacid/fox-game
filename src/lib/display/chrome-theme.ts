@@ -32,6 +32,9 @@ export abstract class ChromeTheme {
     /** Draws a box's chrome (e.g. a checkbox/number-input/select box) for the `w`x`h` box at `x, y`. */
     public abstract drawBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, kind: BoxKind): void;
 
+    /** Box size needed to fit `contentWidth`x`contentHeight` content without clipping it against this theme's own chrome. Symmetric per axis. */
+    public abstract boxDimensionsFor(contentWidth: number, contentHeight: number): {w: number; h: number};
+
     /** Draws a radio marker at `(cx, cy)` with the given `radius`, filled in when `selected`. `foreground`/`background` override the dot/face colour when given. */
     public abstract drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean, foreground?: string, background?: string): void;
 

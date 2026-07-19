@@ -24,8 +24,6 @@ export interface InteractableDisplayDefaults extends DisplayDefaults {
     checkboxGap: number;
     /** Width of a number input's box, in canvas pixels - fixed, regardless of the value's length. */
     numberInputWidth: number;
-    /** Horizontal padding inside a number input's box, in canvas pixels. */
-    numberInputPadding: number;
     /** Half-period of a number input's blinking edit cursor, in milliseconds. */
     cursorBlinkIntervalMs: number;
     /** Horizontal padding inside a select input's box and dropdown rows, in canvas pixels. */
@@ -127,8 +125,10 @@ interface ResolvedNumberElement {
     selectionStyle: ResolvedStateStyle;
     /** Canvas font string for the box's own text - reflects `style`, and `editingStyle`/`focusedStyle` while active, per {@link InteractableDisplay.resolveTextBoxCommon}. */
     font: string;
-    /** Font size backing `font`, in canvas pixels - for sizing the box/caret around the text as actually drawn. */
+    /** Font size backing `font`, in canvas pixels. */
     fontSize: number;
+    /** Box height: `fontSize` plus vertical padding, mirroring a button's own `height` - big enough that the box doesn't clip the font's own ascenders/descenders or the caret. */
+    height: number;
     disabled: boolean;
     width: number;
 }
@@ -147,8 +147,10 @@ interface ResolvedTextboxElement {
     selectionStyle: ResolvedStateStyle;
     /** Canvas font string for the box's own text - reflects `style`, and `editingStyle`/`focusedStyle` while active, per {@link InteractableDisplay.resolveTextBoxCommon}. */
     font: string;
-    /** Font size backing `font`, in canvas pixels - for sizing the box/caret around the text as actually drawn. */
+    /** Font size backing `font`, in canvas pixels. */
     fontSize: number;
+    /** Box height: `fontSize` plus vertical padding, mirroring a button's own `height` - big enough that the box doesn't clip the font's own ascenders/descenders or the caret. */
+    height: number;
     disabled: boolean;
     width: number;
 }
@@ -214,8 +216,10 @@ interface ResolvedSelectElement {
     rowFontSize: number;
     /** The closed box's own label runs - resolved independently of `options[selectedIndex].labelRuns` so a dropdown highlight never affects it. Sized/formatted by `selectedStyle` only. */
     closedBoxLabelRuns: MeasuredRun[];
-    /** Font size backing `closedBoxLabelRuns`, in canvas pixels - for sizing the closed box around it. */
+    /** Font size backing `closedBoxLabelRuns`, in canvas pixels. */
     closedBoxFontSize: number;
+    /** Closed box height: `closedBoxFontSize` plus vertical padding, mirroring a button's own `height` - big enough that the box doesn't clip the label's own ascenders/descenders. */
+    height: number;
     disabled: boolean;
     width: number;
 }
@@ -307,7 +311,6 @@ export const DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS: InteractableDisplayDefaults 
     checkboxSize: 12,
     checkboxGap: 6,
     numberInputWidth: 48,
-    numberInputPadding: 4,
     cursorBlinkIntervalMs: 500,
     selectPadding: 4,
     selectArrowWidth: 18,
@@ -651,7 +654,7 @@ export class InteractableDisplay extends Display {
      * `Infinity`. `wasFocused`/`wasEditing` pick which state style ambiently
      * sizes/formats the text, same precedence as its colour.
      */
-    private resolveTextBoxCommon(ctx: CanvasRenderingContext2D, item: TextBoxInputBase, contentText: string, wasFocused: boolean, wasEditing: boolean): {focusedStyle: ResolvedStateStyle; editingStyle: ResolvedStateStyle; selectionStyle: ResolvedStateStyle; font: string; fontSize: number; disabled: boolean; width: number; maxFontSize: number} {
+    private resolveTextBoxCommon(ctx: CanvasRenderingContext2D, item: TextBoxInputBase, contentText: string, wasFocused: boolean, wasEditing: boolean): {focusedStyle: ResolvedStateStyle; editingStyle: ResolvedStateStyle; selectionStyle: ResolvedStateStyle; font: string; fontSize: number; height: number; disabled: boolean; width: number; maxFontSize: number} {
         const ambientStyle = this.mergeStyle(item.style, wasEditing ? item.editingStyle : (wasFocused ? item.focusedStyle : undefined));
         let font = this.plainFont;
         let maxFontSize = this.defaults.fontSize;
@@ -663,6 +666,13 @@ export class InteractableDisplay extends Display {
             measuredWidth = resolved.width;
         }
 
+        // `boxDimensionsFor(0, ...)` isolates the theme's own per-side chrome
+        // padding (assumed symmetric), independent of a box's actual width -
+        // needed for both the auto-width case below and, at paint time, for
+        // insetting the text/caret within a fixed-width box the same way.
+        const zeroWidthDims = this.theme.boxDimensionsFor(0, maxFontSize);
+        const insetX = zeroWidthDims.w / 2;
+
         const maxWidth = item.maxWidth ?? this.defaults.numberInputWidth;
         let width: number;
         if (Number.isFinite(maxWidth)) {
@@ -671,7 +681,7 @@ export class InteractableDisplay extends Display {
             // +3 leaves room for the blinking caret drawn just past the text
             // (see paintTextBox) - without it, a caret sitting at the very
             // end of the content would fall outside the box's clip rect.
-            const contentWidth = (measuredWidth ?? this.measureTextWidth(ctx, contentText, this.plainFont)) + this.defaults.numberInputPadding * 2 + 3;
+            const contentWidth = (measuredWidth ?? this.measureTextWidth(ctx, contentText, this.plainFont)) + insetX * 2 + 3;
             width = Math.max(item.minWidth ?? 0, contentWidth);
         }
         const focusedStyle = this.resolveFocusedStyle(item.focusedStyle);
@@ -682,6 +692,7 @@ export class InteractableDisplay extends Display {
             selectionStyle: resolveStateStyle(item.selectedStyle, focusedStyle),
             font,
             fontSize: maxFontSize,
+            height: zeroWidthDims.h,
             disabled: item.disabled ?? false,
             width,
             maxFontSize,
@@ -792,6 +803,7 @@ export class InteractableDisplay extends Display {
                 rowFontSize: maxFontSize,
                 closedBoxLabelRuns,
                 closedBoxFontSize,
+                height: this.theme.boxDimensionsFor(maxLabelWidth, closedBoxFontSize).h,
                 disabled: item.disabled ?? false,
                 width,
             },
@@ -867,9 +879,17 @@ export class InteractableDisplay extends Display {
         }
     }
 
-    /** This element's own box height before padding/margin: a button's own padded height, or every other kind's font size. */
+    /** This element's own box height before padding/margin: a button/number/textbox/select's own padded `height`, or every other kind's font size. */
     private ownHeight(element: ResolvedElement): number {
-        return element.kind === "button" ? element.height : element.fontSize;
+        switch (element.kind) {
+            case "button":
+            case "number":
+            case "textbox":
+            case "select":
+                return element.height;
+            default:
+                return element.fontSize;
+        }
     }
 
     /** Sum of a resolved spacing's left and right sides. */
@@ -1164,14 +1184,14 @@ export class InteractableDisplay extends Display {
 
     /** Computes a resolved number element's on-screen rect. */
     private layoutNumber(element: ResolvedNumberElement, x: number, y: number, padding: ResolvedSpacing): FocusableElement[] {
-        return this.layoutTextBoxFocusable(x, y, element.width, element.fontSize, padding, element.disabled, {
+        return this.layoutTextBoxFocusable(x, y, element.width, element.height, padding, element.disabled, {
             numberEdit: {getValue: () => element.value, step: element.step, allowDecimal: element.allowDecimal, onChange: element.onChange},
         });
     }
 
     /** Computes a resolved textbox element's on-screen rect. */
     private layoutTextbox(element: ResolvedTextboxElement, x: number, y: number, padding: ResolvedSpacing): FocusableElement[] {
-        return this.layoutTextBoxFocusable(x, y, element.width, element.fontSize, padding, element.disabled, {
+        return this.layoutTextBoxFocusable(x, y, element.width, element.height, padding, element.disabled, {
             textEdit: {getValue: () => element.value, allowedChars: element.allowedChars, disallowedChars: element.disallowedChars, onChange: element.onChange},
         });
     }
@@ -1181,34 +1201,38 @@ export class InteractableDisplay extends Display {
         return Math.floor(Date.now() / this.defaults.cursorBlinkIntervalMs) % 2 === 0;
     }
 
-    /** Shared paint core for {@link paintNumber}/{@link paintTextbox}: draws the sunken box, its text, and any edit selection at `x`, in `font`. `elementPadding` matches {@link layoutTextBoxFocusable}'s rect, for focus comparison. */
-    private paintTextBox(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, focusedStyle: ResolvedStateStyle, editingStyle: ResolvedStateStyle, disabled: boolean, focusedRect: BoundingRect | null, text: string, editing: boolean, editCursorPos: number | null, editSelection: {start: number; end: number} | null, selectionStyle: ResolvedStateStyle, font: string, fontSize: number, elementPadding: ResolvedSpacing): void {
-        const rect = expandRect({x, y, w: width, h: fontSize}, elementPadding);
+    /** Shared paint core for {@link paintNumber}/{@link paintTextbox}: draws the sunken box, its text, and any edit selection at `x`, in `font`. `elementPadding` (matching {@link layoutTextBoxFocusable}'s rect) grows the drawn box outward around the tight `x`/`y`/`width`/`height` content, insetting the text; the scroll/clip region extends to the grown box's edge, so more text is visible. */
+    private paintTextBox(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, focusedStyle: ResolvedStateStyle, editingStyle: ResolvedStateStyle, disabled: boolean, focusedRect: BoundingRect | null, text: string, editing: boolean, editCursorPos: number | null, editSelection: {start: number; end: number} | null, selectionStyle: ResolvedStateStyle, font: string, fontSize: number, height: number, elementPadding: ResolvedSpacing): void {
+        const rect = expandRect({x, y, w: width, h: height}, elementPadding);
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !disabled;
 
-        const boxHeight = fontSize - 4;
-        const boxY = y + (fontSize - boxHeight) / 2;
+        const boxX = rect.x;
+        const boxY = rect.y;
+        const boxWidth = rect.w;
+        const boxHeight = rect.h;
+        const inset = (height - fontSize) / 2;
 
         // focusedStyle's background is a halo, shown whenever focused (editing too).
         if (focused && focusedStyle.background) {
             const pad = this.defaults.focusHighlightPadding;
             ctx.fillStyle = focusedStyle.background;
-            ctx.fillRect(x - pad, boxY - pad, width + pad * 2, boxHeight + pad * 2);
+            ctx.fillRect(boxX - pad, boxY - pad, boxWidth + pad * 2, boxHeight + pad * 2);
         }
 
-        this.theme.drawBox(ctx, x, boxY, width, boxHeight, "sunken");
+        this.theme.drawBox(ctx, boxX, boxY, boxWidth, boxHeight, "sunken");
 
         if (editing && editingStyle.background) {
-            this.fillBoxInterior(ctx, x, boxY, width, boxHeight, editingStyle.background);
+            this.fillBoxInterior(ctx, boxX, boxY, boxWidth, boxHeight, editingStyle.background);
         }
 
         const textColor = editing ? (editingStyle.foreground ?? this.theme.boxForeground) : this.theme.boxForeground;
 
         ctx.font = font;
-        const padding = this.defaults.numberInputPadding;
+        const padding = this.theme.boxDimensionsFor(0, fontSize).w / 2;
+        // x/y, not boxX/boxY - the text stays put, so the grown box insets it.
         const textX = x + padding;
-        const textY = y;
-        const innerWidth = Math.max(0, width - padding * 2);
+        const textY = y + inset;
+        const innerWidth = Math.max(0, boxX + boxWidth - padding - textX);
 
         // Content wider than the box scrolls horizontally to keep the caret
         // in view - `scrollX` is recomputed fresh each frame straight from
@@ -1241,7 +1265,7 @@ export class InteractableDisplay extends Display {
             const selStartX = this.measureTextWidth(ctx, text.slice(0, editSelection.start), font);
             const selEndX = this.measureTextWidth(ctx, text.slice(0, editSelection.end), font);
             ctx.fillStyle = selectionStyle.background ?? this.theme.boxForeground;
-            ctx.fillRect(textX - scrollX + selStartX, boxY + 2, selEndX - selStartX, boxHeight - 4);
+            ctx.fillRect(textX - scrollX + selStartX, textY, selEndX - selStartX, fontSize);
 
             ctx.fillStyle = textColor;
             ctx.fillText(text.slice(0, editSelection.start), textX - scrollX, textY);
@@ -1255,32 +1279,32 @@ export class InteractableDisplay extends Display {
         }
 
         if (editing && this.isCursorBlinkVisible()) {
-            ctx.fillRect(textX - scrollX + caretX + 1, boxY + 2, 1, boxHeight - 4);
+            ctx.fillRect(textX - scrollX + caretX + 1, textY, 1, fontSize);
         }
 
         ctx.restore();
 
         if (disabled) {
-            this.paintDisabledOverlay(ctx, {x, y: boxY, w: width, h: boxHeight});
+            this.paintDisabledOverlay(ctx, {x: boxX, y: boxY, w: boxWidth, h: boxHeight});
         }
 
-        this.strokeDebugRect(ctx, {x, y: boxY, w: width, h: boxHeight}, CONTENT_DEBUG_COLOR);
+        this.strokeDebugRect(ctx, {x: boxX, y: boxY, w: boxWidth, h: boxHeight}, CONTENT_DEBUG_COLOR);
     }
 
     /** Draws a resolved number element's box at `x`; `value` is stringified for display. `padding` matches {@link layoutNumber}'s rect, for focus comparison. */
     private paintNumber(ctx: CanvasRenderingContext2D, element: ResolvedNumberElement, x: number, y: number, focusedRect: BoundingRect | null, editText: string | null, editCursorPos: number | null, editSelection: {start: number; end: number} | null, padding: ResolvedSpacing): void {
-        const focused = focusedRect !== null && rectsEqual(expandRect({x, y, w: element.width, h: element.fontSize}, padding), focusedRect) && !element.disabled;
+        const focused = focusedRect !== null && rectsEqual(expandRect({x, y, w: element.width, h: element.height}, padding), focusedRect) && !element.disabled;
         const editing = focused && editText !== null;
         const text = editing ? editText : String(element.value);
-        this.paintTextBox(ctx, x, y, element.width, element.focusedStyle, element.editingStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle, element.font, element.fontSize, padding);
+        this.paintTextBox(ctx, x, y, element.width, element.focusedStyle, element.editingStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle, element.font, element.fontSize, element.height, padding);
     }
 
     /** Draws a resolved textbox element's box at `x`; the value is shown as-is. `padding` matches {@link layoutTextbox}'s rect, for focus comparison. */
     private paintTextbox(ctx: CanvasRenderingContext2D, element: ResolvedTextboxElement, x: number, y: number, focusedRect: BoundingRect | null, editText: string | null, editCursorPos: number | null, editSelection: {start: number; end: number} | null, padding: ResolvedSpacing): void {
-        const focused = focusedRect !== null && rectsEqual(expandRect({x, y, w: element.width, h: element.fontSize}, padding), focusedRect) && !element.disabled;
+        const focused = focusedRect !== null && rectsEqual(expandRect({x, y, w: element.width, h: element.height}, padding), focusedRect) && !element.disabled;
         const editing = focused && editText !== null;
         const text = editing ? editText : element.value;
-        this.paintTextBox(ctx, x, y, element.width, element.focusedStyle, element.editingStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle, element.font, element.fontSize, padding);
+        this.paintTextBox(ctx, x, y, element.width, element.focusedStyle, element.editingStyle, element.disabled, focusedRect, text, editing, editCursorPos, editSelection, element.selectionStyle, element.font, element.fontSize, element.height, padding);
     }
 
     /** Computes a resolved button's on-screen rect at its own fixed size - `x`/`y` are already its final box origin (see {@link verticalOffset} for standalone alignment). */
@@ -1295,27 +1319,26 @@ export class InteractableDisplay extends Display {
         return this.layoutButtonBox(element, x, boxY, ZERO_SPACING);
     }
 
-    /** Draws a resolved button's bevelled box and label at its own fixed size: raised at rest, sunken while `pressedRect` matches, highlighted when `focusedRect` matches. `x`/`y` are already its final box origin; `padding` matches {@link layoutButtonBox}'s rect, for focus/press comparison. */
+    /** Draws a resolved button's bevelled box and label, padding included - `x`/`y` are its tight content origin; `padding` (matching {@link layoutButtonBox}'s rect) grows the drawn box outward from there, so the box itself (not just its clickable bounds) gets bigger. Raised at rest, sunken while `pressedRect` matches, highlighted when `focusedRect` matches. */
     private paintButtonBox(ctx: CanvasRenderingContext2D, element: ResolvedButtonElement, x: number, y: number, focusedRect: BoundingRect | null, pressedRect: BoundingRect | null, padding: ResolvedSpacing): void {
-        const boxY = y;
-        const tightRect: BoundingRect = {x, y: boxY, w: element.width, h: element.height};
-        const rect = expandRect(tightRect, padding);
+        const rect = expandRect({x, y, w: element.width, h: element.height}, padding);
         const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
         const pressed = pressedRect !== null && rectsEqual(rect, pressedRect) && !element.disabled;
 
-        this.theme.drawButtonBox(ctx, x, boxY, element.width, element.height, pressed);
-        this.theme.drawButtonFocus(ctx, x, boxY, element.width, element.height, focused ? element.focusedStyle : {foreground: undefined, background: undefined});
+        this.theme.drawButtonBox(ctx, rect.x, rect.y, rect.w, rect.h, pressed);
+        this.theme.drawButtonFocus(ctx, rect.x, rect.y, rect.w, rect.h, focused ? element.focusedStyle : {foreground: undefined, background: undefined});
 
         const offset = pressed ? this.defaults.buttonPressedTextOffset : 0;
         const labelHeight = element.fontSize;
         const labelWidth = element.width - this.defaults.buttonPaddingX * 2;
+        // x/y, not rect.x/rect.y - the label stays put, so padding growing the box around it is what insets it.
         const textX = x + this.defaults.buttonPaddingX + offset;
-        const textY = boxY + this.defaults.buttonPaddingY + offset;
+        const textY = y + this.defaults.buttonPaddingY + offset;
         this.drawLine(ctx, element.runs, textX, textY, labelHeight, focused ? element.focusedStyle.foreground : undefined);
         this.strokeDebugRect(ctx, {x: textX, y: textY, w: labelWidth, h: labelHeight}, CONTENT_DEBUG_COLOR);
 
         if (element.disabled) {
-            this.paintDisabledOverlay(ctx, tightRect);
+            this.paintDisabledOverlay(ctx, rect);
         }
     }
 
@@ -1347,10 +1370,9 @@ export class InteractableDisplay extends Display {
         this.strokeDebugRect(ctx, {x, y, w: element.width, h: element.fontSize}, CONTENT_DEBUG_COLOR);
     }
 
-    /** The closed box's own visual rect at `(x, y)` - shorter than the line's overall height when other elements need a bigger font. `paintSelect` and the dropdown both anchor off this, not the coarser line-height focusable rect. */
-    private selectBoxRect(element: ResolvedSelectElement, x: number, y: number): BoundingRect {
-        const boxHeight = element.closedBoxFontSize - 4;
-        return {x, y: y + (element.closedBoxFontSize - boxHeight) / 2, w: element.width, h: boxHeight};
+    /** The closed box's own visual rect - `{x, y}` is the tight content origin; `padding` (matching {@link layoutSelect}'s rect) grows the box outward from there, same as a button/textbox. `paintSelect` and the dropdown both anchor off this, not the coarser line-height focusable rect. */
+    private selectBoxRect(element: ResolvedSelectElement, x: number, y: number, padding: ResolvedSpacing): BoundingRect {
+        return expandRect({x, y, w: element.width, h: element.height}, padding);
     }
 
     /** Computes a resolved select element's on-screen rect. It opens via {@link handleKeyDown}/clicking, not `activate`. */
@@ -1364,43 +1386,44 @@ export class InteractableDisplay extends Display {
                 onSelect: element.onSelect,
                 rowAmbientStyle: element.rowAmbientStyle,
                 rowHeight: element.rowFontSize,
-                boxRect: this.selectBoxRect(element, x, y),
+                boxRect: this.selectBoxRect(element, x, y, padding),
             },
             disabled: element.disabled,
         }];
     }
 
-    /** Draws a resolved select element's closed combo box at `x`: a themed box showing the selected option's label, plus a dropdown-arrow button. `padding` matches {@link layoutSelect}'s rect, for focus/open comparison. */
+    /** Draws a resolved select element's closed combo box: a themed box (padding included, so the box itself gets bigger, not just its clickable bounds) showing the selected option's label, plus a dropdown-arrow button. `padding` matches {@link layoutSelect}'s rect, for focus/open comparison. */
     private paintSelect(ctx: CanvasRenderingContext2D, element: ResolvedSelectElement, x: number, y: number, focusedRect: BoundingRect | null, open: boolean, padding: ResolvedSpacing): void {
-        const rect = expandRect({x, y, w: element.width, h: element.rowFontSize}, padding);
-        const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !element.disabled;
+        const rowRect = expandRect({x, y, w: element.width, h: element.rowFontSize}, padding);
+        const focused = focusedRect !== null && rectsEqual(rowRect, focusedRect) && !element.disabled;
 
         const selected = element.options[element.selectedIndex];
-        const {y: boxY, h: boxHeight} = this.selectBoxRect(element, x, y);
+        const {x: boxX, y: boxY, w: boxWidth, h: boxHeight} = this.selectBoxRect(element, x, y, padding);
         const arrowWidth = this.defaults.selectArrowWidth;
-        const textBoxWidth = element.width - arrowWidth;
+        const textBoxWidth = boxWidth - arrowWidth;
 
         const stateStyle = open ? element.expandedStyle : (focused ? element.focusedStyle : null);
         const foreground = selected?.selectedStyle?.foreground ?? stateStyle?.foreground;
         const background = selected?.selectedStyle?.background ?? stateStyle?.background;
 
-        this.theme.drawBox(ctx, x, boxY, textBoxWidth, boxHeight, "sunken");
+        this.theme.drawBox(ctx, boxX, boxY, textBoxWidth, boxHeight, "sunken");
 
         if (background) {
-            this.fillBoxInterior(ctx, x, boxY, textBoxWidth, boxHeight, background);
+            this.fillBoxInterior(ctx, boxX, boxY, textBoxWidth, boxHeight, background);
         }
 
         if (selected) {
+            // x/y, not boxX/boxY - the label stays put, so the grown box insets it.
             this.drawLine(ctx, element.closedBoxLabelRuns, x + this.defaults.selectPadding, y, boxHeight, foreground);
         }
 
-        this.theme.drawSelectArrowButton(ctx, x + textBoxWidth, boxY, arrowWidth, boxHeight, open);
+        this.theme.drawSelectArrowButton(ctx, boxX + textBoxWidth, boxY, arrowWidth, boxHeight, open);
 
         if (element.disabled) {
-            this.paintDisabledOverlay(ctx, {x, y: boxY, w: element.width, h: boxHeight});
+            this.paintDisabledOverlay(ctx, {x: boxX, y: boxY, w: boxWidth, h: boxHeight});
         }
 
-        this.strokeDebugRect(ctx, {x, y: boxY, w: element.width, h: boxHeight}, CONTENT_DEBUG_COLOR);
+        this.strokeDebugRect(ctx, {x: boxX, y: boxY, w: boxWidth, h: boxHeight}, CONTENT_DEBUG_COLOR);
     }
 
     /**
