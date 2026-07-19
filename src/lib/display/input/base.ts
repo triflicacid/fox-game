@@ -1,4 +1,5 @@
 import {Alignment, TextStyle} from "../text-style";
+import {Spacing} from "../spacing";
 
 /**
  * Fields shared by every {@link Input} kind.
@@ -17,4 +18,8 @@ export interface InputBase {
     hidden?: boolean;
     /** Vertical alignment within the line. Defaults to `"top"`. */
     align?: Alignment;
+    /** Space inside this input's own box, between its content and its clickable/focusable bounds. Defaults to `0`. */
+    padding?: Spacing;
+    /** Space outside this input's own box, pushing neighbouring elements/lines away. Defaults to `0`. */
+    margin?: Spacing;
 }

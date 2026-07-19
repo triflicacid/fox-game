@@ -1,3 +1,5 @@
+import {ResolvedSpacing} from "./spacing";
+
 /** An axis-aligned rectangular region an element occupies on screen, in canvas pixels. */
 export interface BoundingRect {
     /** Left edge, in pixels. */
@@ -44,4 +46,9 @@ export function unionRect(a: BoundingRect, b: BoundingRect): BoundingRect {
         w: Math.max(a.x + a.w, b.x + b.w) - x,
         h: Math.max(a.y + a.h, b.y + b.h) - y,
     };
+}
+
+/** `rect` grown outward by `spacing` (`[top, right, bottom, left]`) on each side - shrinks it instead if `spacing`'s values are negative. */
+export function expandRect(rect: BoundingRect, [top, right, bottom, left]: ResolvedSpacing): BoundingRect {
+    return {x: rect.x - left, y: rect.y - top, w: rect.w + left + right, h: rect.h + top + bottom};
 }

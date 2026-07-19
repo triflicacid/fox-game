@@ -22,7 +22,7 @@ export const POPUP_CONFIG = {
     /** Default font size for a line's segments and for buttons, in canvas pixels. */
     fontSize: 14,
     /** Vertical gap placed between consecutive lines of text (and before the button row), in canvas pixels. */
-    lineSpacing: 20,
+    lineSpacing: 6,
 
     /** Horizontal gap between buttons in the button row, in canvas pixels. */
     buttonGap: 16,
