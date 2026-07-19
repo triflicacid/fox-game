@@ -1,4 +1,4 @@
-import {TextStyle} from "../text-style";
+import {Alignment, TextStyle} from "../text-style";
 
 /**
  * Fields shared by every {@link Input} kind.
@@ -15,4 +15,6 @@ export interface InputBase {
     disabled?: boolean;
     /** If `true`, this input acts as if absent entirely. Defaults to `false`. */
     hidden?: boolean;
+    /** Vertical alignment within the line. Defaults to `"top"`. */
+    align?: Alignment;
 }

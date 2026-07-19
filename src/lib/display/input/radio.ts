@@ -1,4 +1,4 @@
-import {TextSegment, TextStyle} from "../text-style";
+import {Alignment, TextSegment, TextStyle} from "../text-style";
 import {InputBase} from "./base";
 
 /** A single selectable option within a {@link RadioInput}. */
@@ -7,6 +7,8 @@ export interface RadioOption {
     key: string;
     /** Content shown as this option's label. */
     content: TextSegment[];
+    /** Vertical alignment within the radio's own bounding box, independent of other options. Defaults to `"top"`. */
+    align?: Alignment;
     /** Style overlaid on this option while focused. Falls back to the owning {@link RadioInput}'s `focusedStyle`, then the theme. */
     focusedStyle?: TextStyle;
     /** Style overlaid on this option while it is the selected one. Falls back to the owning {@link RadioInput}'s `selectedStyle`. */

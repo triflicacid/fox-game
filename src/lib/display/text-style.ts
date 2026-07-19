@@ -36,6 +36,9 @@ export interface TextStyle {
     fontSizeDelta?: number | ((size: number) => number);
 }
 
+/** Where an item sits, y-axis wise, within its line's height when that's taller than the item's own. */
+export type Alignment = "top" | "centre" | "bottom";
+
 /**
  * A styled run of text or a nested list of further segments.
  */
@@ -46,4 +49,6 @@ export interface TextSegment {
     style?: TextStyle;
     /** If `true`, this segment (and any children) acts as if absent entirely. Defaults to `false`. */
     hidden?: boolean;
+    /** Vertical alignment within the line, only meaningful on a top-level `DisplayLine` item. Defaults to `"top"`. */
+    align?: Alignment;
 }

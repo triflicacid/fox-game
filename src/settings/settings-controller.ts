@@ -67,26 +67,27 @@ export class SettingsController extends PopupController {
     protected buildContent(): DisplayLine[] {
         const lines: DisplayLine[] = [
             [
-                {content: "Camera follow mode: "},
+                {content: "Camera follow mode: ", align: 'centre'},
                 {
                     kind: "radio",
                     selected: this.getCameraFollowMode() ?? "",
                     onSelect: (key) => this.setCameraFollowMode(key as CameraFollowMode),
                     options: [
                         {key: "edge", content: [{content: "Edge"}]},
-                        {key: "center", content: [{content: "Centre"}]},
+                        {key: "center", content: [{content: "Centre", style: {fontSizeDelta:x=>x*2}}]},
                     ],
                 },
             ],
             [
-                {kind: "checkbox", checked: this.getSpectating(), onToggle: this.setSpectating, content: [{content: "Spectator mode"}], focusedStyle:{fontSizeDelta:x=>x*2, format: TextFormat.BOLD | TextFormat.UPPERCASE}},
+                {content: "Hello!", style: {fontSizeDelta:x=>x*2}},
+                {kind: "checkbox", align: 'bottom', checked: this.getSpectating(), onToggle: this.setSpectating, content: [{content: "Spectator mode"}]},
             ],
             [
                 {kind: "checkbox", checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: [{content: "Debug mode"}]},
             ],
             [
                 {content: "Target FPS: "},
-                {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps, style: {fontSizeDelta:x=>x*2}},
+                {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
             ],
         ];
 
@@ -100,8 +101,7 @@ export class SettingsController extends PopupController {
                     options: [
                         {key: "", content: [{content: "None"}]},
                         ...this.getNoiseFieldNames().map((name) => ({key: name, content: [{content: name}]})),
-                    ],
-                    focusedStyle: {fontSizeDelta:x=>x*2, format: TextFormat.BOLD | TextFormat.UPPERCASE}
+                    ]
                 },
             ]);
             lines.push([
