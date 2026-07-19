@@ -74,19 +74,18 @@ export class SettingsController extends PopupController {
                     onSelect: (key) => this.setCameraFollowMode(key as CameraFollowMode),
                     options: [
                         {key: "edge", content: [{content: "Edge"}]},
-                        {key: "center", content: [{content: "Centre", style: {fontSizeDelta:x=>x*2}}]},
+                        {key: "center", content: [{content: "Centre"}]},
                     ],
                 },
             ],
             [
-                {content: "Hello!", style: {fontSizeDelta:x=>x*2}},
-                {kind: "checkbox", align: 'bottom', checked: this.getSpectating(), onToggle: this.setSpectating, content: [{content: "Spectator mode"}]},
+                {kind: "checkbox", checked: this.getSpectating(), onToggle: this.setSpectating, content: [{content: "Spectator mode"}]},
             ],
             [
                 {kind: "checkbox", checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: [{content: "Debug mode"}]},
             ],
             [
-                {content: "Target FPS: "},
+                {content: "Target FPS: ", align: 'centre'},
                 {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
             ],
         ];
