@@ -67,7 +67,7 @@ export class SettingsController extends PopupController {
     protected buildContent(): DisplayLine[] {
         const lines: DisplayLine[] = [
             [
-                {content: "Camera follow mode: ", align: 'centre'},
+                {content: "Camera follow mode: "},
                 {
                     kind: "radio",
                     selected: this.getCameraFollowMode() ?? "",
@@ -85,8 +85,8 @@ export class SettingsController extends PopupController {
                 {kind: "checkbox", checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: [{content: "Debug mode"}]},
             ],
             [
-                {content: "Target FPS: "},
-                {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
+                {content: "Target FPS: ", padding: 4},
+                {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps, padding: 5},
             ],
         ];
 

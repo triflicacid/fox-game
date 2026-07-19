@@ -85,6 +85,11 @@ class Win98Theme extends ChromeTheme {
         }
     }
 
+    public override boxDimensionsFor(contentWidth: number, contentHeight: number): {w: number; h: number} {
+        // +2 clears drawSunkenBox's own 1px bevel edge on each side.
+        return {w: contentWidth + 2, h: contentHeight + 2};
+    }
+
     public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean, foreground?: string, background?: string): void {
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);

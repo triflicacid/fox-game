@@ -30,7 +30,6 @@ const INTERACTABLE_DEFAULTS: InteractableDisplayDefaults = {
     checkboxSize: POPUP_CONFIG.checkboxSize,
     checkboxGap: POPUP_CONFIG.checkboxGap,
     numberInputWidth: POPUP_CONFIG.numberInputWidth,
-    numberInputPadding: POPUP_CONFIG.numberInputPadding,
     cursorBlinkIntervalMs: POPUP_CONFIG.cursorBlinkIntervalMs,
     selectPadding: POPUP_CONFIG.selectPadding,
     selectArrowWidth: POPUP_CONFIG.selectArrowWidth,

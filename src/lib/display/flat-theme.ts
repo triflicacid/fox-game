@@ -39,6 +39,11 @@ class FlatTheme extends ChromeTheme {
         drawOutline(ctx, x, y, w, h, BORDER_COLOR);
     }
 
+    public override boxDimensionsFor(contentWidth: number, contentHeight: number): {w: number; h: number} {
+        // +2 clears drawOutline's own 1px stroke on each side.
+        return {w: contentWidth + 2, h: contentHeight + 2};
+    }
+
     public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean, foreground?: string, background?: string): void {
         if (background) {
             ctx.beginPath();
