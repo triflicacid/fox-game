@@ -51,12 +51,13 @@ interface ResolvedTextElement {
     width: number;
 }
 
-/** A resolved, measured {@link HrInput}: a plain bar, `width` wide and `thickness` tall, filled with `color`. Never focusable, so it sits outside {@link ResolvedFocusableElement} rather than {@link ResolvedInputElement}. */
+/** A resolved, measured {@link HrInput}: a plain bar, `width` wide and `thickness` tall. Never focusable, so it sits outside {@link ResolvedFocusableElement} rather than {@link ResolvedInputElement}. */
 interface ResolvedHrElement {
     kind: "hr";
     width: number;
     thickness: number;
-    color: string;
+    /** Explicit line-colour override (a flat fill), or `undefined` to defer to the active {@link ChromeTheme}'s own `drawLine` (e.g. Win98's bevelled groove). */
+    color: string | undefined;
     /** Fills the element's content+padding rect behind the bar, or `undefined` for none. */
     background: string | undefined;
     /** See {@link HrInput.length}. */
@@ -838,7 +839,7 @@ export class InteractableDisplay extends Display {
             kind: "hr",
             width: 0,
             thickness: item.thickness ?? 1,
-            color: item.style?.foreground ?? this.theme.boxForeground,
+            color: item.style?.foreground,
             background: item.style?.background,
             length: item.length ?? "max",
         };
@@ -1019,7 +1020,7 @@ export class InteractableDisplay extends Display {
         return rect.y + (rect.h - size) / 2;
     }
 
-    /** Draws a resolved hr element's `background` (if set) across its content+padding rect, then its bar: a solid `element.thickness`-tall, `element.width`-wide rect in `element.color`, from `(x, y)`. */
+    /** Draws a resolved hr element's `background` (if set) across its content+padding rect, then its bar: `element.color` as a flat fill when set, otherwise the active theme's own `drawLine` (e.g. Win98's bevelled groove). */
     private paintHr(ctx: CanvasRenderingContext2D, element: ResolvedHrElement, x: number, y: number, padding: ResolvedSpacing): void {
         if (element.background) {
             const rect = expandRect({x, y, w: element.width, h: element.thickness}, padding);
@@ -1027,8 +1028,13 @@ export class InteractableDisplay extends Display {
             ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
         }
 
-        ctx.fillStyle = element.color;
-        ctx.fillRect(x, y, element.width, element.thickness);
+        if (element.color) {
+            ctx.fillStyle = element.color;
+            ctx.fillRect(x, y, element.width, element.thickness);
+        } else {
+            const midY = y + element.thickness / 2;
+            this.theme.drawLine(ctx, x, midY, x + element.width, midY, element.thickness);
+        }
     }
 
     /** Draws a checkbox's box (themed, tinted by `style`'s background) plus a tick mark (coloured by `style`'s foreground) when `checked`, centred vertically within `rect` - the same rect its focus/selection highlight fills. */

@@ -120,6 +120,38 @@ class Win98Theme extends ChromeTheme {
         }
     }
 
+    /** Horizontal/vertical lines get a bevelled groove (shadow band then highlight band, splitting `thickness`); a diagonal line has no bevel meaning, so it falls back to a plain shadow-coloured stroke. */
+    public override drawLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, thickness: number): void {
+        if (y1 === y2) {
+            const x = Math.min(x1, x2);
+            const w = Math.abs(x2 - x1);
+            const y = y1 - thickness / 2;
+            const shadowHeight = Math.ceil(thickness / 2);
+            ctx.fillStyle = BORDER_SHADOW_COLOR;
+            ctx.fillRect(x, y, w, shadowHeight);
+            ctx.fillStyle = BORDER_HIGHLIGHT_COLOR;
+            ctx.fillRect(x, y + shadowHeight, w, thickness - shadowHeight);
+            return;
+        }
+        if (x1 === x2) {
+            const y = Math.min(y1, y2);
+            const h = Math.abs(y2 - y1);
+            const x = x1 - thickness / 2;
+            const shadowWidth = Math.ceil(thickness / 2);
+            ctx.fillStyle = BORDER_SHADOW_COLOR;
+            ctx.fillRect(x, y, shadowWidth, h);
+            ctx.fillStyle = BORDER_HIGHLIGHT_COLOR;
+            ctx.fillRect(x + shadowWidth, y, thickness - shadowWidth, h);
+            return;
+        }
+        ctx.strokeStyle = BORDER_SHADOW_COLOR;
+        ctx.lineWidth = thickness;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+    }
+
     public override drawSelectArrowButton(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, open: boolean): void {
         ctx.fillStyle = SURFACE_COLOR;
         ctx.fillRect(x, y, w, h);

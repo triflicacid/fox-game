@@ -70,6 +70,15 @@ class FlatTheme extends ChromeTheme {
         }
     }
 
+    public override drawLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, thickness: number): void {
+        ctx.strokeStyle = BORDER_COLOR;
+        ctx.lineWidth = thickness;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+    }
+
     public override drawSelectArrowButton(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, open: boolean): void {
         const background = open ? BORDER_COLOR : SURFACE_COLOR;
         const foreground = open ? SURFACE_COLOR : BORDER_COLOR;
