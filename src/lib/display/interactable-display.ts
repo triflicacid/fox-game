@@ -2,7 +2,7 @@ import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from ".
 import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, Input, NumberInput, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
 import {ResolvedStateStyle, resolveStateStyle} from "./state-style";
-import {TextSegment, TextStyle} from "./text-style";
+import {Alignment, TextSegment, TextStyle} from "./text-style";
 import {BoundingRect, pointInRect, rectsEqual, unionRect} from "./bounding-rect";
 import {copyToClipboard, readFromClipboard} from "../../util";
 
@@ -52,6 +52,8 @@ interface ResolvedRadioOption {
     labelWidth: number;
     /** Largest font size used in the label, in canvas pixels - for vertically centering the marker/highlight against the label as actually drawn. */
     fontSize: number;
+    /** This option's own vertical alignment within the radio's bounding box, independent of other options. */
+    align: Alignment;
     onSelect: (key: string) => void;
     focusedStyle: ResolvedStateStyle;
     /** Style while this is the selected option, or `null` for none. */
@@ -185,7 +187,13 @@ interface ResolvedSelectElement {
 /** Every kind of resolved, measured input element a line can contain - mirrors {@link Input}. */
 type ResolvedInputElement = ResolvedRadioElement | ResolvedCheckboxElement | ResolvedNumberElement | ResolvedTextboxElement | ResolvedButtonElement | ResolvedSelectElement;
 
-type ResolvedElement = ResolvedTextElement | ResolvedInputElement;
+/** A line item's own font size and requested vertical alignment - attached uniformly in {@link InteractableDisplay.resolveElements}, not by each individual `resolve*`. */
+interface LineItemMeta {
+    fontSize: number;
+    align: Alignment;
+}
+
+type ResolvedElement = (ResolvedTextElement | ResolvedInputElement) & LineItemMeta;
 
 /** A line's resolved elements, plus its measured layout - see {@link InteractableDisplay.resolveElements}. */
 export interface ResolvedElementLine {
@@ -525,6 +533,7 @@ export class InteractableDisplay extends Display {
                 labelRuns: measured,
                 labelWidth,
                 fontSize: labelFontSize,
+                align: option.align ?? "top",
                 onSelect: item.onSelect,
                 focusedStyle: this.resolveFocusedStyle(item.focusedStyle, option.focusedStyle),
                 selectedStyle,
@@ -778,13 +787,15 @@ export class InteractableDisplay extends Display {
      * flatten to styled runs; inputs resolve via {@link resolveInput}. A
      * `hidden` input contributes nothing, as if absent. The line's overall
      * height is at least this display's minimum line height, but grows to
-     * fit whichever element uses the largest font.
+     * fit whichever element uses the largest font - each item's own
+     * `align` then decides where it sits within that height.
      */
     public resolveElements(ctx: CanvasRenderingContext2D, line: DisplayLine): ResolvedElementLine {
         let width = 0;
         let maxFontSize = 0;
 
         const elements: ResolvedElement[] = line.flatMap((item): ResolvedElement[] => {
+            const align = item.align ?? "top";
             if (isInput(item)) {
                 if (item.hidden) {
                     return [];
@@ -792,13 +803,13 @@ export class InteractableDisplay extends Display {
                 const {element, maxFontSize: inputFontSize} = this.resolveInput(ctx, item);
                 maxFontSize = Math.max(maxFontSize, inputFontSize);
                 width += element.width;
-                return [element];
+                return [{...element, fontSize: inputFontSize, align}];
             }
 
             const {runs: measured, width: textWidth, maxFontSize: textFontSize} = this.resolveLine(ctx, [item]);
             maxFontSize = Math.max(maxFontSize, textFontSize);
             width += textWidth;
-            return [{kind: "text", runs: measured, width: textWidth}];
+            return [{kind: "text", runs: measured, width: textWidth, fontSize: textFontSize, align}];
         });
 
         return {elements, width, height: this.lineHeightFor(maxFontSize)};
@@ -824,8 +835,15 @@ export class InteractableDisplay extends Display {
         ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
     }
 
-    /** Draws a checkbox's box (themed, tinted by `style`'s background) plus a tick mark (coloured by `style`'s foreground) when `checked`. */
-    private drawCheckboxBox(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, checked: boolean, style: ResolvedStateStyle): void {
+    /** Top-left y a `size`-tall box centres at vertically within `rect`. */
+    private centeredBoxY(rect: BoundingRect, size: number): number {
+        return rect.y + (rect.h - size) / 2;
+    }
+
+    /** Draws a checkbox's box (themed, tinted by `style`'s background) plus a tick mark (coloured by `style`'s foreground) when `checked`, centred vertically within `rect` - the same rect its focus/selection highlight fills. */
+    private drawCheckboxBox(ctx: CanvasRenderingContext2D, rect: BoundingRect, size: number, checked: boolean, style: ResolvedStateStyle): void {
+        const x = rect.x;
+        const y = this.centeredBoxY(rect, size);
         this.theme.drawBox(ctx, x, y, size, size, "sunken");
 
         if (style.background) {
@@ -843,46 +861,56 @@ export class InteractableDisplay extends Display {
         }
     }
 
-    /** Computes a resolved radio element's options' on-screen rects, walking left-to-right from `x`. */
+    /** The radio group's own natural height - the same value its {@link LineItemMeta.fontSize} was derived from in {@link resolveRadio} - used as the box each option's own `align` positions itself within. */
+    private radioOwnHeight(element: ResolvedRadioElement): number {
+        return this.lineHeightFor(Math.max(0, ...element.options.map((option) => option.fontSize)));
+    }
+
+    /** Computes a resolved radio element's options' on-screen rects, walking left-to-right from `x`. Each option's own `align` positions it within the radio's own natural height, independent of its siblings. */
     private layoutRadio(element: ResolvedRadioElement, x: number, y: number, height: number): FocusableElement[] {
         const focusables: FocusableElement[] = [];
+        const ownHeight = this.radioOwnHeight(element);
         let elemX = x;
         element.options.forEach((option, i) => {
             if (i > 0) {
                 elemX += this.defaults.radioOptionGap;
             }
             const optionWidth = this.radioOptionContentWidth(option.labelWidth);
-            focusables.push({rect: {x: elemX, y, w: optionWidth, h: height}, activate: () => option.onSelect(option.key), disabled: option.disabled});
+            const optionY = y + this.elementVerticalOffset(option, ownHeight);
+            focusables.push({rect: {x: elemX, y: optionY, w: optionWidth, h: height}, activate: () => option.onSelect(option.key), disabled: option.disabled});
             elemX += optionWidth;
         });
         return focusables;
     }
 
-    /** Draws a resolved radio element's marker circle plus label per option, walking left-to-right from `x`. */
+    /** Draws a resolved radio element's marker circle plus label per option, walking left-to-right from `x`. Each option's own `align` positions it within the radio's own natural height, independent of its siblings. */
     private paintRadio(ctx: CanvasRenderingContext2D, element: ResolvedRadioElement, x: number, y: number, height: number, focusedRect: BoundingRect | null): void {
+        const ownHeight = this.radioOwnHeight(element);
         let elemX = x;
         element.options.forEach((option, i) => {
             if (i > 0) {
                 elemX += this.defaults.radioOptionGap;
             }
             const optionWidth = this.radioOptionContentWidth(option.labelWidth);
-            const rect: BoundingRect = {x: elemX, y, w: optionWidth, h: height};
+            const optionY = y + this.elementVerticalOffset(option, ownHeight);
+            const rect: BoundingRect = {x: elemX, y: optionY, w: optionWidth, h: height};
             const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !option.disabled;
             const active = focused ? option.focusedStyle : (option.selected ? option.selectedStyle : null);
             const markerStyle = option.selected ? option.inputSelectedStyle : option.inputStyle;
 
+            const highlightRect: BoundingRect = {x: elemX, y: optionY, w: optionWidth, h: option.fontSize};
             if (active?.background) {
                 ctx.fillStyle = active.background;
-                ctx.fillRect(elemX, y, optionWidth, option.fontSize);
+                ctx.fillRect(highlightRect.x, highlightRect.y, highlightRect.w, highlightRect.h);
             }
 
             const markerRadius = this.defaults.radioMarkerSize / 2;
             const markerCx = elemX + markerRadius;
-            const markerCy = y + option.fontSize / 2;
+            const markerCy = highlightRect.y + highlightRect.h / 2;
             this.theme.drawRadioMarker(ctx, markerCx, markerCy, markerRadius, option.selected, markerStyle.foreground, markerStyle.background);
 
             const labelX = elemX + this.defaults.radioMarkerSize + this.defaults.radioMarkerGap;
-            this.drawLine(ctx, option.labelRuns, labelX, y, height, active?.foreground);
+            this.drawLine(ctx, option.labelRuns, labelX, optionY, height, active?.foreground);
 
             if (option.disabled) {
                 this.paintDisabledCircleOverlay(ctx, markerCx, markerCy, markerRadius);
@@ -904,18 +932,19 @@ export class InteractableDisplay extends Display {
         const active = focused ? element.focusedStyle : (element.checked ? element.selectedStyle : null);
         const boxStyle = element.checked ? element.inputSelectedStyle : element.inputStyle;
 
+        const highlightRect: BoundingRect = {x, y, w: element.width, h: element.fontSize};
         if (active?.background) {
             ctx.fillStyle = active.background;
-            ctx.fillRect(x, y, element.width, element.fontSize);
+            ctx.fillRect(highlightRect.x, highlightRect.y, highlightRect.w, highlightRect.h);
         }
 
-        const boxY = y + (element.fontSize - this.defaults.checkboxSize) / 2;
-        this.drawCheckboxBox(ctx, x, boxY, this.defaults.checkboxSize, element.checked, boxStyle);
+        this.drawCheckboxBox(ctx, highlightRect, this.defaults.checkboxSize, element.checked, boxStyle);
 
         const labelX = x + this.defaults.checkboxSize + this.defaults.checkboxGap;
         this.drawLine(ctx, element.labelRuns, labelX, y, height, active?.foreground);
 
         if (element.disabled) {
+            const boxY = this.centeredBoxY(highlightRect, this.defaults.checkboxSize);
             this.paintDisabledOverlay(ctx, {x, y: boxY, w: this.defaults.checkboxSize, h: this.defaults.checkboxSize});
         }
     }
@@ -1273,6 +1302,19 @@ export class InteractableDisplay extends Display {
         }
     }
 
+    /** Vertical offset from a line's shared `y` for `element`, so its own single-line height sits at the top/centre/bottom of `lineHeight` per its `align`. */
+    private elementVerticalOffset(element: LineItemMeta, lineHeight: number): number {
+        const ownHeight = this.lineHeightFor(element.fontSize);
+        switch (element.align) {
+            case "centre":
+                return (lineHeight - ownHeight) / 2;
+            case "bottom":
+                return lineHeight - ownHeight;
+            default:
+                return 0;
+        }
+    }
+
     /**
      * Computes one resolved line's input focusable rects, walking
      * left-to-right from `x`, exactly as {@link drawElements} draws them.
@@ -1281,8 +1323,9 @@ export class InteractableDisplay extends Display {
         const focusables: FocusableElement[] = [];
         let elemX = x;
         for (const element of line.elements) {
+            const elemY = y + this.elementVerticalOffset(element, line.height);
             if (element.kind !== "text") {
-                focusables.push(...this.layoutInput(element, elemX, y, line.height));
+                focusables.push(...this.layoutInput(element, elemX, elemY, line.height));
             }
             elemX += element.width;
         }
@@ -1303,10 +1346,11 @@ export class InteractableDisplay extends Display {
 
         let elemX = x;
         for (const element of line.elements) {
+            const elemY = y + this.elementVerticalOffset(element, line.height);
             if (element.kind === "text") {
-                this.drawLine(ctx, element.runs, elemX, y, line.height);
+                this.drawLine(ctx, element.runs, elemX, elemY, line.height);
             } else {
-                this.paintInput(ctx, element, elemX, y, line.height, focusedRect, editText, editCursorPos, editSelection, openRect);
+                this.paintInput(ctx, element, elemX, elemY, line.height, focusedRect, editText, editCursorPos, editSelection, openRect);
             }
             elemX += element.width;
         }
