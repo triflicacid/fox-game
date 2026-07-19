@@ -36,14 +36,17 @@ export interface TextStyle {
     fontSizeDelta?: number | ((size: number) => number);
 }
 
+import {Spacing} from "./spacing";
+
 /** Where an item sits, y-axis wise, within its line's height when that's taller than the item's own. */
 export type Alignment = "top" | "centre" | "bottom";
 
 /**
  * A styled run of text or a nested list of further segments.
  *
- * `align`, `interactive`, `onClick`, `focusedStyle`, and `disabled` are only
- * meaningful on a top-level `DisplayLine` item, not a nested child segment.
+ * `align`, `interactive`, `onClick`, `focusedStyle`, `disabled`, `padding`,
+ * and `margin` are only meaningful on a top-level `DisplayLine` item, not a
+ * nested child segment.
  */
 export interface TextSegment {
     /** Literal text, or nested child segments. */
@@ -62,4 +65,8 @@ export interface TextSegment {
     focusedStyle?: TextStyle;
     /** Whether this segment is disabled - skips focus/click. Defaults to `false`. */
     disabled?: boolean;
+    /** Space inside this segment's own box, between its content and its clickable/focusable bounds. Defaults to `0`. */
+    padding?: Spacing;
+    /** Space outside this segment's own box, pushing neighbouring elements/lines away. Defaults to `0`. */
+    margin?: Spacing;
 }
