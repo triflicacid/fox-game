@@ -6,7 +6,7 @@ import {Spacing} from "../spacing";
  */
 export interface ElementBase {
     kind: string;
-    /** This element's style at rest. Consulted only as `inputStyle`'s fallback on checkbox/radio, or (`foreground` only) as an {@link HrInput}'s line colour - see each kind for specifics. */
+    /** This element's style at rest. Consulted only as `inputStyle`'s fallback on checkbox/radio, or on an {@link HrInput} - `foreground` as its line colour, `background` filling its content+padding rect - see each kind for specifics. */
     style?: TextStyle;
     /** If `true`, this element acts as if absent entirely. Defaults to `false`. */
     hidden?: boolean;
