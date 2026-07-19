@@ -62,7 +62,7 @@ export abstract class PopupController {
      */
     public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, repaintBackground?: () => void): void {
         this.popup.setContent(this.title, this.buildContent(), [
-            {kind: "button", label: "Close", onClick: () => this.popup.close()},
+            {kind: "button", content: [{content:"Close",align:'bottom'}], onClick: () => this.popup.close()},
         ]);
         this.popup.draw(ctx, canvasWidth, canvasHeight, repaintBackground);
     }

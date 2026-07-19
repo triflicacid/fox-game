@@ -51,8 +51,8 @@ export class DebugHud {
             foreground: DEBUG_CONFIG.hudTextColor,
             fontFamily: DEBUG_CONFIG.hudFontFamily,
             fontSize: DEBUG_CONFIG.hudFontSize,
-            lineHeight: DEBUG_CONFIG.hudLineHeight,
         }, FLAT_THEME, "click", null);
+        this.display.setDebug(true); // TODO remove - temporary bounding-rect debug overlay
     }
 
     /** A label segment, in the HUD's default text colour. */
@@ -123,7 +123,7 @@ export class DebugHud {
             ],
             [
                 this.label("seed: "), this.numberValue(String(data.worldSeed)), this.label(" "),
-                {kind: "button", label: this.copyButtonLabel, onClick: () => this.handleCopyClick(data.worldSeed), disabled: this.copyRevertTimeoutId !== null},
+                {kind: "button", content: this.copyButtonLabel, onClick: () => this.handleCopyClick(data.worldSeed), disabled: this.copyRevertTimeoutId !== null},
             ],
         ];
         if (data.spectating) {
@@ -163,7 +163,8 @@ export class DebugHud {
         this.display.beginResolvePass();
         const resolvedLines = lines.map((line) => this.display.resolveElements(ctx, line));
         const width = Math.max(0, ...resolvedLines.map((line) => line.width)) + padding * 2;
-        const height = resolvedLines.reduce((sum, line) => sum + line.height, 0) + padding * 2;
+        const height = resolvedLines.reduce((sum, line) => sum + line.height, 0)
+            + DEBUG_CONFIG.hudLineSpacing * Math.max(resolvedLines.length - 1, 0) + padding * 2;
 
         this.display.setBounds({x: 0, y: 0, w: width, h: height});
 
@@ -171,7 +172,7 @@ export class DebugHud {
         let lineY = padding;
         for (const line of resolvedLines) {
             focusables.push(...this.display.layoutFocusables(line, padding, lineY));
-            lineY += line.height;
+            lineY += line.height + DEBUG_CONFIG.hudLineSpacing;
         }
         this.display.setFocusables(focusables);
 
@@ -181,7 +182,8 @@ export class DebugHud {
         lineY = padding;
         for (const line of resolvedLines) {
             this.display.drawElements(ctx, line, padding, lineY);
-            lineY += line.height;
+            lineY += line.height + DEBUG_CONFIG.hudLineSpacing;
         }
+        this.display.drawDebugBounds(ctx);
     }
 }

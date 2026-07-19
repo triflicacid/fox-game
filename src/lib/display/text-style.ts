@@ -41,6 +41,9 @@ export type Alignment = "top" | "centre" | "bottom";
 
 /**
  * A styled run of text or a nested list of further segments.
+ *
+ * `align`, `interactive`, `onClick`, `focusedStyle`, and `disabled` are only
+ * meaningful on a top-level `DisplayLine` item, not a nested child segment.
  */
 export interface TextSegment {
     /** Literal text, or nested child segments. */
@@ -49,6 +52,14 @@ export interface TextSegment {
     style?: TextStyle;
     /** If `true`, this segment (and any children) acts as if absent entirely. Defaults to `false`. */
     hidden?: boolean;
-    /** Vertical alignment within the line, only meaningful on a top-level `DisplayLine` item. Defaults to `"top"`. */
+    /** Vertical alignment within the line. Defaults to `"top"`. */
     align?: Alignment;
+    /** Makes this segment focusable and clickable, like an `Input`, but with no box/marker of its own. Defaults to `false`. */
+    interactive?: boolean;
+    /** Invoked when this segment is activated (click, or Enter/Space while focused). */
+    onClick?: () => void;
+    /** Style overlaid while this segment is focused, or briefly pressed. Falls back to the theme's default focused style. */
+    focusedStyle?: TextStyle;
+    /** Whether this segment is disabled - skips focus/click. Defaults to `false`. */
+    disabled?: boolean;
 }

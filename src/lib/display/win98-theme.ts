@@ -51,6 +51,12 @@ function drawSunkenBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
     drawBevelEdge(ctx, x, y, w, h, BORDER_SHADOW_COLOR, BORDER_HIGHLIGHT_COLOR);
 }
 
+/** Sunken border only, no fill - for a pressed button's grey face (unlike {@link drawSunkenBox}'s white). */
+function drawSunkenBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+    drawBevelEdge(ctx, x, y, w, h, BORDER_DARK_SHADOW_COLOR, BORDER_HIGHLIGHT_COLOR);
+    drawBevelEdge(ctx, x + 1, y + 1, w - 2, h - 2, BORDER_SHADOW_COLOR, BORDER_LIGHT_COLOR);
+}
+
 /**
  * The classic Windows 98 "raised panel, sunken control" look: bevelled
  * two-tone borders, grey control faces, a white sunken box for
@@ -101,6 +107,16 @@ class Win98Theme extends ChromeTheme {
             ctx.arc(cx, cy, radius * 0.45, 0, Math.PI * 2);
             ctx.fillStyle = foreground ?? "#000000";
             ctx.fill();
+        }
+    }
+
+    public override drawButtonBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pressed: boolean): void {
+        ctx.fillStyle = SURFACE_COLOR;
+        ctx.fillRect(x, y, w, h);
+        if (pressed) {
+            drawSunkenBorder(ctx, x, y, w, h);
+        } else {
+            drawRaisedBorder(ctx, x, y, w, h);
         }
     }
 

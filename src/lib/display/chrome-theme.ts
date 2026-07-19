@@ -1,4 +1,5 @@
 import {TextStyle} from "./text-style";
+import {ResolvedStateStyle} from "./state-style";
 
 /** A box's depth appearance. */
 export type BoxKind = "sunken" | "raised";
@@ -36,4 +37,17 @@ export abstract class ChromeTheme {
 
     /** Draws a select input's dropdown-arrow button for the `w`x`h` box at `x, y`, shown pressed while `open`. */
     public abstract drawSelectArrowButton(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, open: boolean): void;
+
+    /** Draws a button's face for the `w`x`h` box at `x, y` - raised at rest, sunken while `pressed`, same face colour either way. */
+    public abstract drawButtonBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pressed: boolean): void;
+
+    /** Draws a button's focus indicator over its box - default fills `style.background` inset by `borderWidth`, overridable. */
+    public drawButtonFocus(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, style: ResolvedStateStyle): void {
+        if (style.background === undefined) {
+            return;
+        }
+        const inset = this.borderWidth;
+        ctx.fillStyle = style.background;
+        ctx.fillRect(x + inset, y + inset, w - inset * 2, h - inset * 2);
+    }
 }
