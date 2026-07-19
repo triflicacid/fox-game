@@ -32,7 +32,7 @@ export const DEBUG_CONFIG = {
     /** Text colour for the HUD's string-valued values (e.g. a feature tag, biome name, facing direction). */
     hudStringValueColor: COLORS.brightYellow,
     /** Text colour for the HUD's numeric-valued values. */
-    hudNumberValueColor: COLORS.brightMagenta,
+    hudNumberValueColor: COLORS.brightGreen,
     /** Text colour for the HUD's spectator-mode indicator. */
     hudSpectatorColor: "#ffff00",
     /** Background colour behind the HUD text. */
