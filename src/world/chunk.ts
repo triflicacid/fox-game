@@ -180,5 +180,65 @@ export class Chunk {
             ctx.textBaseline = "middle";
             ctx.fillText(String(queuePosition), originX + pixelSize / 2, originY + pixelSize / 2);
         }
+
+        if (this.isReady()) {
+            this.drawFeatureOutlines(ctx, originX, originY, tileSize);
+        }
+    }
+
+    /**
+     * Outlines every tile edge where {@link TileData.featureTag} differs
+     * from the neighbouring tile. Skips the chunk's own outer edge, as a
+     * neighbouring chunk's tiles aren't visible from here.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X position of this chunk's top-left corner.
+     * @param originY - Canvas Y position of this chunk's top-left corner.
+     * @param tileSize - Width/height of each tile, in canvas pixels.
+     */
+    private drawFeatureOutlines(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
+        ctx.strokeStyle = DEBUG_CONFIG.featureOutlineColor;
+        ctx.lineWidth = DEBUG_CONFIG.featureOutlineWidth;
+
+        for (let y = 0; y < CHUNK_SIZE; y++) {
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+                const tag = this.tiles[y][x].featureTag;
+                if (tag === "none") {
+                    continue;
+                }
+
+                const left = originX + x * tileSize;
+                const top = originY + y * tileSize;
+                const right = left + tileSize;
+                const bottom = top + tileSize;
+
+                if (x > 0 && this.tiles[y][x - 1].featureTag !== tag) {
+                    this.strokeLine(ctx, left, top, left, bottom);
+                }
+                if (x < CHUNK_SIZE - 1 && this.tiles[y][x + 1].featureTag !== tag) {
+                    this.strokeLine(ctx, right, top, right, bottom);
+                }
+                if (y > 0 && this.tiles[y - 1][x].featureTag !== tag) {
+                    this.strokeLine(ctx, left, top, right, top);
+                }
+                if (y < CHUNK_SIZE - 1 && this.tiles[y + 1][x].featureTag !== tag) {
+                    this.strokeLine(ctx, left, bottom, right, bottom);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param ctx - Canvas context to draw into.
+     * @param x1 - Start X, in canvas pixels.
+     * @param y1 - Start Y, in canvas pixels.
+     * @param x2 - End X, in canvas pixels.
+     * @param y2 - End Y, in canvas pixels.
+     */
+    private strokeLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number): void {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
     }
 }

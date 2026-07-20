@@ -8,9 +8,11 @@ import {Vector2d} from "../geometry/vector2d";
 import {DebugHud} from "../debug/debug-hud";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk-generator";
+import {DEFAULT_FEATURE_PROVIDERS} from "./generation/default-features";
 import {ChunkWorkerClient} from "./generation/chunk-worker-client";
 import {FeatureTag} from "./generation/feature-tag";
 import {SpriteFrame} from "../sprites/sprite";
+import {coordinateKey} from "./coordinate-key";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -86,7 +88,7 @@ export class World {
      */
     public constructor(public readonly tileSize: number, worldSeed: number = World.randomSeed()) {
         this.worldSeed = worldSeed;
-        this.chunkGenerator = new ChunkGenerator(worldSeed);
+        this.chunkGenerator = new ChunkGenerator(worldSeed, DEFAULT_FEATURE_PROVIDERS);
         this.chunkWorkerClient = new ChunkWorkerClient(worldSeed);
         this.mainEntity = new Fox();
         this.entities.push(this.mainEntity);
@@ -166,17 +168,6 @@ export class World {
     }
 
     /**
-     * Builds the key {@link chunks} is keyed by for a given chunk coordinate.
-     *
-     * @param chunkX - Chunk's X coordinate, in chunk units.
-     * @param chunkY - Chunk's Y coordinate, in chunk units.
-     * @returns A string uniquely identifying that chunk coordinate.
-     */
-    private static chunkKey(chunkX: number, chunkY: number): string {
-        return `${chunkX},${chunkY}`;
-    }
-
-    /**
      * Returns the chunk at the given chunk coordinate, generating and
      * caching it first if it hasn't been loaded yet.
      *
@@ -185,7 +176,7 @@ export class World {
      * @returns The loaded chunk.
      */
     public getChunk(chunkX: number, chunkY: number): Chunk {
-        const key = World.chunkKey(chunkX, chunkY);
+        const key = coordinateKey(chunkX, chunkY);
         let chunk = this.chunks.get(key);
         if (!chunk) {
             const generation = this.chunkWorkerClient.requestChunk(chunkX, chunkY);
@@ -269,7 +260,7 @@ export class World {
      * @returns `true` if the chunk is loaded.
      */
     public isChunkLoaded(chunkX: number, chunkY: number): boolean {
-        return this.chunks.has(World.chunkKey(chunkX, chunkY));
+        return this.chunks.has(coordinateKey(chunkX, chunkY));
     }
 
     /**
@@ -282,7 +273,7 @@ export class World {
      * @param chunkY - Chunk's Y coordinate, in chunk units.
      */
     public unloadChunk(chunkX: number, chunkY: number): void {
-        this.chunks.delete(World.chunkKey(chunkX, chunkY));
+        this.chunks.delete(coordinateKey(chunkX, chunkY));
     }
 
     /**
@@ -325,7 +316,7 @@ export class World {
         this.chunkWorkerClient.cancelPending();
         for (const chunk of this.chunks.values()) {
             if (!chunk.isReady()) {
-                this.chunks.delete(World.chunkKey(chunk.chunkX, chunk.chunkY));
+                this.chunks.delete(coordinateKey(chunk.chunkX, chunk.chunkY));
             }
         }
     }
@@ -366,7 +357,7 @@ export class World {
 
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                const chunk = this.chunks.get(World.chunkKey(chunkX, chunkY));
+                const chunk = this.chunks.get(coordinateKey(chunkX, chunkY));
                 if (!chunk || !predicate(chunk)) {
                     return false;
                 }
@@ -466,7 +457,9 @@ export class World {
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
                 const tag = this.getFeatureTag(tileX, tileY);
-                counts.set(tag, (counts.get(tag) ?? 0) + 1);
+                if (tag != 'none') {
+                    counts.set(tag, (counts.get(tag) ?? 0) + 1);
+                }
             }
         }
 

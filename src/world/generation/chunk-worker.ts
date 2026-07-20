@@ -1,5 +1,7 @@
 import {ChunkGenerator} from "./chunk-generator";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
+import {DEFAULT_FEATURE_PROVIDERS} from "./default-features";
+import {coordinateKey} from "../coordinate-key";
 
 /**
  * Narrow view of the worker global scope this file needs. Avoids adding the
@@ -90,15 +92,15 @@ async function processQueue(): Promise<void> {
  */
 function reorderQueue(order: {chunkX: number; chunkY: number}[]): void {
     const rank = new Map<string, number>();
-    order.forEach(({chunkX, chunkY}, index) => rank.set(`${chunkX},${chunkY}`, index));
-    queue.sort((a, b) => (rank.get(`${a.chunkX},${a.chunkY}`) ?? Infinity) - (rank.get(`${b.chunkX},${b.chunkY}`) ?? Infinity));
+    order.forEach(({chunkX, chunkY}, index) => rank.set(coordinateKey(chunkX, chunkY), index));
+    queue.sort((a, b) => (rank.get(coordinateKey(a.chunkX, a.chunkY)) ?? Infinity) - (rank.get(coordinateKey(b.chunkX, b.chunkY)) ?? Infinity));
 }
 
 ctx.onmessage = (event) => {
     const request = event.data;
 
     if (request.type === "init") {
-        generator = new ChunkGenerator(request.worldSeed);
+        generator = new ChunkGenerator(request.worldSeed, DEFAULT_FEATURE_PROVIDERS);
         return;
     }
 
