@@ -10,6 +10,7 @@ import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk-generator";
 import {ChunkWorkerClient} from "./generation/chunk-worker-client";
 import {FeatureTag} from "./generation/feature-tag";
+import {SpriteFrame} from "../sprites/sprite";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -71,9 +72,9 @@ export class World {
 
     /**
      * Whether entities may move onto a chunk that hasn't finished generating
-     * yet. `false` by default, so the main entity stays clamped to already-
-     * generated ground instead of wandering into a chunk that's still a
-     * placeholder - see {@link clampEntitiesToLoadedChunks}.
+     * yet. `false` by default, so the main entity stays constrained to
+     * already-generated ground instead of wandering into a chunk that's
+     * still a placeholder - see {@link constrainEntitiesToChunks}.
      */
     private canMoveOntoGeneratingChunks = false;
 
@@ -314,7 +315,7 @@ export class World {
     /**
      * Whether entities may currently move onto a still-generating chunk.
      *
-     * @returns `true` if entities aren't clamped to already-generated ground.
+     * @returns `true` if entities aren't constrained to already-generated ground.
      */
     public getCanMoveOntoGeneratingChunks(): boolean {
         return this.canMoveOntoGeneratingChunks;
@@ -330,55 +331,63 @@ export class World {
     }
 
     /**
-     * Bounding rectangle, in world pixels, of every currently loaded chunk
-     * matching `predicate`.
+     * Whether every chunk overlapped by a `frame`-sized rectangle at
+     * `position` is both loaded and satisfies `predicate`.
      *
-     * @param predicate - Only chunks this returns `true` for contribute to the bounds.
-     * @returns The matching chunks' bounds, or `undefined` if none match.
+     * @param position - Rectangle's top-left corner, in world pixels.
+     * @param frame - Sprite frame whose width/height define the rectangle.
+     * @param predicate - Only chunks this returns `true` for count as valid ground.
+     * @returns `true` if every overlapped chunk is loaded and satisfies `predicate`.
      */
-    private getChunkBounds(predicate: (chunk: Chunk) => boolean): {minX: number; minY: number; maxX: number; maxY: number} | undefined {
-        let minChunkX = Infinity;
-        let minChunkY = Infinity;
-        let maxChunkX = -Infinity;
-        let maxChunkY = -Infinity;
-        for (const chunk of this.chunks.values()) {
-            if (!predicate(chunk)) {
-                continue;
-            }
-            minChunkX = Math.min(minChunkX, chunk.chunkX);
-            minChunkY = Math.min(minChunkY, chunk.chunkY);
-            maxChunkX = Math.max(maxChunkX, chunk.chunkX);
-            maxChunkY = Math.max(maxChunkY, chunk.chunkY);
-        }
-        if (minChunkX === Infinity) {
-            return undefined;
-        }
-
+    private isPositionOnValidGround(position: Vector2d, frame: SpriteFrame, predicate: (chunk: Chunk) => boolean): boolean {
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        return {
-            minX: minChunkX * chunkPixelSize,
-            minY: minChunkY * chunkPixelSize,
-            maxX: (maxChunkX + 1) * chunkPixelSize,
-            maxY: (maxChunkY + 1) * chunkPixelSize,
-        };
+        const startChunkX = Math.floor(position.x / chunkPixelSize);
+        const startChunkY = Math.floor(position.y / chunkPixelSize);
+        const endChunkX = Math.floor((position.x + frame.w - 1) / chunkPixelSize);
+        const endChunkY = Math.floor((position.y + frame.h - 1) / chunkPixelSize);
+
+        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
+            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+                const chunk = this.chunks.get(World.chunkKey(chunkX, chunkY));
+                if (!chunk || !predicate(chunk)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**
-     * Clamps every {@link MovableEntity} in {@link entities} inside the
-     * bounds of every loaded chunk matching `predicate`.
+     * Stops every {@link MovableEntity} in {@link entities} from ending this
+     * tick standing anywhere that doesn't satisfy `predicate`.
      *
-     * @param predicate - Only chunks this returns `true` for count as reachable ground.
+     * @param previousPositions - Each entity's position before this tick's movement, to fall back to/slide from.
+     * @param predicate - Only chunks this returns `true` for count as valid ground.
      */
-    private clampEntitiesToChunks(predicate: (chunk: Chunk) => boolean): void {
-        const bounds = this.getChunkBounds(predicate);
-        if (!bounds) {
-            return;
-        }
-
+    private constrainEntitiesToChunks(previousPositions: ReadonlyMap<MovableEntity, Vector2d>, predicate: (chunk: Chunk) => boolean): void {
         for (const entity of this.entities) {
-            if (entity instanceof MovableEntity) {
-                const frame = entity.getCurrentFrame();
-                entity.clampPosition(bounds.minX, bounds.minY, bounds.maxX - frame.w, bounds.maxY - frame.h);
+            if (!(entity instanceof MovableEntity)) {
+                continue;
+            }
+            const previous = previousPositions.get(entity);
+            if (!previous) {
+                continue;
+            }
+
+            const current = entity.getPosition();
+            const frame = entity.getCurrentFrame();
+            if (this.isPositionOnValidGround(current, frame, predicate)) {
+                continue;
+            }
+
+            const slideX = new Vector2d(current.x, previous.y);
+            const slideY = new Vector2d(previous.x, current.y);
+            if (this.isPositionOnValidGround(slideX, frame, predicate)) {
+                entity.teleportTo(slideX);
+            } else if (this.isPositionOnValidGround(slideY, frame, predicate)) {
+                entity.teleportTo(slideY);
+            } else {
+                entity.teleportTo(previous);
             }
         }
     }
@@ -502,26 +511,30 @@ export class World {
     /**
      * Advances every entity in the world by one simulation tick, and streams
      * chunks in/out around the camera (see {@link updateLoadedChunks}). While
-     * {@link generationEnabled} is off, entities are clamped inside the
+     * {@link generationEnabled} is off, entities are constrained inside the
      * currently loaded chunks; while it's on but {@link canMoveOntoGeneratingChunks}
-     * is off, they're clamped inside already-generated chunks instead (see
-     * {@link clampEntitiesToChunks}).
+     * is off, they're constrained inside already-generated chunks instead
+     * (see {@link constrainEntitiesToChunks}).
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      * @param camera - Camera the world is currently being viewed through.
      * @param spectating - Whether spectator mode is currently active - see {@link getChunkGenerationFocus}.
      */
     public update(deltaMs: number, camera: Camera, spectating: boolean): void {
+        const previousPositions = new Map<MovableEntity, Vector2d>();
         for (const entity of this.entities) {
+            if (entity instanceof MovableEntity) {
+                previousPositions.set(entity, entity.getPosition());
+            }
             entity.update(deltaMs);
         }
         const focus = this.getChunkGenerationFocus(camera, spectating);
         this.updateLoadedChunks(camera, focus);
         this.reorderChunkGenerationQueueIfFocusMoved(focus);
         if (!this.generationEnabled) {
-            this.clampEntitiesToChunks(() => true);
+            this.constrainEntitiesToChunks(previousPositions, () => true);
         } else if (!this.canMoveOntoGeneratingChunks) {
-            this.clampEntitiesToChunks((chunk) => chunk.isReady());
+            this.constrainEntitiesToChunks(previousPositions, (chunk) => chunk.isReady());
         }
     }
 
