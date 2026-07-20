@@ -31,6 +31,10 @@ export interface NumberInput extends TextBoxInputBase {
     step?: number;
     /** Whether typing a decimal point is allowed. Defaults to `false` (integers only). */
     allowDecimal?: boolean;
+    /** Lower bound `value` may not go below, inclusive. Unset for no lower bound. */
+    min?: number;
+    /** Upper bound `value` may not reach or exceed, exclusive. Unset for no upper bound. */
+    max?: number;
     /** Invoked with the new value once an edit commits. */
     onChange: (value: number) => void;
 }
