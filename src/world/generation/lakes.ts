@@ -5,47 +5,50 @@ import {FbmField, NoiseField} from "./noise-field";
 import {PositionCache} from "./position-cache";
 import {coordinateKey} from "../coordinate-key";
 
-/** Per-channel seed offsets so the three lake fields don't correlate. */
-const MOISTURE_SEED_OFFSET = 2027;
-const WETNESS_SEED_OFFSET = 3037;
-const LAKE_SHAPE_SEED_OFFSET = 4049;
+/** Every tunable lake-generation value, grouped so they're tuned in one place. */
+const LAKE_CONFIG = {
+    /** Per-channel seed offsets so the three lake fields don't correlate. */
+    moistureSeedOffset: 2027,
+    wetnessSeedOffset: 3037,
+    lakeShapeSeedOffset: 4049,
 
-/** Noise cycles per tile: moisture/wetness are broad wetness gates, lake_shape carves the blob. */
-const MOISTURE_FREQUENCY = 1 / 50;
-const WETNESS_FREQUENCY = 1 / 45;
-const LAKE_SHAPE_FREQUENCY = 1 / 20;
+    /** Noise cycles per tile: moisture/wetness are broad wetness gates, lake_shape carves the blob. */
+    moistureFrequency: 1 / 50,
+    wetnessFrequency: 1 / 45,
+    lakeShapeFrequency: 1 / 20,
 
-/** Octaves per field - avoids single-lattice-cell "isolated spike" artifacts at a high threshold. */
-const LAKE_FIELD_OCTAVES = 2;
+    /** Octaves per field - avoids single-lattice-cell "isolated spike" artifacts at a high threshold. */
+    fieldOctaves: 2,
 
-/** A tile must clear all three thresholds to be lake-candidate. First-guess values, not yet tuned. */
-const MOISTURE_THRESHOLD = 0.5;
-const WETNESS_THRESHOLD = 0.5;
-const LAKE_SHAPE_THRESHOLD = 0.62;
+    /** A tile must clear all three thresholds to be lake-candidate. First-guess values, not yet tuned. */
+    moistureThreshold: 0.5,
+    wetnessThreshold: 0.5,
+    lakeShapeThreshold: 0.62,
 
-/** Below this many tiles (after smoothing), a component is discarded as too small to read as a lake. */
-const MIN_SIZE = 6;
+    /** Below this many tiles (after smoothing), a component is discarded as too small to read as a lake. */
+    minSize: 6,
 
-/** Neighbour-count threshold {@link smoothComponent} uses to erode a lake's raw shape. */
-const SMOOTHING_NEIGHBOUR_THRESHOLD = 5;
+    /** Neighbour-count threshold {@link smoothComponent} uses to erode a lake's raw shape. */
+    smoothingNeighbourThreshold: 5,
 
-/** Erosion passes - iterating rounds off blockier edges a single pass leaves. First-guess value, not yet tuned. */
-const SMOOTHING_PASSES = 2;
+    /** Erosion passes - iterating rounds off blockier edges a single pass leaves. First-guess value, not yet tuned. */
+    smoothingPasses: 2,
 
-/** `lake_shape` value a tile one ring in from the shore must clear to render as dark/deep water; a shore tile itself is never dark. First-guess value, not yet tuned. */
-const DEEP_WATER_THRESHOLD_AT_SHORE = 0.75;
+    /** `lake_shape` value a tile one ring in from the shore must clear to render as dark/deep water; a shore tile itself is never dark. First-guess value, not yet tuned. */
+    deepWaterThresholdAtShore: 0.75,
 
-/** `lake_shape` value a tile at/beyond {@link CENTER_RING_DEPTH} rings from the shore must clear to render dark - lower than the shore threshold but still above {@link LAKE_SHAPE_THRESHOLD}, so noise variation still reads as patchy shallows even well inside a lake. First-guess value, not yet tuned. */
-const DEEP_WATER_THRESHOLD_AT_CENTER = 0.68;
+    /** `lake_shape` value a tile at/beyond `centerRingDepth` rings from the shore must clear to render dark - lower than the shore threshold but still above `lakeShapeThreshold`, so noise variation still reads as patchy shallows even well inside a lake. First-guess value, not yet tuned. */
+    deepWaterThresholdAtCenter: 0.68,
 
-/** Shore distance (8-connected rings) at which {@link DEEP_WATER_THRESHOLD_AT_CENTER} fully applies; the threshold interpolates linearly between the shore and this depth. */
-const CENTER_RING_DEPTH = 4;
+    /** Shore distance (8-connected rings) at which `deepWaterThresholdAtCenter` fully applies; the threshold interpolates linearly between the shore and this depth. */
+    centerRingDepth: 4,
 
-/** Hard cap on one lake's tile count, sized in chunk units so it tracks `CHUNK_SIZE`. */
-const LAKE_MAX_TILES = 9 * CHUNK_SIZE * CHUNK_SIZE;
+    /** Hard cap on one lake's tile count, sized in chunk units so it tracks `CHUNK_SIZE`. */
+    maxTiles: 9 * CHUNK_SIZE * CHUNK_SIZE,
 
-/** Biomes a lake is allowed to centre in (majority vote of its core tiles) - extensible for a future Desert oasis exception. */
-const LAKE_ALLOWED_BIOMES: readonly string[] = ["plains"];
+    /** Biomes a lake is allowed to centre in (majority vote of its core tiles) - extensible for a future Desert oasis exception. */
+    allowedBiomes: ["plains"] as readonly string[],
+} as const;
 
 /**
  * Inverse of {@link coordinateKey}.
@@ -60,7 +63,7 @@ function parseTileKey(key: string): [number, number] {
 
 /**
  * Erodes ragged edge tiles from `component`: a tile survives iff at least
- * {@link SMOOTHING_NEIGHBOUR_THRESHOLD} of its 8 neighbours are also in
+ * `LAKE_CONFIG.smoothingNeighbourThreshold` of its 8 neighbours are also in
  * `component`.
  *
  * @param component - The tile set to smooth, as {@link coordinateKey} strings.
@@ -81,7 +84,7 @@ function smoothComponent(component: ReadonlySet<string>): Set<string> {
                 }
             }
         }
-        if (neighbourCount >= SMOOTHING_NEIGHBOUR_THRESHOLD) {
+        if (neighbourCount >= LAKE_CONFIG.smoothingNeighbourThreshold) {
             smoothed.add(key);
         }
     }
@@ -188,9 +191,9 @@ export class LakeFeature extends Feature {
      */
     public constructor(worldSeed: number) {
         super();
-        this.moisture = new FbmField("moisture", worldSeed, MOISTURE_SEED_OFFSET, MOISTURE_FREQUENCY, LAKE_FIELD_OCTAVES);
-        this.wetness = new FbmField("wetness", worldSeed, WETNESS_SEED_OFFSET, WETNESS_FREQUENCY, LAKE_FIELD_OCTAVES);
-        this.lakeShape = new FbmField("lake_shape", worldSeed, LAKE_SHAPE_SEED_OFFSET, LAKE_SHAPE_FREQUENCY, LAKE_FIELD_OCTAVES);
+        this.moisture = new FbmField("moisture", worldSeed, LAKE_CONFIG.moistureSeedOffset, LAKE_CONFIG.moistureFrequency, LAKE_CONFIG.fieldOctaves);
+        this.wetness = new FbmField("wetness", worldSeed, LAKE_CONFIG.wetnessSeedOffset, LAKE_CONFIG.wetnessFrequency, LAKE_CONFIG.fieldOctaves);
+        this.lakeShape = new FbmField("lake_shape", worldSeed, LAKE_CONFIG.lakeShapeSeedOffset, LAKE_CONFIG.lakeShapeFrequency, LAKE_CONFIG.fieldOctaves);
     }
 
     public override getFields(): readonly NoiseField[] {
@@ -222,16 +225,17 @@ export class LakeFeature extends Feature {
     /**
      * The `lake_shape` threshold a tile at the given shore distance must
      * clear to render dark - interpolated between
-     * {@link DEEP_WATER_THRESHOLD_AT_SHORE} and
-     * {@link DEEP_WATER_THRESHOLD_AT_CENTER} over {@link CENTER_RING_DEPTH}
-     * rings.
+     * `LAKE_CONFIG.deepWaterThresholdAtShore` and
+     * `LAKE_CONFIG.deepWaterThresholdAtCenter` over
+     * `LAKE_CONFIG.centerRingDepth` rings.
      *
      * @param shoreDistance - Tile's distance from the shore, in 8-connected rings (1 at the shore).
      * @returns The `lake_shape` threshold at that shore distance.
      */
     private static deepWaterThreshold(shoreDistance: number): number {
-        const centrality = Math.min(1, (shoreDistance - 1) / (CENTER_RING_DEPTH - 1));
-        return DEEP_WATER_THRESHOLD_AT_SHORE - centrality * (DEEP_WATER_THRESHOLD_AT_SHORE - DEEP_WATER_THRESHOLD_AT_CENTER);
+        const centrality = Math.min(1, (shoreDistance - 1) / (LAKE_CONFIG.centerRingDepth - 1));
+        return LAKE_CONFIG.deepWaterThresholdAtShore
+            - centrality * (LAKE_CONFIG.deepWaterThresholdAtShore - LAKE_CONFIG.deepWaterThresholdAtCenter);
     }
 
     /**
@@ -243,18 +247,18 @@ export class LakeFeature extends Feature {
      * @returns Whether this tile is lake-candidate.
      */
     private isCandidate(worldX: number, worldY: number): boolean {
-        return this.moisture.sample(worldX, worldY) >= MOISTURE_THRESHOLD
-            && this.wetness.sample(worldX, worldY) >= WETNESS_THRESHOLD
-            && this.lakeShape.sample(worldX, worldY) >= LAKE_SHAPE_THRESHOLD;
+        return this.moisture.sample(worldX, worldY) >= LAKE_CONFIG.moistureThreshold
+            && this.wetness.sample(worldX, worldY) >= LAKE_CONFIG.wetnessThreshold
+            && this.lakeShape.sample(worldX, worldY) >= LAKE_CONFIG.lakeShapeThreshold;
     }
 
     /**
      * Majority-votes `coreTiles`' biome, each resolved at its own world
-     * position, against {@link LAKE_ALLOWED_BIOMES}.
+     * position, against `LAKE_CONFIG.allowedBiomes`.
      *
      * @param coreTiles - A lake's core tiles, as {@link coordinateKey} strings.
      * @param resolveBiomeAt - Resolves the biome at an absolute world position.
-     * @returns Whether the majority biome is in {@link LAKE_ALLOWED_BIOMES}.
+     * @returns Whether the majority biome is in `LAKE_CONFIG.allowedBiomes`.
      */
     private coreTilesVoteAllowed(coreTiles: ReadonlySet<string>, resolveBiomeAt: BiomeResolver): boolean {
         const counts = new Map<string, number>();
@@ -272,13 +276,13 @@ export class LakeFeature extends Feature {
                 majorityCount = count;
             }
         }
-        return LAKE_ALLOWED_BIOMES.includes(majorityName);
+        return LAKE_CONFIG.allowedBiomes.includes(majorityName);
     }
 
     /**
      * Flood-fills 8-connected from `(startWorldX, startWorldY)` via
      * `isCandidateCached`, stopping and reporting `exceededCap: true` if the
-     * component would grow past {@link LAKE_MAX_TILES}.
+     * component would grow past `LAKE_CONFIG.maxTiles`.
      *
      * @param startWorldX - Seed tile's X position, in tiles from the world origin.
      * @param startWorldY - Seed tile's Y position, in tiles from the world origin.
@@ -295,7 +299,7 @@ export class LakeFeature extends Feature {
         let exceededCap = false;
 
         while (queue.length > 0) {
-            if (raw.size > LAKE_MAX_TILES) {
+            if (raw.size > LAKE_CONFIG.maxTiles) {
                 exceededCap = true;
                 break;
             }
@@ -357,10 +361,10 @@ export class LakeFeature extends Feature {
                 }
 
                 let smoothed: Set<string> = raw;
-                for (let pass = 0; pass < SMOOTHING_PASSES; pass++) {
+                for (let pass = 0; pass < LAKE_CONFIG.smoothingPasses; pass++) {
                     smoothed = smoothComponent(smoothed);
                 }
-                if (smoothed.size < MIN_SIZE) {
+                if (smoothed.size < LAKE_CONFIG.minSize) {
                     continue;
                 }
 
