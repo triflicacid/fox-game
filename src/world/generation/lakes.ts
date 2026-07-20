@@ -3,7 +3,7 @@ import {TileData} from "../tile";
 import {BiomeResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "./noise-field";
 import {PositionCache} from "./position-cache";
-import {coordinateKey} from "../coordinate-key";
+import {coordinateKey, parseCoordinateKey} from "../coordinate-key";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
@@ -51,17 +51,6 @@ const LAKE_CONFIG = {
 } as const;
 
 /**
- * Inverse of {@link coordinateKey}.
- *
- * @param key - A key previously produced by {@link coordinateKey}.
- * @returns The `[worldX, worldY]` it encodes.
- */
-function parseTileKey(key: string): [number, number] {
-    const [worldX, worldY] = key.split(",");
-    return [Number(worldX), Number(worldY)];
-}
-
-/**
  * Erodes ragged edge tiles from `component`: a tile survives iff at least
  * `LAKE_CONFIG.smoothingNeighbourThreshold` of its 8 neighbours are also in
  * `component`.
@@ -72,7 +61,7 @@ function parseTileKey(key: string): [number, number] {
 function smoothComponent(component: ReadonlySet<string>): Set<string> {
     const smoothed = new Set<string>();
     for (const key of component) {
-        const [x, y] = parseTileKey(key);
+        const [x, y] = parseCoordinateKey(key);
         let neighbourCount = 0;
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
@@ -123,7 +112,7 @@ function isFullySurrounded(component: ReadonlySet<string>, x: number, y: number)
 function findCoreTiles(component: ReadonlySet<string>): Set<string> {
     const core = new Set<string>();
     for (const key of component) {
-        const [x, y] = parseTileKey(key);
+        const [x, y] = parseCoordinateKey(key);
         if (isFullySurrounded(component, x, y)) {
             core.add(key);
         }
@@ -144,7 +133,7 @@ function computeShoreDistances(component: ReadonlySet<string>): Map<string, numb
     const queue: string[] = [];
 
     for (const key of component) {
-        const [x, y] = parseTileKey(key);
+        const [x, y] = parseCoordinateKey(key);
         if (!isFullySurrounded(component, x, y)) {
             distances.set(key, 1);
             queue.push(key);
@@ -152,7 +141,7 @@ function computeShoreDistances(component: ReadonlySet<string>): Map<string, numb
     }
 
     for (const currentKey of queue) {
-        const [x, y] = parseTileKey(currentKey);
+        const [x, y] = parseCoordinateKey(currentKey);
         const distance = distances.get(currentKey) as number;
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
@@ -205,7 +194,7 @@ export class LakeFeature extends Feature {
         for (const component of components) {
             const shoreDistances = computeShoreDistances(component.tiles);
             for (const key of component.tiles) {
-                const [worldX, worldY] = parseTileKey(key);
+                const [worldX, worldY] = parseCoordinateKey(key);
                 const localX = worldX - chunkX * CHUNK_SIZE;
                 const localY = worldY - chunkY * CHUNK_SIZE;
                 if (localX < 0 || localX >= CHUNK_SIZE || localY < 0 || localY >= CHUNK_SIZE) {
@@ -263,7 +252,7 @@ export class LakeFeature extends Feature {
     private coreTilesVoteAllowed(coreTiles: ReadonlySet<string>, resolveBiomeAt: BiomeResolver): boolean {
         const counts = new Map<string, number>();
         for (const key of coreTiles) {
-            const [x, y] = parseTileKey(key);
+            const [x, y] = parseCoordinateKey(key);
             const name = resolveBiomeAt(x, y).name;
             counts.set(name, (counts.get(name) ?? 0) + 1);
         }
