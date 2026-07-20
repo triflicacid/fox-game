@@ -21,6 +21,11 @@ export const DEBUG_CONFIG = {
     /** Font for a still-generating chunk's queue position, drawn centred in the chunk. */
     chunkQueuePositionFont: "bold 16px monospace",
 
+    /** Stroke colour for feature-tag boundary outlines (e.g. lake edges). */
+    featureOutlineColor: "#ff8800",
+    /** Stroke width for feature-tag boundary outlines, in canvas pixels. */
+    featureOutlineWidth: 1,
+
     /** Stroke colour for entity bounding boxes. */
     boundingBoxColor: "#3399ff",
     /** Stroke width for entity bounding boxes, in canvas pixels. */
