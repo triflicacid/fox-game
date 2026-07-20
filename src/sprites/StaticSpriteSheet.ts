@@ -65,7 +65,7 @@ export class StaticSpriteSheet<TType extends string = string> extends SpriteShee
     }
 
     /**
-     * Extracts bitmap for the given tile type, memoized per type.
+     * Extracts bitmap for the given tile type, memoised per type.
      *
      * @param type - Tile identifier to get the bitmap for.
      * @returns The tile's bitmap.

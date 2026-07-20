@@ -1,5 +1,6 @@
 import ChunkGenerationWorker from "./chunk-worker?worker&inline";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
+import {coordinateKey} from "../coordinate-key";
 
 /** One pending {@link ChunkWorkerClient.requestChunk} call awaiting its response. */
 interface PendingRequest {
@@ -23,7 +24,7 @@ export class ChunkWorkerClient {
     public constructor(worldSeed: number) {
         this.worker.onmessage = (event: MessageEvent<ChunkGenerationResult>) => {
             const result = event.data;
-            const key = ChunkWorkerClient.key(result.chunkX, result.chunkY);
+            const key = coordinateKey(result.chunkX, result.chunkY);
             const request = this.pending.get(key);
             if (!request) {
                 return;
@@ -60,17 +61,6 @@ export class ChunkWorkerClient {
     }
 
     /**
-     * Builds the key {@link pending} is keyed by for a given chunk coordinate.
-     *
-     * @param chunkX - Chunk's X coordinate, in chunk units.
-     * @param chunkY - Chunk's Y coordinate, in chunk units.
-     * @returns A string uniquely identifying that chunk coordinate.
-     */
-    private static key(chunkX: number, chunkY: number): string {
-        return `${chunkX},${chunkY}`;
-    }
-
-    /**
      * Sends a request to the worker.
      *
      * @param request - The request to send.
@@ -90,7 +80,7 @@ export class ChunkWorkerClient {
      */
     public requestChunk(chunkX: number, chunkY: number): Promise<ChunkGenerationResult> {
         return new Promise((resolve, reject) => {
-            this.pending.set(ChunkWorkerClient.key(chunkX, chunkY), {chunkX, chunkY, resolve, reject});
+            this.pending.set(coordinateKey(chunkX, chunkY), {chunkX, chunkY, resolve, reject});
             this.post({type: "generate", chunkX, chunkY});
         });
     }
@@ -114,7 +104,7 @@ export class ChunkWorkerClient {
      * @returns The queue position, or `undefined`.
      */
     public getQueuePosition(chunkX: number, chunkY: number): number | undefined {
-        const key = ChunkWorkerClient.key(chunkX, chunkY);
+        const key = coordinateKey(chunkX, chunkY);
         let position = 0;
         for (const pendingKey of this.pending.keys()) {
             if (pendingKey === key) {
@@ -136,7 +126,7 @@ export class ChunkWorkerClient {
      */
     public reorderPending(order: readonly {chunkX: number; chunkY: number}[]): void {
         for (const {chunkX, chunkY} of order) {
-            const key = ChunkWorkerClient.key(chunkX, chunkY);
+            const key = coordinateKey(chunkX, chunkY);
             const request = this.pending.get(key);
             if (request) {
                 this.pending.delete(key);
