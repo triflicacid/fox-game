@@ -143,6 +143,13 @@ export class WorldController {
         return this.world.getChunkWorkerClient();
     }
 
+    /**
+     * The running game's `World`.
+     */
+    public getWorld(): World {
+        return this.world;
+    }
+
     private readonly resize = (): void => {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
@@ -197,7 +204,7 @@ export class WorldController {
             return;
         }
 
-        this.world.update(deltaMs, this.camera);
+        this.world.update(deltaMs, this.camera, this.movementController.isSpectating());
         this.movementController.update(deltaMs);
         this.draw();
     };

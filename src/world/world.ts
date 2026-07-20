@@ -4,6 +4,7 @@ import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
 import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
+import {Vector2d} from "../geometry/vector2d";
 import {DebugHud} from "../debug/debug-hud";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk-generator";
@@ -59,11 +60,22 @@ export class World {
     /** Chunk count the last {@link draw} call rendered, for the debug HUD. */
     private lastVisibleChunkCount = 0;
 
+    /** Chunk {@link getChunkGenerationFocus} was in as of the last {@link reorderChunkGenerationQueueIfFocusMoved} call - `undefined` before the first call. */
+    private lastChunkGenerationFocusChunk: ChunkCoordinate | undefined;
+
     /**
      * Whether new chunks may be generated. If areas outside generated
      * chunks come into viewport, show void instead.
      */
     private generationEnabled = true;
+
+    /**
+     * Whether entities may move onto a chunk that hasn't finished generating
+     * yet. `false` by default, so the main entity stays clamped to already-
+     * generated ground instead of wandering into a chunk that's still a
+     * placeholder - see {@link clampEntitiesToLoadedChunks}.
+     */
+    private canMoveOntoGeneratingChunks = false;
 
     /**
      * @param tileSize - Width/height of a single tile, in canvas pixels.
@@ -300,25 +312,46 @@ export class World {
     }
 
     /**
-     * Bounding rectangle, in world pixels, of every currently loaded chunk -
-     * the reachable area while {@link generationEnabled} is off.
+     * Whether entities may currently move onto a still-generating chunk.
      *
-     * @returns The loaded chunks' bounds, or `undefined` if none are loaded.
+     * @returns `true` if entities aren't clamped to already-generated ground.
      */
-    private getLoadedChunkBounds(): {minX: number; minY: number; maxX: number; maxY: number} | undefined {
-        if (this.chunks.size === 0) {
-            return undefined;
-        }
+    public getCanMoveOntoGeneratingChunks(): boolean {
+        return this.canMoveOntoGeneratingChunks;
+    }
 
+    /**
+     * Enables/disables movement onto still-generating chunks.
+     *
+     * @param canMove - Whether entities may move onto a still-generating chunk.
+     */
+    public setCanMoveOntoGeneratingChunks(canMove: boolean): void {
+        this.canMoveOntoGeneratingChunks = canMove;
+    }
+
+    /**
+     * Bounding rectangle, in world pixels, of every currently loaded chunk
+     * matching `predicate`.
+     *
+     * @param predicate - Only chunks this returns `true` for contribute to the bounds.
+     * @returns The matching chunks' bounds, or `undefined` if none match.
+     */
+    private getChunkBounds(predicate: (chunk: Chunk) => boolean): {minX: number; minY: number; maxX: number; maxY: number} | undefined {
         let minChunkX = Infinity;
         let minChunkY = Infinity;
         let maxChunkX = -Infinity;
         let maxChunkY = -Infinity;
         for (const chunk of this.chunks.values()) {
+            if (!predicate(chunk)) {
+                continue;
+            }
             minChunkX = Math.min(minChunkX, chunk.chunkX);
             minChunkY = Math.min(minChunkY, chunk.chunkY);
             maxChunkX = Math.max(maxChunkX, chunk.chunkX);
             maxChunkY = Math.max(maxChunkY, chunk.chunkY);
+        }
+        if (minChunkX === Infinity) {
+            return undefined;
         }
 
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
@@ -331,11 +364,13 @@ export class World {
     }
 
     /**
-     * Clamps every {@link MovableEntity} in {@link entities} inside
-     * {@link getLoadedChunkBounds}.
+     * Clamps every {@link MovableEntity} in {@link entities} inside the
+     * bounds of every loaded chunk matching `predicate`.
+     *
+     * @param predicate - Only chunks this returns `true` for count as reachable ground.
      */
-    private clampEntitiesToLoadedChunks(): void {
-        const bounds = this.getLoadedChunkBounds();
+    private clampEntitiesToChunks(predicate: (chunk: Chunk) => boolean): void {
+        const bounds = this.getChunkBounds(predicate);
         if (!bounds) {
             return;
         }
@@ -453,19 +488,63 @@ export class World {
      * Advances every entity in the world by one simulation tick, and streams
      * chunks in/out around the camera (see {@link updateLoadedChunks}). While
      * {@link generationEnabled} is off, entities are clamped inside the
-     * currently loaded chunks instead (see {@link clampEntitiesToLoadedChunks}).
+     * currently loaded chunks; while it's on but {@link canMoveOntoGeneratingChunks}
+     * is off, they're clamped inside already-generated chunks instead (see
+     * {@link clampEntitiesToChunks}).
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      * @param camera - Camera the world is currently being viewed through.
+     * @param spectating - Whether spectator mode is currently active - see {@link getChunkGenerationFocus}.
      */
-    public update(deltaMs: number, camera: Camera): void {
+    public update(deltaMs: number, camera: Camera, spectating: boolean): void {
         for (const entity of this.entities) {
             entity.update(deltaMs);
         }
-        this.updateLoadedChunks(camera);
+        const focus = this.getChunkGenerationFocus(camera, spectating);
+        this.updateLoadedChunks(camera, focus);
+        this.reorderChunkGenerationQueueIfFocusMoved(focus);
         if (!this.generationEnabled) {
-            this.clampEntitiesToLoadedChunks();
+            this.clampEntitiesToChunks(() => true);
+        } else if (!this.canMoveOntoGeneratingChunks) {
+            this.clampEntitiesToChunks((chunk) => chunk.isReady());
         }
+    }
+
+    /**
+     * The world-pixel point new chunk requests are prioritised around - the
+     * main entity's position normally, or the camera's centre while
+     * spectating, since spectating detaches the camera and leaves the main
+     * entity stationary.
+     *
+     * @param camera - Camera to read the spectator position from.
+     * @param spectating - Whether spectator mode is currently active.
+     * @returns The chunk generation focus point.
+     */
+    private getChunkGenerationFocus(camera: Camera, spectating: boolean): Vector2d {
+        return spectating ? camera.getCenter() : this.mainEntity.getPosition();
+    }
+
+    /**
+     * Re-sorts the worker's still-queued (not yet started) chunk requests by
+     * {@link getChunkGenerationPriority}, but only once `focus` has moved
+     * into a different chunk since the last call - the relative priority
+     * order only changes meaningfully then, so there's no need to re-sort
+     * every tick.
+     *
+     * @param focus - Current chunk generation focus point - see {@link getChunkGenerationFocus}.
+     */
+    private reorderChunkGenerationQueueIfFocusMoved(focus: Vector2d): void {
+        const tileX = Math.floor(focus.x / this.tileSize);
+        const tileY = Math.floor(focus.y / this.tileSize);
+        const chunk = World.tileToChunk(tileX, tileY);
+
+        if (this.lastChunkGenerationFocusChunk && this.lastChunkGenerationFocusChunk.chunkX === chunk.chunkX && this.lastChunkGenerationFocusChunk.chunkY === chunk.chunkY) {
+            return;
+        }
+        this.lastChunkGenerationFocusChunk = chunk;
+
+        const order = [...this.chunkWorkerClient.getPendingChunks()].sort((a, b) => this.getChunkGenerationPriority(a, focus) - this.getChunkGenerationPriority(b, focus));
+        this.chunkWorkerClient.reorderPending(order);
     }
 
     /**
@@ -485,6 +564,22 @@ export class World {
     }
 
     /**
+     * How urgently a chunk should be generated: lower comes first. Manhattan
+     * distance from `focus`, in chunk units - chunks radiate outward from
+     * `focus` as a diamond, equally in every direction.
+     *
+     * @param coordinate - Chunk coordinate to prioritise.
+     * @param focus - World-pixel point to prioritise around - see {@link getChunkGenerationFocus}.
+     * @returns The priority (lower is more urgent).
+     */
+    private getChunkGenerationPriority(coordinate: ChunkCoordinate, focus: Vector2d): number {
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        const dx = (coordinate.chunkX + 0.5) - focus.x / chunkPixelSize;
+        const dy = (coordinate.chunkY + 0.5) - focus.y / chunkPixelSize;
+        return Math.abs(dx) + Math.abs(dy);
+    }
+
+    /**
      * Generates/loads every chunk within the camera's view plus a buffer of
      * {@link CHUNK_BUFFER} chunks, then unloads any loaded chunk that's
      * drifted further than that buffer outside the view. Keeps memory
@@ -493,9 +588,14 @@ export class World {
      * {@link generationEnabled} is off, freezing the currently loaded chunks
      * as "the map" instead of streaming more in/out.
      *
+     * Not-yet-loaded chunks are requested in {@link getChunkGenerationPriority}
+     * order. Chunks already queued keep their existing position in the
+     * worker's queue.
+     *
      * @param camera - Camera to load/unload chunks around.
+     * @param focus - Current chunk generation focus point - see {@link getChunkGenerationFocus}.
      */
-    private updateLoadedChunks(camera: Camera): void {
+    private updateLoadedChunks(camera: Camera, focus: Vector2d): void {
         if (!this.generationEnabled) {
             return;
         }
@@ -506,10 +606,18 @@ export class World {
         const bufferedEndX = visible.endChunkX + World.CHUNK_BUFFER;
         const bufferedEndY = visible.endChunkY + World.CHUNK_BUFFER;
 
+        const pending: ChunkCoordinate[] = [];
         for (let chunkY = bufferedStartY; chunkY <= bufferedEndY; chunkY++) {
             for (let chunkX = bufferedStartX; chunkX <= bufferedEndX; chunkX++) {
-                this.getChunk(chunkX, chunkY);
+                if (!this.isChunkLoaded(chunkX, chunkY)) {
+                    pending.push({chunkX, chunkY});
+                }
             }
+        }
+
+        pending.sort((a, b) => this.getChunkGenerationPriority(a, focus) - this.getChunkGenerationPriority(b, focus));
+        for (const {chunkX, chunkY} of pending) {
+            this.getChunk(chunkX, chunkY);
         }
 
         for (const chunk of this.chunks.values()) {
@@ -565,7 +673,8 @@ export class World {
                 this.lastVisibleChunkCount++;
 
                 if (debugEnabled) {
-                    chunk.drawDebug(ctx, originX, originY, this.tileSize);
+                    const queuePosition = chunk.isReady() ? undefined : this.chunkWorkerClient.getQueuePosition(chunkX, chunkY);
+                    chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
                 }
             }
         }

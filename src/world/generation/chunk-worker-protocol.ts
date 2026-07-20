@@ -4,7 +4,8 @@ import {TileData} from "../tile";
 export type ChunkGenerationRequest =
     | {type: "init"; worldSeed: number}
     | {type: "generate"; chunkX: number; chunkY: number}
-    | {type: "setMinGenerationDelayMs"; delayMs: number};
+    | {type: "setMinGenerationDelayMs"; delayMs: number}
+    | {type: "reorder"; order: {chunkX: number; chunkY: number}[]};
 
 /** The chunk generation worker's response to a `"generate"` request. */
 export interface ChunkGenerationResult {

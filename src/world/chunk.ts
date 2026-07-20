@@ -150,22 +150,35 @@ export class Chunk {
     }
 
     /**
-     * Draws this chunk's outline and coordinate label, for debug rendering mode.
+     * Draws this chunk's outline and coordinate label, for debug rendering
+     * mode. While this chunk hasn't finished generating, also draws its
+     * position in the generation queue, centred in the chunk, if known.
      *
      * @param ctx - Canvas context to draw into.
      * @param originX - Canvas X position of this chunk's top-left corner.
      * @param originY - Canvas Y position of this chunk's top-left corner.
      * @param tileSize - Width/height of each tile, in canvas pixels.
+     * @param queuePosition - This chunk's position in the generation queue, or `undefined` if it isn't queued (or is already ready).
      */
-    public drawDebug(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
-        ctx.strokeStyle = DEBUG_CONFIG.chunkOutlineColor;
+    public drawDebug(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, queuePosition?: number): void {
+        const pixelSize = CHUNK_SIZE * tileSize;
+
+        ctx.strokeStyle = this.isReady() ? DEBUG_CONFIG.chunkOutlineColor : DEBUG_CONFIG.chunkPendingOutlineColor;
         ctx.lineWidth = DEBUG_CONFIG.chunkOutlineWidth;
-        ctx.strokeRect(originX, originY, CHUNK_SIZE * tileSize, CHUNK_SIZE * tileSize);
+        ctx.strokeRect(originX, originY, pixelSize, pixelSize);
 
         ctx.fillStyle = DEBUG_CONFIG.chunkLabelColor;
         ctx.font = DEBUG_CONFIG.chunkLabelFont;
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
         ctx.fillText(`(${this.chunkX}, ${this.chunkY}), ${this.isReady() ? this.biomeName : "generating..."}`, originX + DEBUG_CONFIG.chunkLabelPadding, originY + DEBUG_CONFIG.chunkLabelPadding);
+
+        if (queuePosition !== undefined) {
+            ctx.fillStyle = DEBUG_CONFIG.chunkPendingOutlineColor;
+            ctx.font = DEBUG_CONFIG.chunkQueuePositionFont;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(String(queuePosition), originX + pixelSize / 2, originY + pixelSize / 2);
+        }
     }
 }

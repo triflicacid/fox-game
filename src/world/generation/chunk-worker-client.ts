@@ -106,6 +106,47 @@ export class ChunkWorkerClient {
     }
 
     /**
+     * This chunk coordinate's position in the request queue (`0` = next to
+     * be generated), or `undefined` if it isn't currently pending.
+     *
+     * @param chunkX - Chunk's X coordinate, in chunk units.
+     * @param chunkY - Chunk's Y coordinate, in chunk units.
+     * @returns The queue position, or `undefined`.
+     */
+    public getQueuePosition(chunkX: number, chunkY: number): number | undefined {
+        const key = ChunkWorkerClient.key(chunkX, chunkY);
+        let position = 0;
+        for (const pendingKey of this.pending.keys()) {
+            if (pendingKey === key) {
+                return position;
+            }
+            position++;
+        }
+        return undefined;
+    }
+
+    /**
+     * Re-sorts the worker's still-queued (not yet started) requests to
+     * match `order`. Whichever request is currently being generated is
+     * unaffected, wherever it falls in `order`. Also reorders {@link pending}
+     * itself the same way, so {@link getPendingChunks}/{@link getQueuePosition}
+     * stay accurate.
+     *
+     * @param order - Desired chunk coordinate order, most urgent first.
+     */
+    public reorderPending(order: readonly {chunkX: number; chunkY: number}[]): void {
+        for (const {chunkX, chunkY} of order) {
+            const key = ChunkWorkerClient.key(chunkX, chunkY);
+            const request = this.pending.get(key);
+            if (request) {
+                this.pending.delete(key);
+                this.pending.set(key, request);
+            }
+        }
+        this.post({type: "reorder", order: [...order]});
+    }
+
+    /**
      * Rejects every still-pending {@link requestChunk} promise with `reason`.
      *
      * @param reason - Rejection reason for every pending promise.

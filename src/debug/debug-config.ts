@@ -8,6 +8,8 @@ import {COLORS} from "../lib/display/colors";
 export const DEBUG_CONFIG = {
     /** Stroke colour for chunk outlines. */
     chunkOutlineColor: "#ff0000",
+    /** Stroke colour for a chunk outline while that chunk hasn't finished generating yet. */
+    chunkPendingOutlineColor: "#3399ff",
     /** Stroke width for chunk outlines, in canvas pixels. */
     chunkOutlineWidth: 3,
     /** Text colour for a chunk's coordinate label. */
@@ -16,6 +18,8 @@ export const DEBUG_CONFIG = {
     chunkLabelFont: "12px monospace",
     /** Padding between a chunk's top-left corner and its coordinate label, in canvas pixels. */
     chunkLabelPadding: 4,
+    /** Font for a still-generating chunk's queue position, drawn centred in the chunk. */
+    chunkQueuePositionFont: "bold 16px monospace",
 
     /** Stroke colour for entity bounding boxes. */
     boundingBoxColor: "#3399ff",
