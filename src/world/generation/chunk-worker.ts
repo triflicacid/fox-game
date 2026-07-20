@@ -80,6 +80,20 @@ async function processQueue(): Promise<void> {
     queueRunning = false;
 }
 
+/**
+ * Re-sorts {@link queue} to match `order`. Whichever chunk is currently
+ * being generated has already been shifted out of {@link queue} (see
+ * {@link processQueue}), so it's unaffected regardless of where it falls
+ * in `order`.
+ *
+ * @param order - Desired chunk coordinate order, most urgent first. A queued coordinate missing from `order` sorts last.
+ */
+function reorderQueue(order: {chunkX: number; chunkY: number}[]): void {
+    const rank = new Map<string, number>();
+    order.forEach(({chunkX, chunkY}, index) => rank.set(`${chunkX},${chunkY}`, index));
+    queue.sort((a, b) => (rank.get(`${a.chunkX},${a.chunkY}`) ?? Infinity) - (rank.get(`${b.chunkX},${b.chunkY}`) ?? Infinity));
+}
+
 ctx.onmessage = (event) => {
     const request = event.data;
 
@@ -90,6 +104,11 @@ ctx.onmessage = (event) => {
 
     if (request.type === "setMinGenerationDelayMs") {
         minGenerationDelayMs = request.delayMs;
+        return;
+    }
+
+    if (request.type === "reorder") {
+        reorderQueue(request.order);
         return;
     }
 
