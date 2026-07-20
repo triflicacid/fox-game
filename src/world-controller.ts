@@ -79,6 +79,9 @@ export class WorldController {
             () => this.world.getNoiseFieldNames(),
             () => this.noiseFieldName,
             (name) => this.noiseFieldName = name,
+            () => this.world.getWorldSeed(),
+            (seed) => this.world.setWorldSeed(seed),
+            () => this.world.refreshWorldSeed(),
             this.handlePopupOpenChange,
         );
         this.popupControllers = [this.helpController, this.settingsController];
