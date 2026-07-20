@@ -85,8 +85,8 @@ export class SettingsController extends PopupController {
                 {kind: "checkbox", checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: [{content: "Debug mode"}]},
             ],
             [
-                {content: "Target FPS: ", padding: 4},
-                {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps, padding: 5},
+                {content: "Target FPS: "},
+                {kind: "number", value: this.getTargetFps(), step: 1, min: 1, onChange: this.setTargetFps},
             ],
         ];
 

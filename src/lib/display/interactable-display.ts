@@ -117,6 +117,10 @@ interface ResolvedNumberElement {
     value: number;
     step: number;
     allowDecimal: boolean;
+    /** See {@link NumberInput.min}. */
+    min: number | undefined;
+    /** See {@link NumberInput.max}. */
+    max: number | undefined;
     onChange: (value: number) => void;
     focusedStyle: ResolvedStateStyle;
     /** Style overlaid while the box is being edited. */
@@ -254,6 +258,8 @@ interface NumberEditHandle {
     getValue: () => number;
     step: number;
     allowDecimal: boolean;
+    min: number | undefined;
+    max: number | undefined;
     onChange: (value: number) => void;
 }
 
@@ -712,6 +718,8 @@ export class InteractableDisplay extends Display {
                 value: item.value,
                 step: item.step ?? 1,
                 allowDecimal: item.allowDecimal ?? false,
+                min: item.min,
+                max: item.max,
                 onChange: item.onChange,
                 ...common,
             },
@@ -1185,7 +1193,7 @@ export class InteractableDisplay extends Display {
     /** Computes a resolved number element's on-screen rect. */
     private layoutNumber(element: ResolvedNumberElement, x: number, y: number, padding: ResolvedSpacing): FocusableElement[] {
         return this.layoutTextBoxFocusable(x, y, element.width, element.height, padding, element.disabled, {
-            numberEdit: {getValue: () => element.value, step: element.step, allowDecimal: element.allowDecimal, onChange: element.onChange},
+            numberEdit: {getValue: () => element.value, step: element.step, allowDecimal: element.allowDecimal, min: element.min, max: element.max, onChange: element.onChange},
         });
     }
 
@@ -1916,10 +1924,22 @@ export class InteractableDisplay extends Display {
         this.cursor = cursor;
     }
 
+    /** Clamps `value` to `[min, max)` - `max` is exclusive, so a value that would reach or exceed it is pulled back by `step` instead, keeping it on the same step grid. Either bound is skipped when unset. */
+    private clampNumberValue(value: number, min: number | undefined, max: number | undefined, step: number): number {
+        let result = value;
+        if (max !== undefined && result >= max) {
+            result = max - step;
+        }
+        if (min !== undefined) {
+            result = Math.max(result, min);
+        }
+        return result;
+    }
+
     /**
      * If {@link numberEditBuffer} holds an edit for the currently focused
      * element, parses it and calls that number input's `onChange` with the
-     * result, then clears the buffer either way.
+     * result (clamped to `min`/`max`), then clears the buffer either way.
      */
     private commitPendingNumberEdit(): void {
         const buffer = this.numberEditBuffer;
@@ -1932,7 +1952,8 @@ export class InteractableDisplay extends Display {
             return;
         }
         const parsed = parseFloat(buffer.text);
-        numberEdit.onChange(Number.isNaN(parsed) ? numberEdit.getValue() : parsed);
+        const next = Number.isNaN(parsed) ? numberEdit.getValue() : parsed;
+        numberEdit.onChange(this.clampNumberValue(next, numberEdit.min, numberEdit.max, numberEdit.step));
     }
 
     /**
@@ -2046,7 +2067,7 @@ export class InteractableDisplay extends Display {
      * @param pos - The buffer's current caret position.
      * @param anchor - The buffer's current selection anchor, if any.
      * @param event - The keyboard event.
-     * @param acceptsChar - Whether `char` may be inserted (typed or pasted), given `textWithoutChar` - the buffer's text with any active selection (or, mid-paste, everything already accepted from earlier in the pasted string) removed. E.g. a number input rejects a second `.`.
+     * @param acceptsChar - Whether `char` may be inserted (typed or pasted), given `textWithoutChar` - the buffer's text with any active selection (or, mid-paste, everything already accepted from earlier in the pasted string) removed - and `insertAt`, the index within it `char` would land at. E.g. a number input rejects a second `.`, or a `-` anywhere but `insertAt === 0`.
      * @param isStillEditing - Forwarded to {@link handleClipboardShortcut}.
      * @param setBuffer - Applies the buffer's next value.
      */
@@ -2056,7 +2077,7 @@ export class InteractableDisplay extends Display {
         pos: number,
         anchor: number | null,
         event: KeyboardEvent,
-        acceptsChar: (char: string, textWithoutChar: string) => boolean,
+        acceptsChar: (char: string, textWithoutChar: string, insertAt: number) => boolean,
         isStillEditing: () => boolean,
         setBuffer: (buffer: {cursor: number; text: string; pos: number; anchor: number | null}) => void,
     ): void {
@@ -2065,11 +2086,13 @@ export class InteractableDisplay extends Display {
             (pasted) => {
                 const selection = anchor !== null && anchor !== pos ? {start: Math.min(pos, anchor), end: Math.max(pos, anchor)} : null;
                 let building = selection ? currentText.slice(0, selection.start) + currentText.slice(selection.end) : currentText;
+                let insertAt = selection ? selection.start : pos;
                 let accepted = "";
                 for (const char of pasted) {
-                    if (acceptsChar(char, building)) {
+                    if (acceptsChar(char, building, insertAt)) {
                         accepted += char;
                         building += char;
+                        insertAt += 1;
                     }
                 }
                 return accepted;
@@ -2118,7 +2141,7 @@ export class InteractableDisplay extends Display {
                 nextText = currentText.slice(0, pos) + currentText.slice(pos + 1);
                 nextPos = pos;
             }
-        } else if (event.key.length === 1 && acceptsChar(event.key, textWithoutSelection)) {
+        } else if (event.key.length === 1 && acceptsChar(event.key, textWithoutSelection, selection ? selection.start : pos)) {
             const insertAt = selection ? selection.start : pos;
             nextText = textWithoutSelection.slice(0, insertAt) + event.key + textWithoutSelection.slice(insertAt);
             nextPos = insertAt + 1;
@@ -2164,7 +2187,7 @@ export class InteractableDisplay extends Display {
         }
         if (event.key === "ArrowUp" || event.key === "ArrowDown") {
             const delta = event.key === "ArrowUp" ? numberEdit.step : -numberEdit.step;
-            const next = this.getEffectiveNumberValue(cursor, numberEdit) + delta;
+            const next = this.clampNumberValue(this.getEffectiveNumberValue(cursor, numberEdit) + delta, numberEdit.min, numberEdit.max, numberEdit.step);
             numberEdit.onChange(next);
             const text = String(next);
             this.numberEditBuffer = {cursor, text, pos: text.length, anchor: null};
@@ -2178,7 +2201,9 @@ export class InteractableDisplay extends Display {
 
         this.handleTextEditingKey(
             cursor, currentText, pos, anchor, event,
-            (char, textWithoutChar) => /^[0-9]$/.test(char) || (char === "." && numberEdit.allowDecimal && !textWithoutChar.includes(".")),
+            (char, textWithoutChar, insertAt) => /^[0-9]$/.test(char)
+                || (char === "." && numberEdit.allowDecimal && !textWithoutChar.includes("."))
+                || (char === "-" && insertAt === 0 && !textWithoutChar.startsWith("-")),
             () => this.editingNumberCursor === cursor,
             (buffer) => {
                 this.numberEditBuffer = buffer;
@@ -2360,6 +2385,8 @@ export class InteractableDisplay extends Display {
             this.moveCursorVertical(1);
         } else if (cursor !== null && focusedNumberEdit && /^[0-9]$/.test(event.key)) {
             this.startEditingNumber(cursor, focusedNumberEdit, String(focusedNumberEdit.getValue()) + event.key);
+        } else if (cursor !== null && focusedNumberEdit && event.key === "-" && focusedNumberEdit.getValue() >= 0) {
+            this.startEditingNumber(cursor, focusedNumberEdit, "-" + String(focusedNumberEdit.getValue()));
         } else if (cursor !== null && focusedNumberEdit && event.key === "Backspace") {
             this.startEditingNumber(cursor, focusedNumberEdit, String(focusedNumberEdit.getValue()).slice(0, -1));
         } else if (cursor !== null && focusedTextEdit && event.key.length === 1 && this.isTextCharAllowed(focusedTextEdit, event.key)) {
