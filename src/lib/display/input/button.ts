@@ -10,8 +10,8 @@ import {TextSegment} from "../text-style";
  */
 export interface ButtonInput extends InputBase {
     kind: "button";
-    /** Content shown as this button's label - plain text, or rich `TextSegment[]` content like a checkbox/radio label. */
-    content: string | TextSegment[];
+    /** Content shown as this button's label. Unset for no label (e.g. an icon-only button). */
+    content?: string | TextSegment[];
     /** Invoked when the button is activated. */
     onClick: () => void;
 }

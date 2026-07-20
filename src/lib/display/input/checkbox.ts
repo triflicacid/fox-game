@@ -17,8 +17,8 @@ export interface CheckboxInput extends InputBase {
     kind: "checkbox";
     /** Whether the checkbox is currently checked. */
     checked: boolean;
-    /** Content shown as this checkbox's label. */
-    content: TextSegment[];
+    /** Content shown as this checkbox's label. Unset for no label. */
+    content?: string | TextSegment[];
     /** Style colouring just the box while checked. Falls back to `selectedStyle`, then the theme's default box look. */
     inputSelectedStyle?: TextStyle;
     /** Style colouring just the box at rest (unchecked, unfocused). Falls back to `style`, then the theme's default box look. */

@@ -24,5 +24,10 @@ export type Input = RadioInput | CheckboxInput | NumberInput | TextInput | Butto
 /** A single item within a {@link DisplayLine}: styled text, or an {@link Input}. */
 export type DisplayLineItem = TextSegment | Input;
 
+/** A line built incrementally via the `line()` builder. */
+export interface Line {
+    items: DisplayLineItem[];
+}
+
 /** A single line an {@link InteractableDisplay} can lay out, made of one or more top-level items. */
-export type DisplayLine = DisplayLineItem[];
+export type DisplayLine = DisplayLineItem[] | Line;

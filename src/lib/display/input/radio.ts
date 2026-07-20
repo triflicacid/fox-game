@@ -1,26 +1,16 @@
-import {Alignment, TextSegment, TextStyle} from "../text-style";
+import {TextSegment, TextStyle} from "../text-style";
 import {InputBase} from "./base";
 
-/** A single selectable option within a {@link RadioInput}. */
-export interface RadioOption {
+/** A single selectable option within a {@link RadioInput} - shares every {@link InputBase} field, resolved against the owning input as a fallback. */
+export interface RadioOption extends Omit<InputBase, "kind"> {
     /** Uniquely identifies this option; passed to the owning {@link RadioInput}'s `onSelect`. */
     key: string;
-    /** Content shown as this option's label. */
-    content: TextSegment[];
-    /** Vertical alignment within the radio's own bounding box, independent of other options. Defaults to `"top"`. */
-    align?: Alignment;
-    /** Style overlaid on this option while focused. Falls back to the owning {@link RadioInput}'s `focusedStyle`, then the theme. */
-    focusedStyle?: TextStyle;
-    /** Style overlaid on this option while it is the selected one. Falls back to the owning {@link RadioInput}'s `selectedStyle`. */
-    selectedStyle?: TextStyle;
+    /** Content shown as this option's label. Unset for no label. */
+    content?: string | TextSegment[];
     /** Style colouring just this option's marker while selected. Falls back to the owning {@link RadioInput}'s `inputSelectedStyle`, then this option's `selectedStyle`, then the theme's default marker look. */
     inputSelectedStyle?: TextStyle;
-    /** Style colouring just this option's marker at rest (unselected, unfocused). Falls back to the owning {@link RadioInput}'s `inputStyle`, then its `style`, then the theme's default marker look. */
+    /** Style colouring just this option's marker at rest (unselected, unfocused). Falls back to the owning {@link RadioInput}'s `inputStyle`, then `style` (this option's own, then the input's), then the theme's default marker look. */
     inputStyle?: TextStyle;
-    /** Whether this option is disabled, independent of the owning {@link RadioInput}. Defaults to `false`. */
-    disabled?: boolean;
-    /** If `true`, this option acts as if absent entirely. Defaults to `false`. */
-    hidden?: boolean;
 }
 
 /**

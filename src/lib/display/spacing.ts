@@ -30,3 +30,12 @@ export function resolveSpacing(spacing: Spacing | undefined): ResolvedSpacing {
     }
     return spacing;
 }
+
+/** Builds a {@link Spacing} value from its CSS-style shorthand. */
+export function spacing(all: number): Spacing;
+// eslint-disable-next-line @typescript-eslint/unified-signatures -- merging with the overload above breaks the rest-param implementation (TS2394)
+export function spacing(vertical: number, horizontal: number): Spacing;
+export function spacing(top: number, right: number, bottom: number, left: number): Spacing;
+export function spacing(...values: number[]): Spacing {
+    return values as Spacing;
+}

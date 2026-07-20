@@ -5,8 +5,8 @@ import {InputBase} from "./base";
 export interface SelectOption {
     /** Uniquely identifies this option; passed to the owning {@link SelectInput}'s `onSelect`. */
     key: string;
-    /** Content shown as this option's label. */
-    content: TextSegment[];
+    /** Content shown as this option's label. Unset for no label. */
+    content?: string | TextSegment[];
     /** Style overlaid on this option's row while highlighted in the open dropdown. Falls back to the owning {@link SelectInput}'s `focusedStyle`, then the theme. */
     focusedStyle?: TextStyle;
     /** Style overlaid on this option's row while it is the selected one. Falls back to the owning {@link SelectInput}'s `selectedStyle`. */
