@@ -20,6 +20,7 @@ export interface DebugHudData {
     chunkBiome: string;
     visibleChunkCount: number;
     loadedChunkCount: number;
+    generatingChunkCount: number;
     latestChunkGenerationTimeMs: number;
     averageChunkGenerationTimeMs: number;
     exactFeature: string;
@@ -61,6 +62,14 @@ export class DebugHud {
         return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
     }
 
+    /** Percentage of loaded chunks that are ready (not still generating), `0` if none are loaded. */
+    private readyPercent(data: DebugHudData): number {
+        if (data.loadedChunkCount === 0) {
+            return 0;
+        }
+        return ((data.loadedChunkCount - data.generatingChunkCount) / data.loadedChunkCount) * 100;
+    }
+
     /**
      * Builds this frame's HUD lines from `data`.
      */
@@ -76,7 +85,12 @@ export class DebugHud {
                 this.text("chunk ("), this.numberValue(String(data.chunkX)), this.text(", "), this.numberValue(String(data.chunkY)),
                 this.text("), "), this.stringValue(data.chunkBiome),
             ],
-            [this.text("chunks: visible="), this.numberValue(String(data.visibleChunkCount)), this.text(", loaded="), this.numberValue(String(data.loadedChunkCount))],
+            [
+                this.text("chunks: visible="), this.numberValue(String(data.visibleChunkCount)),
+                this.text(", loaded="), this.numberValue(String(data.loadedChunkCount)),
+                this.text(" ("), this.numberValue(this.readyPercent(data).toFixed(1)), this.text("%)"),
+                this.text(", generating="), this.numberValue(String(data.generatingChunkCount)),
+            ],
             [
                 this.text("chunk gen: latest="), this.numberValue(data.latestChunkGenerationTimeMs.toFixed(6)), this.text(" ms"),
                 this.text(", avg="), this.numberValue(data.averageChunkGenerationTimeMs.toFixed(4)), this.text(" ms"),

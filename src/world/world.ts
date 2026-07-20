@@ -7,6 +7,8 @@ import {Camera} from "../camera/camera";
 import {DebugHud} from "../debug/debug-hud";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk-generator";
+import {ChunkWorkerClient} from "./generation/chunk-worker-client";
+import {FeatureTag} from "./generation/feature-tag";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -39,8 +41,12 @@ export class World {
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
     };
+    /** Used only for {@link getNoiseFieldNames}/{@link drawNoiseFieldOverlay} - actual chunk generation runs on {@link chunkWorkerClient}. */
     private chunkGenerator: ChunkGenerator;
+    private chunkWorkerClient: ChunkWorkerClient;
     private worldSeed: number;
+    /** Debug knob: minimum time the worker leaves between finishing one chunk and starting the next. `0` disables it - see {@link setMinChunkGenerationDelayMs}. */
+    private minChunkGenerationDelayMs = 0;
     private readonly debugHud = new DebugHud();
     private mainEntity: MovableEntity;
 
@@ -68,6 +74,7 @@ export class World {
     public constructor(public readonly tileSize: number, worldSeed: number = World.randomSeed()) {
         this.worldSeed = worldSeed;
         this.chunkGenerator = new ChunkGenerator(worldSeed);
+        this.chunkWorkerClient = new ChunkWorkerClient(worldSeed);
         this.mainEntity = new Fox();
         this.entities.push(this.mainEntity);
     }
@@ -96,7 +103,8 @@ export class World {
      */
     public setWorldSeed(seed: number): void {
         this.worldSeed = seed;
-        this.chunkGenerator = new ChunkGenerator(seed);
+        this.chunkGenerator.setSeed(seed);
+        this.chunkWorkerClient.setSeed(seed);
     }
 
     /**
@@ -104,6 +112,29 @@ export class World {
      */
     public refreshWorldSeed(): void {
         this.setWorldSeed(World.randomSeed());
+    }
+
+    /**
+     * Debug knob: minimum time the worker leaves between finishing one
+     * chunk's generation and starting the next, for testing that the UI
+     * stays responsive while chunks are generating.
+     *
+     * @returns The current minimum delay, in milliseconds. `0` means disabled.
+     */
+    public getMinChunkGenerationDelayMs(): number {
+        return this.minChunkGenerationDelayMs;
+    }
+
+    /**
+     * Sets the minimum-delay-between-chunks debug knob - see
+     * {@link getMinChunkGenerationDelayMs}. Takes effect immediately on the
+     * currently running worker, and persists across a {@link setWorldSeed}.
+     *
+     * @param delayMs - Minimum milliseconds to leave between chunks. `0` disables the delay.
+     */
+    public setMinChunkGenerationDelayMs(delayMs: number): void {
+        this.minChunkGenerationDelayMs = delayMs;
+        this.chunkWorkerClient.setMinGenerationDelayMs(delayMs);
     }
 
     /**
@@ -144,11 +175,18 @@ export class World {
         const key = World.chunkKey(chunkX, chunkY);
         let chunk = this.chunks.get(key);
         if (!chunk) {
-            chunk = new Chunk(chunkX, chunkY, this.chunkGenerator, this.chunkSpriteSheets, this.tileSize);
+            const generation = this.chunkWorkerClient.requestChunk(chunkX, chunkY);
+            chunk = new Chunk(chunkX, chunkY, generation, this.chunkSpriteSheets, this.tileSize);
             this.chunks.set(key, chunk);
-            this.latestChunkGenerationTimeMs = chunk.generationTimeMs;
-            this.totalChunkGenerationTimeMs += chunk.generationTimeMs;
-            this.generatedChunkCount++;
+            generation
+                .then((result) => {
+                    this.latestChunkGenerationTimeMs = result.generationTimeMs;
+                    this.totalChunkGenerationTimeMs += result.generationTimeMs;
+                    this.generatedChunkCount++;
+                })
+                .catch(() => {
+                    // Worker terminated (e.g. a seed change) before this chunk finished; don't count it.
+                });
         }
         return chunk;
     }
@@ -160,6 +198,33 @@ export class World {
      */
     public getLoadedChunkCount(): number {
         return this.chunks.size;
+    }
+
+    /**
+     * The worker client driving chunk generation - for debugging (see
+     * `exposeGlobals`), e.g. to inspect pending chunks or set the min
+     * generation delay from the console while the app is running. The same
+     * instance for this `World`'s whole lifetime.
+     *
+     * @returns The current chunk worker client.
+     */
+    public getChunkWorkerClient(): ChunkWorkerClient {
+        return this.chunkWorkerClient;
+    }
+
+    /**
+     * How many currently loaded chunks are still generating, for the debug HUD.
+     *
+     * @returns The generating chunk count.
+     */
+    public getGeneratingChunkCount(): number {
+        let count = 0;
+        for (const chunk of this.chunks.values()) {
+            if (!chunk.isReady()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -208,9 +273,11 @@ export class World {
     }
 
     /**
-     * Drops every currently loaded chunk from memory.
+     * Drops every currently loaded chunk from memory, cancelling any
+     * still-pending generation requests for them.
      */
     public reloadAllChunks(): void {
+        this.chunkWorkerClient.cancelPending();
         this.chunks.clear();
     }
 
@@ -296,6 +363,25 @@ export class World {
     }
 
     /**
+     * Looks up the feature tag at the given world tile position, generating
+     * its containing chunk first if necessary. Unlike {@link getTile}, safe
+     * to call on a chunk that's still generating - returns `"none"` instead
+     * of throwing.
+     *
+     * @param tileX - Tile's X position, in tiles from the world origin.
+     * @param tileY - Tile's Y position, in tiles from the world origin.
+     * @returns The feature tag at that position, or `"none"` if the containing chunk isn't ready yet.
+     */
+    private getFeatureTag(tileX: number, tileY: number): FeatureTag {
+        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
+        const chunk = this.getChunk(chunkX, chunkY);
+        if (!chunk.isReady()) {
+            return "none";
+        }
+        return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE).featureTag;
+    }
+
+    /**
      * The most common feature tag among every tile touched by the given
      * pixel rectangle - meant to be called with a sprite's full drawn
      * rectangle (`SpriteFrame.w`/`h`), not its (typically smaller) collision
@@ -317,7 +403,7 @@ export class World {
         const counts = new Map<string, number>();
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const tag = this.getTile(tileX, tileY).featureTag;
+                const tag = this.getFeatureTag(tileX, tileY);
                 counts.set(tag, (counts.get(tag) ?? 0) + 1);
             }
         }
@@ -597,8 +683,9 @@ export class World {
         const tileX = Math.floor(position.x / this.tileSize);
         const tileY = Math.floor(position.y / this.tileSize);
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunkBiome = this.getChunk(chunkX, chunkY).biome.name;
-        const exactFeature = this.getTile(tileX, tileY).featureTag;
+        const chunk = this.getChunk(chunkX, chunkY);
+        const chunkBiome = chunk.isReady() ? chunk.biomeName : "generating...";
+        const exactFeature = this.getFeatureTag(tileX, tileY);
         const frame = this.mainEntity.getCurrentFrame();
         const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);
 
@@ -615,6 +702,7 @@ export class World {
             chunkBiome,
             visibleChunkCount: this.lastVisibleChunkCount,
             loadedChunkCount: this.getLoadedChunkCount(),
+            generatingChunkCount: this.getGeneratingChunkCount(),
             latestChunkGenerationTimeMs: this.getLatestChunkGenerationTimeMs(),
             averageChunkGenerationTimeMs: this.getAverageChunkGenerationTimeMs(),
             exactFeature,
