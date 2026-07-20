@@ -8,8 +8,14 @@ export class DebugController {
 
     /**
      * @param onReloadChunks - Called when the `r` key is pressed while debug mode is enabled.
+     * @param onTeleportToCamera - Called when the `t` key is pressed while debug mode and spectator mode are both enabled.
+     * @param isSpectating - Reports whether spectator mode is currently active, so `onTeleportToCamera` only fires alongside it.
      */
-    public constructor(private readonly onReloadChunks: () => void) {
+    public constructor(
+        private readonly onReloadChunks: () => void,
+        private readonly onTeleportToCamera: () => void,
+        private readonly isSpectating: () => boolean,
+    ) {
         window.addEventListener("keydown", this.handleKeyDown);
     }
 
@@ -40,6 +46,9 @@ export class DebugController {
         const bindings: KeyBinding[] = [{key: "D", description: "Toggle debug overlay"}];
         if (this.enabled) {
             bindings.push({key: "R", description: "Reload all chunks"});
+            if (this.isSpectating()) {
+                bindings.push({key: "T", description: "Teleport to camera"});
+            }
         }
         return bindings;
     }
@@ -49,8 +58,13 @@ export class DebugController {
             this.enabled = !this.enabled;
             return;
         }
-        if (this.enabled && (event.key === "r" || event.key === "R")) {
+        if (!this.enabled) {
+            return;
+        }
+        if (event.key === "r" || event.key === "R") {
             this.onReloadChunks();
+        } else if ((event.key === "t" || event.key === "T") && this.isSpectating()) {
+            this.onTeleportToCamera();
         }
     };
 }

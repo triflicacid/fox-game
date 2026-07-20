@@ -64,7 +64,11 @@ export class WorldController {
         this.camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
         new CameraDragController(canvas, this.camera);
         this.movementController = new MovementController(this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
-        this.debugController = new DebugController(() => this.world.reloadAllChunks());
+        this.debugController = new DebugController(
+            () => this.world.reloadAllChunks(),
+            () => this.world.teleportMainEntityTo(this.camera.getCenter()),
+            () => this.movementController.isSpectating(),
+        );
         this.helpController = new HelpController(() => this.getKeyBindings(), this.handlePopupOpenChange);
         this.settingsController = new SettingsController(
             () => this.movementController.getCameraFollowMode(),

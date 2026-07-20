@@ -485,6 +485,21 @@ export class World {
     }
 
     /**
+     * Teleports the main entity so its sprite is centred on `target`,
+     * bypassing normal movement/collision - for the debug `t` shortcut that
+     * teleports the fox to the camera. Works even if `target` falls on a
+     * chunk that hasn't finished generating (or doesn't exist) yet - chunk
+     * streaming (see {@link updateLoadedChunks}) requests it on the next
+     * tick same as anywhere else the camera can see.
+     *
+     * @param target - World-pixel point to centre the main entity on.
+     */
+    public teleportMainEntityTo(target: Vector2d): void {
+        const frame = this.mainEntity.getCurrentFrame();
+        this.mainEntity.teleportTo(new Vector2d(target.x - frame.w / 2, target.y - frame.h / 2));
+    }
+
+    /**
      * Advances every entity in the world by one simulation tick, and streams
      * chunks in/out around the camera (see {@link updateLoadedChunks}). While
      * {@link generationEnabled} is off, entities are clamped inside the

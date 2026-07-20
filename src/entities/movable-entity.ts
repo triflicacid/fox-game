@@ -130,6 +130,16 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     }
 
     /**
+     * Moves this entity straight to `position`, bypassing normal
+     * movement/collision.
+     *
+     * @param position - New position.
+     */
+    public teleportTo(position: Vector2d): void {
+        this.setPosition(position);
+    }
+
+    /**
      * Clamps this entity's position into the given world-pixel bounds.
      *
      * @param minX - Minimum X position, in world pixels.
