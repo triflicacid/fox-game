@@ -53,7 +53,6 @@ export class DebugHud {
             fontFamily: DEBUG_CONFIG.hudFontFamily,
             fontSize: DEBUG_CONFIG.hudFontSize,
         }, FLAT_THEME, "click", null);
-        this.display.setDebug(true); // TODO remove - temporary bounding-rect debug overlay
     }
 
     /** A string-valued segment (e.g. a feature tag, biome name, facing direction). */
