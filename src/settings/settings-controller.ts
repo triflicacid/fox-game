@@ -1,4 +1,5 @@
 import {DisplayLine} from "../lib/display/input";
+import {checkbox, hr, line, numberBox, radio, select} from "../lib/display/builders";
 import {KeyBinding} from "../help/key-binding";
 import {PopupController} from "../lib/popup/popup-controller";
 import {CameraFollowMode} from "../entities/movement-controller";
@@ -8,9 +9,6 @@ import {CameraFollowMode} from "../entities/movement-controller";
  * with `Esc` or `#` again (or by selecting its `Close` button).
  */
 export class SettingsController extends PopupController {
-    /** Value of the test textbox added below "Target FPS" - purely for exercising the textbox input kind, not wired to any real setting. */
-    private textboxTestValue = "Hello, world";
-
     /**
      * @param getCameraFollowMode - Called on every {@link draw} to read the current camera follow mode.
      * @param setCameraFollowMode - Invoked when the user selects a different camera follow mode.
@@ -65,46 +63,38 @@ export class SettingsController extends PopupController {
      */
     protected buildContent(): DisplayLine[] {
         const lines: DisplayLine[] = [
-            [
-                {content: "Camera follow mode: "},
-                {
-                    kind: "radio",
+            line()
+                .content("Camera follow mode: ")
+                .content(radio({
                     selected: this.getCameraFollowMode() ?? "",
                     onSelect: (key) => this.setCameraFollowMode(key as CameraFollowMode),
                     options: [
-                        {key: "edge", content: [{content: "Edge"}]},
-                        {key: "center", content: [{content: "Centre"}]},
+                        {key: "edge", content: "Edge"},
+                        {key: "center", content: "Centre"},
                     ],
-                },
-            ],
-            [
-                {kind: "checkbox", checked: this.getSpectating(), onToggle: this.setSpectating, content: [{content: "Spectator mode"}]},
-            ],
-            [
-                {kind: "checkbox", checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: [{content: "Debug mode"}]},
-            ],
-            [
-                {content: "Target FPS: "},
-                {kind: "number", value: this.getTargetFps(), step: 1, onChange: this.setTargetFps},
-            ],
+                })),
+            line().content(checkbox({checked: this.getSpectating(), onToggle: this.setSpectating, content: "Spectator mode"})),
+            line().content(checkbox({checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: "Debug mode"})),
+            line()
+                .content("Target FPS: ")
+                .content(numberBox({value: this.getTargetFps(), step: 1, min: 1, onChange: this.setTargetFps})),
         ];
 
         if (this.getDebugEnabled()) {
-            lines.push([
-                {content: "Noise field: "},
-                {
-                    kind: "select",
-                    selected: this.getNoiseFieldName() ?? "",
-                    onSelect: (key) => this.setNoiseFieldName(key === "" ? undefined : key),
-                    options: [
-                        {key: "", content: [{content: "None"}]},
-                        ...this.getNoiseFieldNames().map((name) => ({key: name, content: [{content: name}]})),
-                    ],
-                },
-            ]);
-            lines.push([
-                {kind: "checkbox", checked: this.getGenerationEnabled(), onToggle: this.setGenerationEnabled, content: [{content: "Chunk generation"}]},
-            ]);
+            lines.push(
+                line().content(hr()),
+                line()
+                    .content("Noise field: ")
+                    .content(select({
+                        selected: this.getNoiseFieldName() ?? "",
+                        onSelect: (key) => this.setNoiseFieldName(key === "" ? undefined : key),
+                        options: [
+                            {key: "", content: "None"},
+                            ...this.getNoiseFieldNames().map((name) => ({key: name, content: name})),
+                        ],
+                    })),
+            );
+            lines.push(line().content(checkbox({checked: this.getGenerationEnabled(), onToggle: this.setGenerationEnabled, content: "Chunk generation"})));
         }
 
         return lines;

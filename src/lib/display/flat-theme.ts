@@ -1,5 +1,6 @@
 import {ChromeTheme} from "./chrome-theme";
 import {COLORS} from "./colors";
+import {TextStyle} from "./text-style";
 
 /** Background colour for every flat-themed surface (panel body, control faces). */
 const SURFACE_COLOR = COLORS.black;
@@ -21,7 +22,11 @@ function drawOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
  */
 class FlatTheme extends ChromeTheme {
     public constructor() {
-        super(SURFACE_COLOR, BORDER_COLOR, BORDER_COLOR, SURFACE_COLOR, 1);
+        super(SURFACE_COLOR, BORDER_COLOR, SURFACE_COLOR, 1);
+    }
+
+    public override defaultFocusedStyle(): TextStyle {
+        return {background: BORDER_COLOR, foreground: SURFACE_COLOR};
     }
 
     public override drawPanelBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
@@ -34,7 +39,19 @@ class FlatTheme extends ChromeTheme {
         drawOutline(ctx, x, y, w, h, BORDER_COLOR);
     }
 
-    public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean): void {
+    public override boxDimensionsFor(contentWidth: number, contentHeight: number): {w: number; h: number} {
+        // +2 clears drawOutline's own 1px stroke on each side.
+        return {w: contentWidth + 2, h: contentHeight + 2};
+    }
+
+    public override drawRadioMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, selected: boolean, foreground?: string, background?: string): void {
+        if (background) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius - 0.5, 0, Math.PI * 2);
+            ctx.fillStyle = background;
+            ctx.fill();
+        }
+
         ctx.beginPath();
         ctx.arc(cx, cy, radius - 0.5, 0, Math.PI * 2);
         ctx.strokeStyle = BORDER_COLOR;
@@ -44,9 +61,27 @@ class FlatTheme extends ChromeTheme {
         if (selected) {
             ctx.beginPath();
             ctx.arc(cx, cy, radius * 0.5, 0, Math.PI * 2);
-            ctx.fillStyle = BORDER_COLOR;
+            ctx.fillStyle = foreground ?? BORDER_COLOR;
             ctx.fill();
         }
+    }
+
+    public override drawButtonBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pressed: boolean): void {
+        ctx.fillStyle = SURFACE_COLOR;
+        ctx.fillRect(x, y, w, h);
+        drawOutline(ctx, x, y, w, h, BORDER_COLOR);
+        if (pressed) {
+            drawOutline(ctx, x + 2, y + 2, w - 4, h - 4, BORDER_COLOR);
+        }
+    }
+
+    public override drawLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, thickness: number): void {
+        ctx.strokeStyle = BORDER_COLOR;
+        ctx.lineWidth = thickness;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
     }
 
     public override drawSelectArrowButton(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, open: boolean): void {

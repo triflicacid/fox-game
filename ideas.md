@@ -7,9 +7,10 @@
 - Maybe double-tab a direction to run faster
 - Other entities - rabbits in plains
   - Eat mechanics??
+- Tests for libraries?
+- Settings popup: show seed in text box, with copy and refresh buttons next to it
 - Display lib:
-  - replace HighlihtStyle with a generic TextStyle for more flexibility
-  - add focusedStyle to all focusableElements - used when they are hovered over
-  - add editingStyle to textbox (inc number box) currently being edited
-  - add expandedStyle to combobox to use when it is expanded/open
-  - add selectedStyle to any input for either text selection, or to use when that option is selected/checked
+  - Full test suite, with unit and playwright tests that capture screenshots
+  - a 'title' attribute which shows on hover.
+  - align property - where text sits in the line, y-axis wise
+- Optimisation: currently, a chunk blits it's content. Do the same for various noise fields, if needed, when drawing them.

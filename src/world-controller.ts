@@ -137,7 +137,7 @@ export class WorldController {
         this.camera.setViewportSize(this.canvas.width, this.canvas.height);
 
         if (this.activePopupController) {
-            this.ctx.drawImage(requireNonNull(this.worldSnapshot), 0, 0, this.canvas.width, this.canvas.height);
+            this.repaintWorldSnapshot();
             this.activePopupController.drawOverlay(this.ctx, this.canvas.width, this.canvas.height);
             this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height);
             return;
@@ -171,12 +171,17 @@ export class WorldController {
         return snapshot;
     }
 
+    /** Re-blits the frozen {@link worldSnapshot} over the whole canvas - passed to a popup as its `repaintBackground` hook. */
+    private readonly repaintWorldSnapshot = (): void => {
+        this.ctx.drawImage(requireNonNull(this.worldSnapshot), 0, 0, this.canvas.width, this.canvas.height);
+    };
+
     private readonly onFrame = (now: DOMHighResTimeStamp): void => {
         const deltaMs = now - this.lastTickTime;
         this.lastTickTime = now;
 
         if (this.activePopupController) {
-            this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height);
+            this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height, this.repaintWorldSnapshot);
             return;
         }
 

@@ -58,12 +58,13 @@ export abstract class PopupController {
      * @param ctx - Canvas context to draw into.
      * @param canvasWidth - Canvas width, in canvas pixels.
      * @param canvasHeight - Canvas height, in canvas pixels.
+     * @param repaintBackground - Forwarded to {@link Popup.draw}.
      */
-    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, repaintBackground?: () => void): void {
         this.popup.setContent(this.title, this.buildContent(), [
-            {kind: "button", label: "Close", onClick: () => this.popup.close()},
+            {kind: "button", content: [{content:"Close",align:'bottom'}], onClick: () => this.popup.close()},
         ]);
-        this.popup.draw(ctx, canvasWidth, canvasHeight);
+        this.popup.draw(ctx, canvasWidth, canvasHeight, repaintBackground);
     }
 
     /**
