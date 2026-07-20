@@ -1,7 +1,8 @@
-import {FocusableElement, InteractableDisplay} from "../lib/display/interactable-display";
+import {InteractableDisplay} from "../lib/display/interactable-display";
 import {DisplayLine} from "../lib/display/input";
 import {TextSegment} from "../lib/display/text-style";
 import {FLAT_THEME} from "../lib/display/flat-theme";
+import {button, line} from "../lib/display/builders";
 import {DEBUG_CONFIG} from "./debug-config";
 import {copyToClipboard} from "../util";
 
@@ -51,13 +52,7 @@ export class DebugHud {
             foreground: DEBUG_CONFIG.hudTextColor,
             fontFamily: DEBUG_CONFIG.hudFontFamily,
             fontSize: DEBUG_CONFIG.hudFontSize,
-            lineHeight: DEBUG_CONFIG.hudLineHeight,
         }, FLAT_THEME, "click", null);
-    }
-
-    /** A label segment, in the HUD's default text colour. */
-    private label(text: string): TextSegment {
-        return {content: text};
     }
 
     /** A string-valued segment (e.g. a feature tag, biome name, facing direction). */
@@ -100,34 +95,31 @@ export class DebugHud {
      */
     private buildLines(data: DebugHudData): DisplayLine[] {
         const lines: DisplayLine[] = [
-            [this.label("camera: ("), this.numberValue(data.cameraCenterX.toFixed(1)), this.label(", "), this.numberValue(data.cameraCenterY.toFixed(1)), this.label(")")],
-            [this.label("viewport: "), this.numberValue(String(data.viewportWidth)), this.label(" x "), this.numberValue(String(data.viewportHeight))],
-            [
-                this.label("entity: ("), this.numberValue(data.entityX.toFixed(1)), this.label(", "), this.numberValue(data.entityY.toFixed(1)),
-                this.label("), facing: "), this.stringValue(data.entityFacing),
-            ],
-            [this.label("chunk ("), this.numberValue(String(data.chunkX)), this.label(", "), this.numberValue(String(data.chunkY)), this.label("), "), this.stringValue(data.chunkBiome)],
-            [this.label("chunks: visible="), this.numberValue(String(data.visibleChunkCount)), this.label(", loaded="), this.numberValue(String(data.loadedChunkCount))],
-            [
-                this.label("chunk gen: latest="), this.numberValue(data.latestChunkGenerationTimeMs.toFixed(6)), this.label(' ms'),
-                this.label(", avg="), this.numberValue(data.averageChunkGenerationTimeMs.toFixed(4)), this.label(' ms'),
-            ],
-            [this.label("feature: exact="), this.stringValue(data.exactFeature), this.label(", nearby="), this.stringValue(data.nearbyFeature)],
-            [
-                this.label("velocity: ("), this.numberValue(data.velocityX.toFixed(1)), this.label(", "), this.numberValue(data.velocityY.toFixed(1)),
-                this.label("), speed: "), this.numberValue(data.speed.toFixed(1)), this.label(' px/s'),
-            ],
-            [
-                this.label("FPS: "), this.numberValue(data.actualFps.toFixed(2)), this.label("/"),
-                data.targetFps !== undefined ? this.numberValue(data.targetFps.toFixed(0)) : this.stringValue("uncapped"),
-            ],
-            [
-                this.label("seed: "), this.numberValue(String(data.worldSeed)), this.label(" "),
-                {kind: "button", label: this.copyButtonLabel, onClick: () => this.handleCopyClick(data.worldSeed), disabled: this.copyRevertTimeoutId !== null},
-            ],
+            line().content("camera: (").content(this.numberValue(data.cameraCenterX.toFixed(1))).content(", ").content(this.numberValue(data.cameraCenterY.toFixed(1))).content(")"),
+            line().content("viewport: ").content(this.numberValue(String(data.viewportWidth))).content(" x ").content(this.numberValue(String(data.viewportHeight))),
+            line()
+                .content("entity: (").content(this.numberValue(data.entityX.toFixed(1))).content(", ").content(this.numberValue(data.entityY.toFixed(1)))
+                .content("), facing: ").content(this.stringValue(data.entityFacing)),
+            line()
+                .content("chunk (").content(this.numberValue(String(data.chunkX))).content(", ").content(this.numberValue(String(data.chunkY)))
+                .content("), ").content(this.stringValue(data.chunkBiome)),
+            line().content("chunks: visible=").content(this.numberValue(String(data.visibleChunkCount))).content(", loaded=").content(this.numberValue(String(data.loadedChunkCount))),
+            line()
+                .content("chunk gen: latest=").content(this.numberValue(data.latestChunkGenerationTimeMs.toFixed(6))).content(" ms")
+                .content(", avg=").content(this.numberValue(data.averageChunkGenerationTimeMs.toFixed(4))).content(" ms"),
+            line().content("feature: exact=").content(this.stringValue(data.exactFeature)).content(", nearby=").content(this.stringValue(data.nearbyFeature)),
+            line()
+                .content("velocity: (").content(this.numberValue(data.velocityX.toFixed(1))).content(", ").content(this.numberValue(data.velocityY.toFixed(1)))
+                .content("), speed: ").content(this.numberValue(data.speed.toFixed(1))).content(" px/s"),
+            line()
+                .content("FPS: ").content(this.numberValue(data.actualFps.toFixed(2))).content("/")
+                .content(data.targetFps !== undefined ? this.numberValue(data.targetFps.toFixed(0)) : this.stringValue("uncapped")),
+            line()
+                .content("seed: ").content(this.numberValue(String(data.worldSeed))).content(" ")
+                .content(button({content: this.copyButtonLabel, onClick: () => this.handleCopyClick(data.worldSeed), disabled: this.copyRevertTimeoutId !== null})),
         ];
         if (data.spectating) {
-            lines.push([{content: "SPECTATOR MODE", style: {foreground: DEBUG_CONFIG.hudSpectatorColor}}]);
+            lines.push(line().content({content: "SPECTATOR MODE", style: {foreground: DEBUG_CONFIG.hudSpectatorColor}}));
         }
         return lines;
     }
@@ -143,7 +135,7 @@ export class DebugHud {
         }
         this.display.setActive(visible);
         if (!visible) {
-            this.display.setBounds(null);
+            this.display.setClickRegion(null);
         }
     }
 
@@ -160,27 +152,18 @@ export class DebugHud {
         ctx.textBaseline = "top";
 
         const padding = DEBUG_CONFIG.hudPadding;
-        const resolvedLines = lines.map((line) => this.display.resolveElements(ctx, line));
-        const width = Math.max(0, ...resolvedLines.map((line) => line.width)) + padding * 2;
-        const height = resolvedLines.reduce((sum, line) => sum + line.height, 0) + padding * 2;
+        this.display.beginResolvePass();
+        const {rows, width: contentWidth, height: contentHeight} = this.display.resolveLines(ctx, lines, DEBUG_CONFIG.hudLineSpacing);
+        const width = contentWidth + padding * 2;
+        const height = contentHeight + padding * 2;
 
-        this.display.setBounds({x: 0, y: 0, w: width, h: height});
-
-        const focusables: FocusableElement[] = [];
-        let lineY = padding;
-        for (const line of resolvedLines) {
-            focusables.push(...this.display.layoutFocusables(line, padding, lineY));
-            lineY += line.height;
-        }
-        this.display.setFocusables(focusables);
+        this.display.setClickRegion({x: 0, y: 0, w: width, h: height});
+        this.display.setFocusables(this.display.layoutLineFocusables(rows, padding, padding, DEBUG_CONFIG.hudLineSpacing));
 
         ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
         ctx.fillRect(0, 0, width, height);
 
-        lineY = padding;
-        for (const line of resolvedLines) {
-            this.display.drawElements(ctx, line, padding, lineY);
-            lineY += line.height;
-        }
+        this.display.drawLines(ctx, rows, padding, padding, DEBUG_CONFIG.hudLineSpacing);
+        this.display.drawOverlays(ctx);
     }
 }

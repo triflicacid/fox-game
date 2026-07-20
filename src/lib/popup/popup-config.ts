@@ -21,8 +21,8 @@ export const POPUP_CONFIG = {
     fontFamily: "monospace",
     /** Default font size for a line's segments and for buttons, in canvas pixels. */
     fontSize: 14,
-    /** Minimum vertical spacing between lines of text (and the button row), in canvas pixels. */
-    lineHeight: 20,
+    /** Vertical gap placed between consecutive lines of text (and before the button row), in canvas pixels. */
+    lineSpacing: 6,
 
     /** Horizontal gap between buttons in the button row, in canvas pixels. */
     buttonGap: 16,
@@ -43,8 +43,6 @@ export const POPUP_CONFIG = {
 
     /** Width of a number input's box, in canvas pixels - fixed, regardless of the value's length. */
     numberInputWidth: 48,
-    /** Horizontal padding inside a number input's box, in canvas pixels. */
-    numberInputPadding: 4,
     /** Half-period of a number input's blinking edit cursor, in milliseconds - on for this long, then off for this long. */
     cursorBlinkIntervalMs: 500,
 
@@ -53,11 +51,15 @@ export const POPUP_CONFIG = {
     /** Width of a select input's dropdown-arrow button, in canvas pixels. */
     selectArrowWidth: 18,
 
-    /**
-     * Padding, in canvas pixels, added around a number/select input's sunken
-     * box when drawing its focus highlight.
-     */
+    /** Padding, in canvas pixels, added around a number/textbox's sunken box when drawing its `focusedStyle` background. */
     focusHighlightPadding: 2,
+
+    /** Horizontal padding inside a button's box around its label, in canvas pixels. */
+    buttonPaddingX: 8,
+    /** Vertical padding inside a button's box around its label, in canvas pixels. */
+    buttonPaddingY: 4,
+    /** How far a button's label shifts right/down while pressed, in canvas pixels. */
+    buttonPressedTextOffset: 1,
 
     /** Fill colour of the sheen painted over a disabled input, e.g. a translucent grey. */
     disabledOverlayColor: "rgba(128, 128, 128, 0.5)",
