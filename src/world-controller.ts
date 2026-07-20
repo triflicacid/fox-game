@@ -1,22 +1,23 @@
 import {World} from "./world/world";
+import {ChunkWorkerClient} from "./world/generation/chunk-worker-client";
 import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";
 import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
-import {FrameLoopController} from "./frames/FrameLoopController";
+import {FrameLoopController} from "./lib/frames/FrameLoopController";
 import {requireNonNull} from "./util";
 import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
 import {SettingsController} from "./settings/settings-controller";
-import {PopupController} from "./popup/popup-controller";
+import {PopupController} from "./lib/popup/popup-controller";
 
 /**
  * Owns everything needed to run the game against a canvas.
  */
 export class WorldController {
     /** Width/height of a single tile, in canvas pixels. */
-    private static readonly TILE_SIZE = 32;
+    private static readonly TILE_SIZE = 8;
 
     /** Value the settings popup's target-FPS field shows when uncapped (i.e. {@link getTargetFps} returns `undefined`). */
     private static readonly DEFAULT_TARGET_FPS = 60;
@@ -48,6 +49,9 @@ export class WorldController {
     /** The user's configured FPS cap, kept separate from whatever {@link frameLoop} is currently doing so the popup throttle doesn't clobber it. */
     private userTargetFps: number | undefined;
 
+    /** Name of the `NoiseField` currently rendered as a debug heatmap, or `undefined` for none. */
+    private noiseFieldName: string | undefined;
+
     /**
      * @param canvas - Canvas to render the world into.
      * @param targetFps - FPS to cap rendering at. Defaults to `undefined` (uncapped).
@@ -60,7 +64,11 @@ export class WorldController {
         this.camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
         new CameraDragController(canvas, this.camera);
         this.movementController = new MovementController(this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
-        this.debugController = new DebugController();
+        this.debugController = new DebugController(
+            () => this.world.reloadAllChunks(),
+            () => this.world.teleportMainEntityTo(this.camera.getCenter()),
+            () => this.movementController.isSpectating(),
+        );
         this.helpController = new HelpController(() => this.getKeyBindings(), this.handlePopupOpenChange);
         this.settingsController = new SettingsController(
             () => this.movementController.getCameraFollowMode(),
@@ -69,8 +77,16 @@ export class WorldController {
             (spectating) => this.movementController.setSpectating(spectating),
             () => this.debugController.isEnabled(),
             (enabled) => this.debugController.setEnabled(enabled),
+            () => this.world.isGenerationEnabled(),
+            (enabled) => this.world.setGenerationEnabled(enabled),
             () => this.getTargetFps() ?? WorldController.DEFAULT_TARGET_FPS,
             (fps) => this.setTargetFps(fps),
+            () => this.world.getNoiseFieldNames(),
+            () => this.noiseFieldName,
+            (name) => this.noiseFieldName = name,
+            () => this.world.getWorldSeed(),
+            (seed) => this.world.setWorldSeed(seed),
+            () => this.world.refreshWorldSeed(),
             this.handlePopupOpenChange,
         );
         this.popupControllers = [this.helpController, this.settingsController];
@@ -123,13 +139,28 @@ export class WorldController {
         return this.frameLoop.getActualFps();
     }
 
+    /**
+     * The worker client driving chunk generation - for debugging (see
+     * `exposeGlobals`).
+     */
+    public getChunkWorkerClient(): ChunkWorkerClient {
+        return this.world.getChunkWorkerClient();
+    }
+
+    /**
+     * The running game's `World`.
+     */
+    public getWorld(): World {
+        return this.world;
+    }
+
     private readonly resize = (): void => {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
         this.camera.setViewportSize(this.canvas.width, this.canvas.height);
 
         if (this.activePopupController) {
-            this.ctx.drawImage(requireNonNull(this.worldSnapshot), 0, 0, this.canvas.width, this.canvas.height);
+            this.repaintWorldSnapshot();
             this.activePopupController.drawOverlay(this.ctx, this.canvas.width, this.canvas.height);
             this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height);
             return;
@@ -163,16 +194,21 @@ export class WorldController {
         return snapshot;
     }
 
+    /** Re-blits the frozen {@link worldSnapshot} over the whole canvas - passed to a popup as its `repaintBackground` hook. */
+    private readonly repaintWorldSnapshot = (): void => {
+        this.ctx.drawImage(requireNonNull(this.worldSnapshot), 0, 0, this.canvas.width, this.canvas.height);
+    };
+
     private readonly onFrame = (now: DOMHighResTimeStamp): void => {
         const deltaMs = now - this.lastTickTime;
         this.lastTickTime = now;
 
         if (this.activePopupController) {
-            this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height);
+            this.activePopupController.draw(this.ctx, this.canvas.width, this.canvas.height, this.repaintWorldSnapshot);
             return;
         }
 
-        this.world.update(deltaMs, this.camera);
+        this.world.update(deltaMs, this.camera, this.movementController.isSpectating());
         this.movementController.update(deltaMs);
         this.draw();
     };
@@ -190,14 +226,13 @@ export class WorldController {
             this.movementController.isSpectating(),
             this.frameLoop.getActualFps(),
             this.frameLoop.getTargetFps(),
+            this.noiseFieldName,
         );
     }
 
     /**
      * Every key binding in the game, gathered from every controller (and the
-     * main entity) that exposes one, for the help popup to list. Where
-     * multiple controllers bind the same key (e.g. `Esc` closing whichever
-     * popup is open), only the first one encountered is kept.
+     * main entity) that exposes one.
      */
     private getKeyBindings(): KeyBinding[] {
         const all = [

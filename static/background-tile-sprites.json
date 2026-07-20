@@ -1,0 +1,48 @@
+{
+  "cellWidth": 32,
+  "cellHeight": 32,
+  "rows": [
+    {
+      "type": "grass1",
+      "x": 0,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "grass2",
+      "x": 32,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "grass3",
+      "x": 64,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "dirt",
+      "x": 96,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "gravel",
+      "x": 128,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "waterLight",
+      "x": 160,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "waterDark",
+      "x": 192,
+      "y": 0,
+      "interactable": false
+    }
+  ]
+}

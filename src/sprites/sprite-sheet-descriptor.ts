@@ -23,10 +23,10 @@ export interface SpriteTileDescriptor<TType extends string = string> {
     /** Pixel y (top edge) of this entry's cell. */
     y: number;
     /**
-     * Collision bounding shape relative to the cell's centre. One shape per
-     * entry, shared across every phase, for an animated row.
+     * Collision bounding shape relative to the cell's centre. Absent for a
+     * non-interactable entry.
      */
-    bounds: SpriteBounds;
+    bounds?: SpriteBounds;
 }
 
 /**
@@ -36,6 +36,8 @@ export interface SpriteTileDescriptor<TType extends string = string> {
  * @typeParam TType - Union of valid `type` values for this sheet's entries.
  */
 export interface SpriteRowDescriptor<TType extends string = string> extends SpriteTileDescriptor<TType> {
+    /** Collision bounding shape relative to the cell's centre, shared across every phase - always present, narrowing the base's optional field. */
+    bounds: SpriteBounds;
     /** Number of animation phases (columns starting at `x`). */
     phases: number;
     /**

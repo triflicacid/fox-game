@@ -43,11 +43,7 @@ export interface SpriteFrame extends SpriteRect {
     /**
      * Extra clockwise rotation, in radians, to draw this frame with around
      * its own centre - on top of whatever direction the underlying art was
-     * drawn for. Lets a sheet reuse a single fixed-facing row (e.g. the fox's
-     * `curl`/`uncurl` rows, drawn once at a fixed facing) for any actual
-     * facing, instead of needing a drawn variant per direction. `undefined`/
-     * `0` for frames whose art is already correctly oriented (i.e. every
-     * frame except a rotated fixed-facing one).
+     * drawn for.
      */
     readonly rotation?: number;
 }
@@ -59,6 +55,6 @@ export interface SpriteFrame extends SpriteRect {
  * never animated.
  */
 export interface SpriteTile extends SpriteRect {
-    /** This tile's collision bounding box. */
-    readonly bounds: SpriteBounds;
+    /** This tile's collision bounding box, or `undefined` if it has no collision shape (e.g. ground). */
+    readonly bounds?: SpriteBounds;
 }

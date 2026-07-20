@@ -1,10 +1,21 @@
 import {KeyBinding} from "../help/key-binding";
 
-/** Toggles debug rendering mode on/off in response to the `d` key. */
+/**
+ * Toggles debug rendering mode on/off in response to the `d` key.
+ */
 export class DebugController {
     private enabled = false;
 
-    public constructor() {
+    /**
+     * @param onReloadChunks - Called when the `r` key is pressed while debug mode is enabled.
+     * @param onTeleportToCamera - Called when the `t` key is pressed while debug mode and spectator mode are both enabled.
+     * @param isSpectating - Reports whether spectator mode is currently active, so `onTeleportToCamera` only fires alongside it.
+     */
+    public constructor(
+        private readonly onReloadChunks: () => void,
+        private readonly onTeleportToCamera: () => void,
+        private readonly isSpectating: () => boolean,
+    ) {
         window.addEventListener("keydown", this.handleKeyDown);
     }
 
@@ -27,18 +38,33 @@ export class DebugController {
     }
 
     /**
-     * This controller's key binding, for the help popup.
+     * This controller's key bindings.
      *
      * @returns This controller's key bindings.
      */
     public getKeyBindings(): KeyBinding[] {
-        return [{key: "D", description: "Toggle debug overlay"}];
+        const bindings: KeyBinding[] = [{key: "D", description: "Toggle debug overlay"}];
+        if (this.enabled) {
+            bindings.push({key: "R", description: "Reload all chunks"});
+            if (this.isSpectating()) {
+                bindings.push({key: "T", description: "Teleport to camera"});
+            }
+        }
+        return bindings;
     }
 
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
-        if (event.key !== "d" && event.key !== "D") {
+        if (event.key === "d" || event.key === "D") {
+            this.enabled = !this.enabled;
             return;
         }
-        this.enabled = !this.enabled;
+        if (!this.enabled) {
+            return;
+        }
+        if (event.key === "r" || event.key === "R") {
+            this.onReloadChunks();
+        } else if ((event.key === "t" || event.key === "T") && this.isSpectating()) {
+            this.onTeleportToCamera();
+        }
     };
 }
