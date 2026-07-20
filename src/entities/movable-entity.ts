@@ -130,6 +130,16 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     }
 
     /**
+     * Moves this entity straight to `position`, bypassing normal
+     * movement/collision.
+     *
+     * @param position - New position.
+     */
+    public teleportTo(position: Vector2d): void {
+        this.setPosition(position);
+    }
+
+    /**
      * Optional handler for a key press that {@link MovementController} didn't
      * already handle itself.
      *

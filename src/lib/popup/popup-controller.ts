@@ -1,6 +1,6 @@
 import {Popup, PopupOptions} from "./popup";
-import {PopupLine} from "./text-style";
-import {KeyBinding} from "../help/key-binding";
+import {DisplayLine} from "../display/input";
+import {KeyBinding} from "../../help/key-binding";
 
 /**
  * Base for anything that owns a {@link Popup}, toggled independently of
@@ -58,12 +58,13 @@ export abstract class PopupController {
      * @param ctx - Canvas context to draw into.
      * @param canvasWidth - Canvas width, in canvas pixels.
      * @param canvasHeight - Canvas height, in canvas pixels.
+     * @param repaintBackground - Forwarded to {@link Popup.draw}.
      */
-    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+    public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, repaintBackground?: () => void): void {
         this.popup.setContent(this.title, this.buildContent(), [
-            {kind: "button", label: "Close", onClick: () => this.popup.close()},
+            {kind: "button", content: [{content:"Close",align:'bottom'}], onClick: () => this.popup.close()},
         ]);
-        this.popup.draw(ctx, canvasWidth, canvasHeight);
+        this.popup.draw(ctx, canvasWidth, canvasHeight, repaintBackground);
     }
 
     /**
@@ -71,7 +72,7 @@ export abstract class PopupController {
      *
      * @returns The lines to show in the popup.
      */
-    protected abstract buildContent(): PopupLine[];
+    protected abstract buildContent(): DisplayLine[];
 
     private readonly handleKeyDown = (event: KeyboardEvent): void => {
         if (event.key === this.toggleKey) {

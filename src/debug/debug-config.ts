@@ -1,3 +1,5 @@
+import {COLORS} from "../lib/display/colors";
+
 /**
  * Colours, line widths, and layout used by the debug rendering overlay
  * (toggled with the `d` key - see {@link DebugController}). Edit these
@@ -6,6 +8,8 @@
 export const DEBUG_CONFIG = {
     /** Stroke colour for chunk outlines. */
     chunkOutlineColor: "#ff0000",
+    /** Stroke colour for a chunk outline while that chunk hasn't finished generating yet. */
+    chunkPendingOutlineColor: "#3399ff",
     /** Stroke width for chunk outlines, in canvas pixels. */
     chunkOutlineWidth: 3,
     /** Text colour for a chunk's coordinate label. */
@@ -14,11 +18,8 @@ export const DEBUG_CONFIG = {
     chunkLabelFont: "12px monospace",
     /** Padding between a chunk's top-left corner and its coordinate label, in canvas pixels. */
     chunkLabelPadding: 4,
-
-    /** Stroke colour for tile outlines. */
-    tileOutlineColor: "#00ff00",
-    /** Stroke width for tile outlines, in canvas pixels. */
-    tileOutlineWidth: 1,
+    /** Font for a still-generating chunk's queue position, drawn centred in the chunk. */
+    chunkQueuePositionFont: "bold 16px monospace",
 
     /** Stroke colour for entity bounding boxes. */
     boundingBoxColor: "#3399ff",
@@ -30,16 +31,22 @@ export const DEBUG_CONFIG = {
     /** Stroke width of an entity's facing-direction arrow, in canvas pixels. */
     facingArrowWidth: 2,
 
-    /** Text colour for the HUD (camera/viewport/entity readout). */
+    /** Text colour for the HUD's labels (camera/viewport/entity readout). */
     hudTextColor: "#ffffff",
+    /** Text colour for the HUD's string-valued values (e.g. a feature tag, biome name, facing direction). */
+    hudStringValueColor: COLORS.brightYellow,
+    /** Text colour for the HUD's numeric-valued values. */
+    hudNumberValueColor: COLORS.brightGreen,
     /** Text colour for the HUD's spectator-mode indicator. */
     hudSpectatorColor: "#ffff00",
     /** Background colour behind the HUD text. */
     hudBackgroundColor: "rgba(0, 0, 0, 0.5)",
-    /** Font for the HUD text. */
-    hudFont: "14px monospace",
+    /** Font family for the HUD text. */
+    hudFontFamily: "monospace",
+    /** Font size for the HUD text, in canvas pixels. */
+    hudFontSize: 14,
     /** Padding around the HUD text block, in canvas pixels. */
     hudPadding: 8,
-    /** Vertical spacing between HUD lines, in canvas pixels. */
-    hudLineHeight: 18,
+    /** Vertical gap placed between consecutive HUD lines, in canvas pixels. */
+    hudLineSpacing: 6,
 } as const;

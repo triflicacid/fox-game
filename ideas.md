@@ -7,3 +7,10 @@
 - Maybe double-tab a direction to run faster
 - Other entities - rabbits in plains
   - Eat mechanics??
+- Tests for libraries?
+- Settings popup: show seed in text box, with copy and refresh buttons next to it
+- Display lib:
+  - Full test suite, with unit and playwright tests that capture screenshots
+  - a 'title' attribute which shows on hover.
+  - align property - where text sits in the line, y-axis wise
+- Optimisation: currently, a chunk blits it's content. Do the same for various noise fields, if needed, when drawing them.

@@ -42,10 +42,10 @@ export interface CameraFollowOptions {
  */
 export class MovementController {
     /** Speed a bound entity moves at, in world pixels per second. */
-    private static readonly SPEED = 150;
+    private static readonly SPEED = 250;
 
     /** Speed the camera pans at in spectator mode, in world pixels per second. */
-    private static readonly SPECTATOR_SPEED = 300;
+    private static readonly SPECTATOR_SPEED = 520;
 
     /** Default {@link CameraFollowOptions.edgeMargin} for `"edge"` follow mode. */
     private static readonly DEFAULT_EDGE_MARGIN = 200;

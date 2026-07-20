@@ -10,6 +10,9 @@ import {SpriteSheet} from "./SpriteSheet";
  * @typeParam TType - Union of valid tile `type` values for this sheet.
  */
 export class StaticSpriteSheet<TType extends string = string> extends SpriteSheet {
+    /** Per-type extracted bitmap cache. */
+    private readonly bitmapCache = new Map<TType, Promise<ImageBitmap>>();
+
     /**
      * @param src - URL/path of the sprite sheet image, e.g. `"./static/foo.png"`.
      * @param descriptor - This sheet's layout, e.g. imported from a generated JSON file.
@@ -59,5 +62,20 @@ export class StaticSpriteSheet<TType extends string = string> extends SpriteShee
      */
     public getSpriteTypes(): TType[] {
         return this.descriptor.rows.map((tile) => tile.type);
+    }
+
+    /**
+     * Extracts bitmap for the given tile type, memoized per type.
+     *
+     * @param type - Tile identifier to get the bitmap for.
+     * @returns The tile's bitmap.
+     */
+    public getTileBitmap(type: TType): Promise<ImageBitmap> {
+        let bitmap = this.bitmapCache.get(type);
+        if (!bitmap) {
+            bitmap = this.extractSprite(this.locateTile(type));
+            this.bitmapCache.set(type, bitmap);
+        }
+        return bitmap;
     }
 }
