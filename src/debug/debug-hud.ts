@@ -1,10 +1,6 @@
-import {InteractableDisplay} from "../lib/display/interactable-display";
-import {DisplayLine} from "../lib/display/input";
+import {Display} from "../lib/display/display";
 import {TextSegment} from "../lib/display/text-style";
-import {FLAT_THEME} from "../lib/display/flat-theme";
-import {button, line} from "../lib/display/builders";
 import {DEBUG_CONFIG} from "./debug-config";
-import {copyToClipboard} from "../util";
 
 /**
  * Everything the debug HUD needs to render one frame - gathered by whoever
@@ -33,7 +29,6 @@ export interface DebugHudData {
     speed: number;
     actualFps: number;
     targetFps: number | undefined;
-    worldSeed: number;
     spectating: boolean;
 }
 
@@ -41,18 +36,19 @@ export interface DebugHudData {
  * Draws the top-left debug HUD.
  */
 export class DebugHud {
-    private readonly display: InteractableDisplay;
-    /** The seed line's button's current label - see {@link updateButtonText}. */
-    private copyButtonLabel = "Copy";
-    /** Pending revert-to-"Copy" timer from the last click, if any. */
-    private copyRevertTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    private readonly display: Display;
 
     public constructor() {
-        this.display = new InteractableDisplay({
+        this.display = new Display({
             foreground: DEBUG_CONFIG.hudTextColor,
             fontFamily: DEBUG_CONFIG.hudFontFamily,
             fontSize: DEBUG_CONFIG.hudFontSize,
-        }, FLAT_THEME, "click", null);
+        });
+    }
+
+    /** A plain top-level text segment. */
+    private text(content: string): TextSegment {
+        return {content};
     }
 
     /** A string-valued segment (e.g. a feature tag, biome name, facing direction). */
@@ -66,77 +62,39 @@ export class DebugHud {
     }
 
     /**
-     * Updates the seed line's button's displayed label.
-     */
-    private updateButtonText(label: string): void {
-        this.copyButtonLabel = label;
-    }
-
-    /**
-     * The seed line's button's action: copies `seed` to the clipboard, shows
-     * "Copied" for {@link DEBUG_CONFIG.hudCopyFeedbackDurationMs}, then
-     * reverts to "Copy". Restarts the revert timer if clicked again mid-feedback.
-     */
-    private handleCopyClick(seed: number): void {
-        copyToClipboard(String(seed));
-        this.updateButtonText("Copied");
-
-        if (this.copyRevertTimeoutId !== null) {
-            clearTimeout(this.copyRevertTimeoutId);
-        }
-        this.copyRevertTimeoutId = setTimeout(() => {
-            this.copyRevertTimeoutId = null;
-            this.updateButtonText("Copy");
-        }, DEBUG_CONFIG.hudCopyFeedbackDurationMs);
-    }
-
-    /**
      * Builds this frame's HUD lines from `data`.
      */
-    private buildLines(data: DebugHudData): DisplayLine[] {
-        const lines: DisplayLine[] = [
-            line().content("camera: (").content(this.numberValue(data.cameraCenterX.toFixed(1))).content(", ").content(this.numberValue(data.cameraCenterY.toFixed(1))).content(")"),
-            line().content("viewport: ").content(this.numberValue(String(data.viewportWidth))).content(" x ").content(this.numberValue(String(data.viewportHeight))),
-            line()
-                .content("entity: (").content(this.numberValue(data.entityX.toFixed(1))).content(", ").content(this.numberValue(data.entityY.toFixed(1)))
-                .content("), facing: ").content(this.stringValue(data.entityFacing)),
-            line()
-                .content("chunk (").content(this.numberValue(String(data.chunkX))).content(", ").content(this.numberValue(String(data.chunkY)))
-                .content("), ").content(this.stringValue(data.chunkBiome)),
-            line().content("chunks: visible=").content(this.numberValue(String(data.visibleChunkCount))).content(", loaded=").content(this.numberValue(String(data.loadedChunkCount))),
-            line()
-                .content("chunk gen: latest=").content(this.numberValue(data.latestChunkGenerationTimeMs.toFixed(6))).content(" ms")
-                .content(", avg=").content(this.numberValue(data.averageChunkGenerationTimeMs.toFixed(4))).content(" ms"),
-            line().content("feature: exact=").content(this.stringValue(data.exactFeature)).content(", nearby=").content(this.stringValue(data.nearbyFeature)),
-            line()
-                .content("velocity: (").content(this.numberValue(data.velocityX.toFixed(1))).content(", ").content(this.numberValue(data.velocityY.toFixed(1)))
-                .content("), speed: ").content(this.numberValue(data.speed.toFixed(1))).content(" px/s"),
-            line()
-                .content("FPS: ").content(this.numberValue(data.actualFps.toFixed(2))).content("/")
-                .content(data.targetFps !== undefined ? this.numberValue(data.targetFps.toFixed(0)) : this.stringValue("uncapped")),
-            line()
-                .content("seed: ").content(this.numberValue(String(data.worldSeed))).content(" ")
-                .content(button({content: this.copyButtonLabel, onClick: () => this.handleCopyClick(data.worldSeed), disabled: this.copyRevertTimeoutId !== null})),
+    private buildLines(data: DebugHudData): TextSegment[][] {
+        const lines: TextSegment[][] = [
+            [this.text("camera: ("), this.numberValue(data.cameraCenterX.toFixed(1)), this.text(", "), this.numberValue(data.cameraCenterY.toFixed(1)), this.text(")")],
+            [this.text("viewport: "), this.numberValue(String(data.viewportWidth)), this.text(" x "), this.numberValue(String(data.viewportHeight))],
+            [
+                this.text("entity: ("), this.numberValue(data.entityX.toFixed(1)), this.text(", "), this.numberValue(data.entityY.toFixed(1)),
+                this.text("), facing: "), this.stringValue(data.entityFacing),
+            ],
+            [
+                this.text("chunk ("), this.numberValue(String(data.chunkX)), this.text(", "), this.numberValue(String(data.chunkY)),
+                this.text("), "), this.stringValue(data.chunkBiome),
+            ],
+            [this.text("chunks: visible="), this.numberValue(String(data.visibleChunkCount)), this.text(", loaded="), this.numberValue(String(data.loadedChunkCount))],
+            [
+                this.text("chunk gen: latest="), this.numberValue(data.latestChunkGenerationTimeMs.toFixed(6)), this.text(" ms"),
+                this.text(", avg="), this.numberValue(data.averageChunkGenerationTimeMs.toFixed(4)), this.text(" ms"),
+            ],
+            [this.text("feature: exact="), this.stringValue(data.exactFeature), this.text(", nearby="), this.stringValue(data.nearbyFeature)],
+            [
+                this.text("velocity: ("), this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
+                this.text("), speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s"),
+            ],
+            [
+                this.text("FPS: "), this.numberValue(data.actualFps.toFixed(2)), this.text("/"),
+                data.targetFps !== undefined ? this.numberValue(data.targetFps.toFixed(0)) : this.stringValue("uncapped"),
+            ],
         ];
         if (data.spectating) {
-            lines.push(line().content({content: "SPECTATOR MODE", style: {foreground: DEBUG_CONFIG.hudSpectatorColor}}));
+            lines.push([{content: "SPECTATOR MODE", style: {foreground: DEBUG_CONFIG.hudSpectatorColor}}]);
         }
         return lines;
-    }
-
-    /**
-     * Called when the HUD is toggled. Used to disable the interactive display.
-     *
-     * @param visible - Whether debug mode (and so this HUD) is currently shown.
-     */
-    public setVisible(visible: boolean): void {
-        if (visible === this.display.isActive()) {
-            return;
-        }
-        this.display.setActive(visible);
-        if (!visible) {
-            this.display.setClickRegion(null);
-        }
     }
 
     /**
@@ -152,18 +110,19 @@ export class DebugHud {
         ctx.textBaseline = "top";
 
         const padding = DEBUG_CONFIG.hudPadding;
-        this.display.beginResolvePass();
-        const {rows, width: contentWidth, height: contentHeight} = this.display.resolveLines(ctx, lines, DEBUG_CONFIG.hudLineSpacing);
+        const {lines: resolvedLines, width: contentWidth} = this.display.layoutBlock(ctx, lines, 0);
+        const contentHeight = resolvedLines.reduce((sum, resolvedLine) => sum + resolvedLine.height, 0)
+            + DEBUG_CONFIG.hudLineSpacing * Math.max(0, resolvedLines.length - 1);
         const width = contentWidth + padding * 2;
         const height = contentHeight + padding * 2;
-
-        this.display.setClickRegion({x: 0, y: 0, w: width, h: height});
-        this.display.setFocusables(this.display.layoutLineFocusables(rows, padding, padding, DEBUG_CONFIG.hudLineSpacing));
 
         ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
         ctx.fillRect(0, 0, width, height);
 
-        this.display.drawLines(ctx, rows, padding, padding, DEBUG_CONFIG.hudLineSpacing);
-        this.display.drawOverlays(ctx);
+        let y = padding;
+        for (const resolvedLine of resolvedLines) {
+            this.display.drawLine(ctx, resolvedLine.runs, padding, y, resolvedLine.height);
+            y += resolvedLine.height + DEBUG_CONFIG.hudLineSpacing;
+        }
     }
 }

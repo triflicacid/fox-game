@@ -39,8 +39,8 @@ export class World {
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
     };
-    private readonly chunkGenerator: ChunkGenerator;
-    private readonly worldSeed: number;
+    private chunkGenerator: ChunkGenerator;
+    private worldSeed: number;
     private readonly debugHud = new DebugHud();
     private mainEntity: MovableEntity;
 
@@ -65,11 +65,45 @@ export class World {
      * fresh random seed, so revisiting the same chunk within one `World` instance is
      * deterministic, but different play sessions get different terrain.
      */
-    public constructor(public readonly tileSize: number, worldSeed: number = Math.floor(Math.random() * 0xffffffff)) {
+    public constructor(public readonly tileSize: number, worldSeed: number = World.randomSeed()) {
         this.worldSeed = worldSeed;
         this.chunkGenerator = new ChunkGenerator(worldSeed);
         this.mainEntity = new Fox();
         this.entities.push(this.mainEntity);
+    }
+
+    /**
+     * A fresh random seed, in the same range as {@link ChunkGenerator} expects.
+     */
+    private static randomSeed(): number {
+        return Math.floor(Math.random() * 0xffffffff);
+    }
+
+    /**
+     * The seed currently used to generate new chunks.
+     *
+     * @returns The current world seed.
+     */
+    public getWorldSeed(): number {
+        return this.worldSeed;
+    }
+
+    /**
+     * Changes the seed used to generate new chunks. Already-loaded chunks
+     * are left as they are - only chunks generated from now on use `seed`.
+     *
+     * @param seed - The new world seed.
+     */
+    public setWorldSeed(seed: number): void {
+        this.worldSeed = seed;
+        this.chunkGenerator = new ChunkGenerator(seed);
+    }
+
+    /**
+     * Replaces the world seed with a fresh random one - see {@link setWorldSeed}.
+     */
+    public refreshWorldSeed(): void {
+        this.setWorldSeed(World.randomSeed());
     }
 
     /**
@@ -423,8 +457,6 @@ export class World {
         targetFps?: number,
         noiseFieldName?: string,
     ): void {
-        this.debugHud.setVisible(debugEnabled);
-
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
@@ -592,7 +624,6 @@ export class World {
             speed,
             actualFps,
             targetFps,
-            worldSeed: this.worldSeed,
             spectating,
         });
     }

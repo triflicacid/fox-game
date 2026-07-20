@@ -45,6 +45,4 @@ export const DEBUG_CONFIG = {
     hudPadding: 8,
     /** Vertical gap placed between consecutive HUD lines, in canvas pixels. */
     hudLineSpacing: 6,
-    /** How long the seed line's button shows "Copied" after being clicked, in milliseconds, before reverting to "Copy". */
-    hudCopyFeedbackDurationMs: 1500,
 } as const;
