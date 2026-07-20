@@ -214,7 +214,7 @@ export class LakeFeature extends Feature {
                 const threshold = LakeFeature.deepWaterThreshold(shoreDistance);
                 const isDeep = !isEdge && this.lakeShape.sample(worldX, worldY) >= threshold;
                 tiles[localY][localX].groundType = isDeep ? "waterDark" : "waterLight";
-                tiles[localY][localX].featureTag = "lake";
+                tiles[localY][localX].featureTag = isDeep ? "lake:deep" : "lake:shallow";
             }
         }
     }
