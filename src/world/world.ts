@@ -304,12 +304,30 @@ export class World {
     }
 
     /**
-     * Enables/disables chunk generation.
+     * Enables/disables chunk generation. When generation is disabled,
+     * also clears the pending generation queue.
      *
      * @param enabled - Whether chunk generation should be enabled.
      */
     public setGenerationEnabled(enabled: boolean): void {
         this.generationEnabled = enabled;
+        if (!enabled) {
+            this.cancelPendingChunkGeneration();
+        }
+    }
+
+    /**
+     * Cancels every chunk generation request still queued or in flight on
+     * {@link chunkWorkerClient}, and drops the corresponding not-yet-ready
+     * chunks from {@link chunks}.
+     */
+    private cancelPendingChunkGeneration(): void {
+        this.chunkWorkerClient.cancelPending();
+        for (const chunk of this.chunks.values()) {
+            if (!chunk.isReady()) {
+                this.chunks.delete(World.chunkKey(chunk.chunkX, chunk.chunkY));
+            }
+        }
     }
 
     /**
