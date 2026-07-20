@@ -82,6 +82,10 @@ interface ResolvedRadioOption {
     inputStyle: ResolvedStateStyle;
     /** Whether this option is disabled - true if the option itself is, or the owning {@link RadioInput} as a whole is. */
     disabled: boolean;
+    /** This option's own resolved padding, independent of the radio input's own. */
+    padding: ResolvedSpacing;
+    /** This option's own resolved margin - pushes neighbouring options apart. */
+    margin: ResolvedSpacing;
 }
 
 /** A resolved, measured radio input within a line. */
@@ -517,6 +521,14 @@ export class InteractableDisplay extends Display {
         return Object.keys(merged).length === 0 ? undefined : merged;
     }
 
+    /** Normalises a label's `string | TextSegment[] | undefined` content field to a plain {@link TextSegment} array. */
+    private normaliseContent(content: string | TextSegment[] | undefined): TextSegment[] {
+        if (content === undefined) {
+            return [];
+        }
+        return typeof content === "string" ? [{content}] : content;
+    }
+
     /** Wraps `content` in a synthetic parent segment carrying `style`, so its fields inherit into `content` via {@link Display.resolveLine}'s normal inheritance. Returns `content` unchanged when `style` is `undefined`. */
     private withAmbientStyle(content: TextSegment[], style: TextStyle | undefined): TextSegment[] {
         return style === undefined ? content : [{content, style}];
@@ -592,16 +604,23 @@ export class InteractableDisplay extends Display {
             const focused = this.wasFocusedIndex(this.nextResolveIndex()) && !disabled;
             const selected = option.key === item.selected;
 
-            // Base `style` always applies; whichever state is active layers on
-            // top, same precedence as the label's colour (focusedStyle > selectedStyle).
+            // Base `style` always applies (input-level, then option-level);
+            // whichever state is active layers on top, same precedence as
+            // the label's colour (focusedStyle > selectedStyle).
+            const baseStyle = this.mergeStyle(item.style, option.style);
             const stateStyle = focused
                 ? this.mergeStyle(item.focusedStyle, option.focusedStyle)
                 : (selected ? this.mergeStyle(item.selectedStyle, option.selectedStyle) : undefined);
-            const ambientStyle = this.mergeStyle(item.style, stateStyle);
-            const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = this.resolveLine(ctx, this.withAmbientStyle(option.content, ambientStyle));
-            maxFontSize = Math.max(maxFontSize, labelFontSize);
+            const ambientStyle = this.mergeStyle(baseStyle, stateStyle);
+            const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = this.resolveLine(ctx, this.withAmbientStyle(this.normaliseContent(option.content), ambientStyle));
 
-            width += (i > 0 ? this.defaults.radioOptionGap : 0) + this.radioOptionContentWidth(labelWidth);
+            // This option's own padding/margin are independent of the owning
+            // RadioInput's - a nested box, not merged with the parent's.
+            const padding = resolveSpacing(option.padding);
+            const margin = resolveSpacing(option.margin);
+            maxFontSize = Math.max(maxFontSize, labelFontSize + this.verticalSpacing(padding) + this.verticalSpacing(margin));
+
+            width += (i > 0 ? this.defaults.radioOptionGap : 0) + this.radioOptionContentWidth(labelWidth) + this.horizontalSpacing(padding) + this.horizontalSpacing(margin);
 
             const selectedStyle = this.resolveSelectedStyle(item.selectedStyle, option.selectedStyle);
 
@@ -616,8 +635,10 @@ export class InteractableDisplay extends Display {
                 focusedStyle: this.resolveFocusedStyle(item.focusedStyle, option.focusedStyle),
                 selectedStyle,
                 inputSelectedStyle: this.resolveInputSelectedStyle(item.inputSelectedStyle, selectedStyle, option.inputSelectedStyle),
-                inputStyle: this.resolveInputStyle(item.inputStyle, item.style, option.inputStyle),
+                inputStyle: this.resolveInputStyle(item.inputStyle, baseStyle, option.inputStyle),
                 disabled,
+                padding,
+                margin,
             };
         });
         return {element: {kind: "radio", options, width}, maxFontSize};
@@ -632,7 +653,7 @@ export class InteractableDisplay extends Display {
         // top, same precedence as the label's colour (focusedStyle > selectedStyle).
         const stateStyle = focused ? item.focusedStyle : (item.checked ? item.selectedStyle : undefined);
         const ambientStyle = this.mergeStyle(item.style, stateStyle);
-        const {runs: measured, width: labelWidth, maxFontSize} = this.resolveLine(ctx, this.withAmbientStyle(item.content, ambientStyle));
+        const {runs: measured, width: labelWidth, maxFontSize} = this.resolveLine(ctx, this.withAmbientStyle(this.normaliseContent(item.content), ambientStyle));
         const width = this.checkboxContentWidth(labelWidth);
         const selectedStyle = this.resolveSelectedStyle(item.selectedStyle);
         return {
@@ -769,7 +790,7 @@ export class InteractableDisplay extends Display {
                 ? this.mergeStyle(item.focusedStyle, option.focusedStyle)
                 : (selected ? this.mergeStyle(item.selectedStyle, option.selectedStyle) : undefined);
             const ambientStyle = this.mergeStyle(item.style, stateStyle);
-            const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = this.resolveLine(ctx, this.withAmbientStyle(option.content, ambientStyle));
+            const {runs: measured, width: labelWidth, maxFontSize: labelFontSize} = this.resolveLine(ctx, this.withAmbientStyle(this.normaliseContent(option.content), ambientStyle));
             maxFontSize = Math.max(maxFontSize, labelFontSize);
             maxLabelWidth = Math.max(maxLabelWidth, labelWidth);
             return {
@@ -794,7 +815,7 @@ export class InteractableDisplay extends Display {
         if (selectedOption) {
             const closedBoxStateStyle = this.mergeStyle(item.selectedStyle, selectedOption.selectedStyle);
             const closedBoxAmbientStyle = this.mergeStyle(item.style, closedBoxStateStyle);
-            const resolved = this.resolveLine(ctx, this.withAmbientStyle(selectedOption.content, closedBoxAmbientStyle));
+            const resolved = this.resolveLine(ctx, this.withAmbientStyle(this.normaliseContent(selectedOption.content), closedBoxAmbientStyle));
             closedBoxLabelRuns = resolved.runs;
             closedBoxFontSize = resolved.maxFontSize;
         }
@@ -826,7 +847,7 @@ export class InteractableDisplay extends Display {
         const disabled = button.disabled ?? false;
         const focusIndex = this.nextResolveIndex();
         const wasFocused = this.wasFocusedIndex(focusIndex) && !disabled;
-        const segments: TextSegment[] = typeof button.content === "string" ? [{content: button.content}] : button.content;
+        const segments = this.normaliseContent(button.content);
         const ambientStyle = this.mergeStyle(button.style, wasFocused ? button.focusedStyle : undefined);
         const {runs, width: labelWidth, maxFontSize} = this.resolveLine(ctx, this.withAmbientStyle(segments, ambientStyle));
 
@@ -934,7 +955,8 @@ export class InteractableDisplay extends Display {
         let maxFontSize = 0;
         let maxOuterHeight = 0;
 
-        const elements: ResolvedElement[] = line.flatMap((item): ResolvedElement[] => {
+        const items = Array.isArray(line) ? line : line.items;
+        const elements: ResolvedElement[] = items.flatMap((item): ResolvedElement[] => {
             const align = item.align ?? "top";
             const padding = resolveSpacing(item.padding);
             const margin = resolveSpacing(item.margin);
@@ -1086,13 +1108,18 @@ export class InteractableDisplay extends Display {
         }
     }
 
-    /** The radio group's own natural height - the same value its {@link LineItemMeta.fontSize} was derived from in {@link resolveRadio} - used as the box each option's own `align` positions itself within. */
-    private radioOwnHeight(element: ResolvedRadioElement): number {
-        return Math.max(0, ...element.options.map((option) => option.fontSize));
+    /** An option's own outer height: its label font size plus its own padding and margin, top and bottom - mirrors {@link outerHeight} one level down. */
+    private radioOptionOuterHeight(option: ResolvedRadioOption): number {
+        return option.fontSize + this.verticalSpacing(option.padding) + this.verticalSpacing(option.margin);
     }
 
-    /** Computes a resolved radio element's options' on-screen rects, walking left-to-right from `x`. Each option's own `align` positions it within the radio's own natural height, independent of its siblings. `padding` (the whole radio input's) grows each option's clickable/focusable rect. */
-    private layoutRadio(element: ResolvedRadioElement, x: number, y: number, padding: ResolvedSpacing): FocusableElement[] {
+    /** The radio group's own natural height: the tallest option's own outer height - used as the box each option's own `align` positions itself within. */
+    private radioOwnHeight(element: ResolvedRadioElement): number {
+        return Math.max(0, ...element.options.map((option) => this.radioOptionOuterHeight(option)));
+    }
+
+    /** Computes a resolved radio element's options' on-screen rects, walking left-to-right from `x`. Each option is its own nested box: `align` positions its outer (padding+margin) box within the radio's own natural height, and its own `margin` then `padding` shift its content in from there, mirroring {@link contentPosition} one level down - independent of the radio input's own padding/margin, already spent getting to `x`/`y`. */
+    private layoutRadio(element: ResolvedRadioElement, x: number, y: number): FocusableElement[] {
         const focusables: FocusableElement[] = [];
         const ownHeight = this.radioOwnHeight(element);
         let elemX = x;
@@ -1101,16 +1128,17 @@ export class InteractableDisplay extends Display {
                 elemX += this.defaults.radioOptionGap;
             }
             const optionWidth = this.radioOptionContentWidth(option.labelWidth);
-            const optionY = y + this.verticalOffset(option.align, option.fontSize, ownHeight);
-            const rect = expandRect({x: elemX, y: optionY, w: optionWidth, h: option.fontSize}, padding);
+            const outerY = y + this.verticalOffset(option.align, this.radioOptionOuterHeight(option), ownHeight);
+            const {x: tightX, y: tightY} = this.contentPosition(elemX, outerY, option.padding, option.margin);
+            const rect = expandRect({x: tightX, y: tightY, w: optionWidth, h: option.fontSize}, option.padding);
             focusables.push({rect, activate: () => option.onSelect(option.key), disabled: option.disabled});
-            elemX += optionWidth;
+            elemX += optionWidth + this.horizontalSpacing(option.padding) + this.horizontalSpacing(option.margin);
         });
         return focusables;
     }
 
-    /** Draws a resolved radio element's marker circle plus label per option, walking left-to-right from `x`. Each option's own `align` positions it within the radio's own natural height, independent of its siblings. `padding` (the whole radio input's) matches {@link layoutRadio}'s rect, for focus comparison. */
-    private paintRadio(ctx: CanvasRenderingContext2D, element: ResolvedRadioElement, x: number, y: number, focusedRect: BoundingRect | null, padding: ResolvedSpacing): void {
+    /** Draws a resolved radio element's marker circle plus label per option, walking left-to-right from `x`. Each option is its own nested box, positioned the same way as {@link layoutRadio}. */
+    private paintRadio(ctx: CanvasRenderingContext2D, element: ResolvedRadioElement, x: number, y: number, focusedRect: BoundingRect | null): void {
         const ownHeight = this.radioOwnHeight(element);
         let elemX = x;
         element.options.forEach((option, i) => {
@@ -1118,9 +1146,10 @@ export class InteractableDisplay extends Display {
                 elemX += this.defaults.radioOptionGap;
             }
             const optionWidth = this.radioOptionContentWidth(option.labelWidth);
-            const optionY = y + this.verticalOffset(option.align, option.fontSize, ownHeight);
-            const highlightRect: BoundingRect = {x: elemX, y: optionY, w: optionWidth, h: option.fontSize};
-            const rect = expandRect(highlightRect, padding);
+            const outerY = y + this.verticalOffset(option.align, this.radioOptionOuterHeight(option), ownHeight);
+            const {x: tightX, y: tightY} = this.contentPosition(elemX, outerY, option.padding, option.margin);
+            const highlightRect: BoundingRect = {x: tightX, y: tightY, w: optionWidth, h: option.fontSize};
+            const rect = expandRect(highlightRect, option.padding);
             const focused = focusedRect !== null && rectsEqual(rect, focusedRect) && !option.disabled;
             const active = focused ? option.focusedStyle : (option.selected ? option.selectedStyle : null);
             const markerStyle = option.selected ? option.inputSelectedStyle : option.inputStyle;
@@ -1131,12 +1160,12 @@ export class InteractableDisplay extends Display {
             }
 
             const markerRadius = this.defaults.radioMarkerSize / 2;
-            const markerCx = elemX + markerRadius;
+            const markerCx = tightX + markerRadius;
             const markerCy = highlightRect.y + highlightRect.h / 2;
             this.theme.drawRadioMarker(ctx, markerCx, markerCy, markerRadius, option.selected, markerStyle.foreground, markerStyle.background);
 
-            const labelX = elemX + this.defaults.radioMarkerSize + this.defaults.radioMarkerGap;
-            this.drawLine(ctx, option.labelRuns, labelX, optionY, option.fontSize, active?.foreground);
+            const labelX = tightX + this.defaults.radioMarkerSize + this.defaults.radioMarkerGap;
+            this.drawLine(ctx, option.labelRuns, labelX, tightY, option.fontSize, active?.foreground);
 
             if (option.disabled) {
                 this.paintDisabledCircleOverlay(ctx, markerCx, markerCy, markerRadius);
@@ -1144,7 +1173,7 @@ export class InteractableDisplay extends Display {
 
             this.strokeDebugRect(ctx, highlightRect, CONTENT_DEBUG_COLOR);
 
-            elemX += optionWidth;
+            elemX += optionWidth + this.horizontalSpacing(option.padding) + this.horizontalSpacing(option.margin);
         });
     }
 
@@ -1561,7 +1590,7 @@ export class InteractableDisplay extends Display {
     private layoutInput(element: ResolvedFocusableElement, x: number, y: number, padding: ResolvedSpacing): FocusableElement[] {
         switch (element.kind) {
             case "radio":
-                return this.layoutRadio(element, x, y, padding);
+                return this.layoutRadio(element, x, y);
             case "checkbox":
                 return this.layoutCheckbox(element, x, y, padding);
             case "number":
@@ -1593,7 +1622,7 @@ export class InteractableDisplay extends Display {
     ): void {
         switch (element.kind) {
             case "radio":
-                this.paintRadio(ctx, element, x, y, focusedRect, padding);
+                this.paintRadio(ctx, element, x, y, focusedRect);
                 break;
             case "checkbox":
                 this.paintCheckbox(ctx, element, x, y, focusedRect, padding);
