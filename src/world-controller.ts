@@ -1,4 +1,5 @@
 import {World} from "./world/world";
+import {ChunkWorkerClient} from "./world/generation/chunk-worker-client";
 import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";
@@ -132,6 +133,14 @@ export class WorldController {
      */
     public getActualFps(): number {
         return this.frameLoop.getActualFps();
+    }
+
+    /**
+     * The worker client driving chunk generation - for debugging (see
+     * `exposeGlobals`).
+     */
+    public getChunkWorkerClient(): ChunkWorkerClient {
+        return this.world.getChunkWorkerClient();
     }
 
     private readonly resize = (): void => {

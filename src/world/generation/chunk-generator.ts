@@ -15,12 +15,21 @@ export interface GeneratedChunk {
  */
 export class ChunkGenerator {
     private readonly fields = new NoiseFieldRegistry();
-    private readonly biomes: readonly Biome[];
+    private biomes: readonly Biome[] = [];
 
     /**
      * @param worldSeed - The world's seed.
      */
     public constructor(worldSeed: number) {
+        this.setSeed(worldSeed);
+    }
+
+    /**
+     * Re-derives every biome/field from a new world seed.
+     *
+     * @param worldSeed - The new world seed.
+     */
+    public setSeed(worldSeed: number): void {
         const plains = new PlainsBiome(worldSeed);
         for (const field of plains.getFields()) {
             this.fields.register(field);
