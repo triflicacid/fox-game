@@ -1,17 +1,16 @@
-import { writeFileSync } from "node:fs";
-import { writePng } from "./lib/png-writer.mjs";
+import { blitGrid, parseCliArgs, writeSpriteSheet } from "./lib/sprite-sheet.mjs";
 
 const GRID = 16; // logical cells per tile edge
 const BLOCK = 2; // real pixels per grid cell -> 32x32 per tile
 const CELL_PX = GRID * BLOCK;
 
 /**
- * Returns a deterministic pseudo-random value for a grid cell.
+ * returns a deterministic pseudo-random value for a grid cell.
  *
- * @param {number} seed - Tile seed.
- * @param {number} x - Grid cell x coordinate.
- * @param {number} y - Grid cell y coordinate.
- * @returns {number} A value in the range `[0, 1)`.
+ * @param {number} seed - tile seed.
+ * @param {number} x - grid cell x coordinate.
+ * @param {number} y - grid cell y coordinate.
+ * @returns {number} a value in the range `[0, 1)`.
  */
 function hash(seed, x, y) {
     // mix coordinates into a hash
@@ -26,13 +25,13 @@ function hash(seed, x, y) {
 }
 
 /**
- * Selects a color from a weighted palette.
+ * selects a color from a weighted palette.
  *
- * @param {{color: number[], weight: number}[]} palette - Available colors and weights.
- * @param {number} seed - Tile seed.
- * @param {number} x - Grid cell x coordinate.
- * @param {number} y - Grid cell y coordinate.
- * @returns {number[]} The selected RGBA color.
+ * @param {{color: number[], weight: number}[]} palette - available colors and weights.
+ * @param {number} seed - tile seed.
+ * @param {number} x - grid cell x coordinate.
+ * @param {number} y - grid cell y coordinate.
+ * @returns {number[]} the selected rgba color.
  */
 function pickColor(palette, seed, x, y) {
     // compute total weight
@@ -128,10 +127,10 @@ const TILES = [
 ];
 
 /**
- * Builds the color grid for a tile.
+ * builds the color grid for a tile.
  *
- * @param {{palette: {color: number[], weight: number}[], seed: number}} tile - Tile definition.
- * @returns {number[][]} The tile's colors in row-major order.
+ * @param {{palette: {color: number[], weight: number}[], seed: number}} tile - tile definition.
+ * @returns {number[][]} the tile's colors in row-major order.
  */
 function buildTileGrid(tile) {
     // generate one color per grid cell
@@ -146,50 +145,13 @@ function buildTileGrid(tile) {
     return grid;
 }
 
-/**
- * Copies a tile into the sprite sheet.
- *
- * @param {Buffer} sheet - Sheet pixel buffer.
- * @param {number} sheetW - Sheet width in pixels.
- * @param {number[][]} gridColors - Tile color grid.
- * @param {number} column - Destination tile column.
- * @returns {void} Nothing.
- */
-function blitTile(sheet, sheetW, gridColors, column) {
-    // tile origin
-    const originX = column * CELL_PX;
-
-    for (let gy = 0; gy < GRID; gy++) {
-        for (let gx = 0; gx < GRID; gx++) {
-            // color for this grid cell
-            const [r, g, b, a] = gridColors[gy * GRID + gx];
-
-            // expand logical cell into pixels
-            for (let by = 0; by < BLOCK; by++) {
-                const py = gy * BLOCK + by;
-
-                for (let bx = 0; bx < BLOCK; bx++) {
-                    const px = originX + gx * BLOCK + bx;
-                    const idx = (py * sheetW + px) * 4;
-
-                    // write rgba
-                    sheet[idx] = r;
-                    sheet[idx + 1] = g;
-                    sheet[idx + 2] = b;
-                    sheet[idx + 3] = a;
-                }
-            }
-        }
-    }
-}
-
 const sheetW = CELL_PX * TILES.length;
 const sheetH = CELL_PX;
 const sheet = Buffer.alloc(sheetW * sheetH * 4, 0);
 
-// build sheet rows and descriptors
+// build sheet columns and descriptors
 const rowDescriptors = TILES.map((tile, column) => {
-    blitTile(sheet, sheetW, buildTileGrid(tile), column);
+    blitGrid(sheet, sheetW, buildTileGrid(tile), GRID, BLOCK, column * CELL_PX, 0);
 
     return {
         type: tile.type,
@@ -205,10 +167,6 @@ const descriptor = {
     rows: rowDescriptors,
 };
 
-const outPath = process.argv[2];
-const descriptorOutPath = process.argv[3] ?? "static/background-tile-sprites.json";
-if (!outPath) throw new Error("usage: node gen-background-tile-sprites.mjs <pngOutPath> [descriptorOutPath]");
-writePng(outPath, sheetW, sheetH, sheet);
-writeFileSync(descriptorOutPath, JSON.stringify(descriptor, null, 2) + "\n");
-console.log(`wrote sprite sheet descriptor to ${descriptorOutPath}`);
+const { outPath, descriptorOutPath } = parseCliArgs("gen-background-tile-sprites.mjs", "static/background-tile-sprites.json");
+writeSpriteSheet(outPath, descriptorOutPath, sheetW, sheetH, sheet, descriptor);
 console.log("tile order:", TILES.map((tile) => tile.type).join(", "));
