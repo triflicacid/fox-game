@@ -11,6 +11,7 @@ import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
 import {SettingsController} from "./settings/settings-controller";
 import {PopupController} from "./lib/popup/popup-controller";
+import {Fox} from "./entities/fox";
 
 /**
  * Owns everything needed to run the game against a canvas.
@@ -68,6 +69,12 @@ export class WorldController {
             () => this.world.reloadAllChunks(),
             () => this.world.teleportMainEntityTo(this.camera.getCenter()),
             () => this.movementController.isSpectating(),
+            () => {
+                const mainEntity = this.world.getMainEntity();
+                if (mainEntity instanceof Fox) {
+                    mainEntity.toggleAnthroStanding();
+                }
+            },
         );
         this.helpController = new HelpController(() => this.getKeyBindings(), this.handlePopupOpenChange);
         this.settingsController = new SettingsController(

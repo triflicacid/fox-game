@@ -60,6 +60,7 @@ export class AnimatedSpriteSheet<TType extends string = string> extends SpriteSh
             frameIndex: phase - 1,
             frameCount: row.phases,
             loops: row.loops,
+            frameIntervalMs: row.frameIntervalMs,
             bounds: row.bounds,
         };
     }
@@ -89,6 +90,7 @@ export class AnimatedSpriteSheet<TType extends string = string> extends SpriteSh
             frameIndex: 0,
             frameCount: 1,
             loops: false,
+            frameIntervalMs: row.frameIntervalMs,
             bounds: row.bounds,
         };
     }

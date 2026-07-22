@@ -10,11 +10,13 @@ export class DebugController {
      * @param onReloadChunks - Called when the `r` key is pressed while debug mode is enabled.
      * @param onTeleportToCamera - Called when the `t` key is pressed while debug mode and spectator mode are both enabled.
      * @param isSpectating - Reports whether spectator mode is currently active, so `onTeleportToCamera` only fires alongside it.
+     * @param onToggleAnthroStanding - Called when `a` is pressed while debug mode is enabled.
      */
     public constructor(
         private readonly onReloadChunks: () => void,
         private readonly onTeleportToCamera: () => void,
         private readonly isSpectating: () => boolean,
+        private readonly onToggleAnthroStanding: () => void,
     ) {
         window.addEventListener("keydown", this.handleKeyDown);
     }
@@ -45,6 +47,7 @@ export class DebugController {
     public getKeyBindings(): KeyBinding[] {
         const bindings: KeyBinding[] = [{key: "D", description: "Toggle debug overlay"}];
         if (this.enabled) {
+            bindings.push({key: "A", description: "Toggle anthro fox sprites"});
             bindings.push({key: "R", description: "Reload all chunks"});
             if (this.isSpectating()) {
                 bindings.push({key: "T", description: "Teleport to camera"});
@@ -63,6 +66,8 @@ export class DebugController {
         }
         if (event.key === "r" || event.key === "R") {
             this.onReloadChunks();
+        } else if (event.key === "a" || event.key === "A") {
+            this.onToggleAnthroStanding();
         } else if ((event.key === "t" || event.key === "T") && this.isSpectating()) {
             this.onTeleportToCamera();
         }

@@ -38,6 +38,11 @@ export interface SpriteFrame extends SpriteRect {
      * animation). See {@link AnimatedSpriteSheet.next}.
      */
     readonly loops: boolean;
+    /**
+     * Milliseconds this animation frame remains visible, or `undefined` to
+     * use the displaying entity's default interval.
+     */
+    readonly frameIntervalMs?: number;
     /** This frame's collision bounding box (shared across its whole animation). */
     readonly bounds: SpriteBounds;
     /**

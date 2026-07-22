@@ -14,7 +14,9 @@ import {DEBUG_CONFIG} from "../debug/debug-config";
 export abstract class Entity<TSpriteType extends string = string, TStatus extends string = string> {
     private position: Vector2d;
     private currentFrame: SpriteFrame;
+    private currentSpriteSheet: AnimatedSpriteSheet<string>;
     private currentBitmap: ImageBitmap | null = null;
+    private bitmapRequestId = 0;
     private animationElapsedMs = 0;
 
     /**
@@ -32,6 +34,7 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
         position: Vector2d = Vector2d.ZERO,
     ) {
         this.currentFrame = initialFrame;
+        this.currentSpriteSheet = spriteSheet;
         this.position = position;
         this.refreshBitmap();
     }
@@ -83,7 +86,20 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
      * @param frame - Frame to switch to.
      */
     protected setCurrentFrame(frame: SpriteFrame): void {
+        this.setCurrentFrameFromSheet(frame, this.spriteSheet);
+    }
+
+    /**
+     * Sets a frame located on an alternate sprite sheet. Subsequent bitmap
+     * extraction and animation stepping use that sheet until another frame is
+     * selected.
+     *
+     * @param frame - Frame to switch to.
+     * @param spriteSheet - Sheet that owns `frame`'s pixel coordinates.
+     */
+    protected setCurrentFrameFromSheet(frame: SpriteFrame, spriteSheet: AnimatedSpriteSheet<string>): void {
         this.currentFrame = frame;
+        this.currentSpriteSheet = spriteSheet;
         this.animationElapsedMs = 0;
         this.refreshBitmap();
     }
@@ -109,18 +125,20 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
     }
 
     /**
-     * Steps this entity's sprite forward by one frame once
-     * {@link frameIntervalMs} has elapsed since the last step.
+     * Steps this entity's sprite forward once its row-specific
+     * {@link SpriteFrame.frameIntervalMs}, or the entity's default
+     * {@link frameIntervalMs} when no override exists, has elapsed.
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
     private updateAnimation(deltaMs: number): void {
         this.animationElapsedMs += deltaMs;
-        if (this.animationElapsedMs < this.frameIntervalMs) {
+        const frameIntervalMs = this.currentFrame.frameIntervalMs ?? this.frameIntervalMs;
+        if (this.animationElapsedMs < frameIntervalMs) {
             return;
         }
-        this.animationElapsedMs -= this.frameIntervalMs;
-        this.currentFrame = this.spriteSheet.next(this.currentFrame);
+        this.animationElapsedMs -= frameIntervalMs;
+        this.currentFrame = this.currentSpriteSheet.next(this.currentFrame);
         this.refreshBitmap();
         this.onFrameAdvanced?.(this.currentFrame);
     }
@@ -168,8 +186,11 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
      * anything) on every draw call.
      */
     private refreshBitmap(): void {
-        void this.spriteSheet.extractSprite(this.currentFrame).then((bitmap) => {
-            this.currentBitmap = bitmap;
+        const requestId = ++this.bitmapRequestId;
+        void this.currentSpriteSheet.extractSprite(this.currentFrame).then((bitmap) => {
+            if (requestId === this.bitmapRequestId) {
+                this.currentBitmap = bitmap;
+            }
         });
     }
 }

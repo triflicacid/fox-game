@@ -1,5 +1,5 @@
 import {MovableEntity} from "./movable-entity";
-import {FoxSpriteSheet, FoxSpriteType} from "../sprites/fox";
+import {AnthroFoxSpriteSheet, FoxSpriteSheet, FoxSpriteType} from "../sprites/fox";
 import {CompassDirection} from "../geometry/direction";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
@@ -8,8 +8,8 @@ import {KeyBinding} from "../help/key-binding";
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling";
 
-/** How long, in milliseconds, any of the fox's animations show each frame before advancing. */
-const WALK_FRAME_MS = 120;
+/** Default milliseconds per frame for rows that don't define their own timing. */
+const DEFAULT_FRAME_INTERVAL_MS = 120;
 
 /** Direction a fox faces when spawned. */
 const INITIAL_FACING: CompassDirection = "N";
@@ -29,6 +29,8 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      * of the generic `AnimatedSpriteSheet` type that field is declared with.
      */
     private readonly foxSpriteSheet: FoxSpriteSheet;
+    private readonly anthroFoxSpriteSheet: AnthroFoxSpriteSheet;
+    private anthroStandingEnabled = false;
 
     /**
      * Facing/velocity requested by a movement key press while asleep (or
@@ -43,8 +45,21 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
-        super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), WALK_FRAME_MS);
+        super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), DEFAULT_FRAME_INTERVAL_MS);
         this.foxSpriteSheet = spriteSheet;
+        this.anthroFoxSpriteSheet = new AnthroFoxSpriteSheet();
+    }
+
+    /**
+     * Toggles the debug anthropomorphic sprites. When enabled, directional
+     * idle and walking frames are taken from {@link anthroFoxSpriteSheet};
+     * resting actions (curl/uncurl/sleep) always use {@link foxSpriteSheet}.
+     */
+    public toggleAnthroStanding(): void {
+        this.anthroStandingEnabled = !this.anthroStandingEnabled;
+        if (!this.isRestState()) {
+            this.setFrameForFacing(this.facing, this.isMoving());
+        }
     }
 
     /**
@@ -124,7 +139,22 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     protected override locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame {
+        if (this.shouldUseAnthroSprites()) {
+            return moving ? this.anthroFoxSpriteSheet.locateSprite(direction) : this.anthroFoxSpriteSheet.locateIdleSprite(direction);
+        }
         return moving ? this.foxSpriteSheet.locateSprite(direction) : this.foxSpriteSheet.locateIdleSprite(direction);
+    }
+
+    /** Selects the correct sheet for each directional pose based on the anthro toggle and rest state. */
+    protected override locateSpriteSheetForFacing(direction: CompassDirection, moving: boolean): FoxSpriteSheet | AnthroFoxSpriteSheet {
+        void direction;
+        void moving;
+        return this.shouldUseAnthroSprites() ? this.anthroFoxSpriteSheet : this.foxSpriteSheet;
+    }
+
+    /** Whether directional frames should come from the anthro sheet rather than the normal fox sheet. */
+    private shouldUseAnthroSprites(): boolean {
+        return this.anthroStandingEnabled && !this.isRestState();
     }
 
     /**
@@ -220,7 +250,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
         const moving = velocity.x !== 0 || velocity.y !== 0;
         this.status = moving ? "walking" : "idle";
-        this.setCurrentFrame(this.locateFrameForFacing(this.facing, moving));
+        this.setFrameForFacing(this.facing, moving);
         this.setVelocity(velocity);
     }
 }

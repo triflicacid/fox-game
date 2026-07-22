@@ -62,7 +62,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
             return;
         }
         this.facing = facing;
-        this.setCurrentFrame(this.locateFrameForFacing(facing, this.isMoving()));
+        this.setFrameForFacing(facing, this.isMoving());
     }
 
     /**
@@ -93,7 +93,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
         this.velocity = velocity;
         const isMovingNow = this.isMoving();
         if (isMovingNow !== wasMoving) {
-            this.setCurrentFrame(this.locateFrameForFacing(this.facing, isMovingNow));
+            this.setFrameForFacing(this.facing, isMovingNow);
         }
     }
 
@@ -117,6 +117,33 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * @returns The located frame.
      */
     protected abstract locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame;
+
+    /**
+     * Selects the sheet that owns the frame returned by
+     * {@link locateFrameForFacing}. Subclasses can override this when a state
+     * uses directional frames from a secondary sheet.
+     *
+     * @param direction - Direction being selected.
+     * @param moving - Whether the entity is moving.
+     * @returns The sheet that owns the selected frame.
+     */
+    protected locateSpriteSheetForFacing(direction: CompassDirection, moving: boolean): AnimatedSpriteSheet<string> {
+        void direction;
+        void moving;
+        return this.spriteSheet;
+    }
+
+    /**
+     * Locates a directional frame and extracts it from its owning sheet.
+     *
+     * @param direction - Direction to show.
+     * @param moving - Whether to select a moving or stationary frame.
+     */
+    protected setFrameForFacing(direction: CompassDirection, moving: boolean): void {
+        const frame = this.locateFrameForFacing(direction, moving);
+        const spriteSheet = this.locateSpriteSheetForFacing(direction, moving);
+        this.setCurrentFrameFromSheet(frame, spriteSheet);
+    }
 
     /**
      * Whether this entity's animation should keep stepping even while
