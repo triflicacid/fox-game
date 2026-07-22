@@ -1,8 +1,10 @@
 # Working preferences
 
-A running note of how this user likes code, comments, and docs written in
+A running note of this repo writes code, comments, and docs written in
 this project. Keep this updated as new preferences come up; don't remove
 entries just because they're old, unless corrected.
+
+For more info on comments, read [this](comment-guidelines.md).
 
 ## Punctuation
 
