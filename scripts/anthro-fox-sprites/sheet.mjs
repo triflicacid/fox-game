@@ -2,7 +2,7 @@ import { blit, scale2x } from "./raster.mjs";
 import { buildIdlePoses, CELL_HEIGHT, CELL_WIDTH, DIRECTIONS } from "./poses.mjs";
 import { buildWalkFrame } from "./walk.mjs";
 
-export const PHASES = 8;
+export const PHASES = 12;
 
 const FRONT_BOUNDS = [[-13,-31],[13,-31],[17,-24],[17,24],[12,32],[-12,32],[-17,24],[-17,-24]];
 const SIDE_BOUNDS = [[-10,-31],[11,-31],[14,-23],[14,26],[9,32],[-9,32],[-14,26],[-14,-23]];

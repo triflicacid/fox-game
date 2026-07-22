@@ -6,7 +6,7 @@
       "type": "N",
       "x": 128,
       "y": 0,
-      "phases": 8,
+      "phases": 12,
       "loops": true,
       "idleX": 0,
       "bounds": {
@@ -50,7 +50,7 @@
       "type": "NE",
       "x": 128,
       "y": 144,
-      "phases": 8,
+      "phases": 12,
       "loops": true,
       "idleX": 0,
       "bounds": {
@@ -94,7 +94,7 @@
       "type": "E",
       "x": 128,
       "y": 288,
-      "phases": 8,
+      "phases": 12,
       "loops": true,
       "idleX": 0,
       "bounds": {
@@ -138,7 +138,7 @@
       "type": "SE",
       "x": 128,
       "y": 432,
-      "phases": 8,
+      "phases": 12,
       "loops": true,
       "idleX": 0,
       "bounds": {
@@ -182,7 +182,7 @@
       "type": "S",
       "x": 128,
       "y": 576,
-      "phases": 8,
+      "phases": 12,
       "loops": true,
       "idleX": 0,
       "bounds": {
@@ -226,7 +226,7 @@
       "type": "SW",
       "x": 128,
       "y": 720,
-      "phases": 8,
+      "phases": 12,
       "loops": true,
       "idleX": 0,
       "bounds": {
@@ -270,7 +270,7 @@
       "type": "W",
       "x": 128,
       "y": 864,
-      "phases": 8,
+      "phases": 12,
       "loops": true,
       "idleX": 0,
       "bounds": {
@@ -314,7 +314,7 @@
       "type": "NW",
       "x": 128,
       "y": 1008,
-      "phases": 8,
+      "phases": 12,
       "loops": true,
       "idleX": 0,
       "bounds": {

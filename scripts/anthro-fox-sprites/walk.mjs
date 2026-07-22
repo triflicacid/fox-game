@@ -1,9 +1,17 @@
 import { colors } from "./poses.mjs";
 import { createFrame, getPixel, line, setPixel } from "./raster.mjs";
 
-const STRIDE = [3, 2, 0, -2, -3, -2, 0, 2];
-const BOB = [0, 1, 1, 0, -1, 0, 1, 0];
-const TAIL_SWAY = [0, -2, -2, 0, 2, 2, 0, -1];
+// 12-phase sinusoidal walk cycle – samples sin/cos at 30° intervals so the
+// sequence loops perfectly without a discontinuity at the wrap point.
+//
+//   sin(0°…330°, step 30°) × 4:  0, 2, 3, 4, 3, 2, 0, -2, -3, -4, -3, -2
+//
+// The same stride table drives all directions; how it maps to screen axes
+// depends on the view direction (see buildWalkFrame).
+const STRIDE    = [0,  2,  3,  4,  3,  2,  0, -2, -3, -4, -3, -2];
+// Body bobs twice per full cycle (peaks at stride extremes, dips midway).
+const BOB       = [0,  1,  1,  0, -1, -1,  0,  1,  1,  0, -1, -1];
+const TAIL_SWAY = [0, -1, -2, -2, -1,  0,  1,  2,  2,  1,  0, -1];
 
 /**
  * Classifies an idle-pose pixel into an independently deformable body region.
@@ -109,9 +117,16 @@ function connectArticulations(frame, width, height) {
 /**
  * Builds one walk phase with anchored hips, shoulders, and tail root.
  *
+ * Leg and arm deformation is view-direction-aware:
+ * - N/S (front/back): stride maps to the Y axis (depth in 3-D space), so
+ *   feet alternately dip toward and away from the viewer instead of swaying
+ *   sideways.
+ * - E/W (profile): stride maps to the X axis (forward/backward in 3-D).
+ * - Diagonals: a weighted mix of both axes.
+ *
  * @param {Buffer} idle - Directional idle pose used as the deformation source.
  * @param {string} direction - Compass direction of the pose.
- * @param {number} phase - Zero-based walk phase in the range 0..7.
+ * @param {number} phase - Zero-based walk phase in the range 0..11.
  * @param {number} width - Frame width in pixels.
  * @param {number} height - Frame height in pixels.
  * @returns {Buffer} A new connected RGBA walking frame.
@@ -120,7 +135,8 @@ export function buildWalkFrame(idle, direction, phase, width, height) {
     const result = createFrame(width, height);
     const stride = STRIDE[phase];
     const bob = BOB[phase];
-    const strideScale = direction === "N" || direction === "S" ? 0.67 : 1;
+    const isFrontBack = direction === "N" || direction === "S";
+    const isSide = direction === "E" || direction === "W";
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const color = getPixel(idle, width, x, y);
@@ -132,13 +148,29 @@ export function buildWalkFrame(idle, direction, phase, width, height) {
                 // Displacement grows from the fixed hip toward the moving paw.
                 const progress = Math.max(0, Math.min(1, (y - 42) / 25));
                 const sign = part === "left-leg" ? 1 : -1;
-                dx += Math.round(sign * stride * strideScale * progress);
-                dy += Math.round((sign * stride < 0 ? 1 : 0) * progress);
+                if (isFrontBack) {
+                    // Front/back: legs stride in depth → screen Y axis.
+                    dy += Math.round(sign * stride * 0.7 * progress);
+                } else if (isSide) {
+                    // Profile: legs stride forward/backward → screen X axis.
+                    dx += Math.round(sign * stride * 0.75 * progress);
+                } else {
+                    // Diagonal: weighted mix of both axes.
+                    dx += Math.round(sign * stride * 0.5 * progress);
+                    dy += Math.round(sign * stride * 0.4 * progress);
+                }
             } else if (part === "left-arm" || part === "right-arm") {
                 // Arms counter-swing against their corresponding legs.
                 const progress = Math.max(0, Math.min(1, (y - 27) / 24));
                 const sign = part === "left-arm" ? -1 : 1;
-                dx += Math.round(sign * stride * 0.55 * progress);
+                if (isFrontBack) {
+                    dy += Math.round(sign * stride * 0.4 * progress);
+                } else if (isSide) {
+                    dx += Math.round(sign * stride * 0.55 * progress);
+                } else {
+                    dx += Math.round(sign * stride * 0.35 * progress);
+                    dy += Math.round(sign * stride * 0.3 * progress);
+                }
             } else if (part === "tail") {
                 // Tail sway grows from zero at the root to full motion at the tip.
                 dy += Math.round(TAIL_SWAY[phase] * tailProgress(direction, x));
