@@ -3,15 +3,12 @@ import { createFrame, getPixel, line, setPixel } from "./raster.mjs";
 
 // 12-phase sinusoidal walk cycle – samples sin/cos at 30° intervals so the
 // sequence loops perfectly without a discontinuity at the wrap point.
-//
-//   sin(0°…330°, step 30°) × 4:  0, 2, 3, 4, 3, 2, 0, -2, -3, -4, -3, -2
-//
-// The same stride table drives all directions; how it maps to screen axes
-// depends on the view direction (see buildWalkFrame).
 const STRIDE    = [0,  2,  3,  4,  3,  2,  0, -2, -3, -4, -3, -2];
-// Body bobs twice per full cycle (peaks at stride extremes, dips midway).
 const BOB       = [0,  1,  1,  0, -1, -1,  0,  1,  1,  0, -1, -1];
-const TAIL_SWAY = [0, -1, -2, -2, -1,  0,  1,  2,  2,  1,  0, -1];
+// Increased to ±3 so the tail swing is clearly visible after 2× upscale.
+// Phase 6 uses +1 rather than 0 so it is pixel-distinct from phase 0
+// (both have stride=0 and bob=0; without this the validator would flag a duplicate).
+const TAIL_SWAY = [0, -1, -2, -3, -2, -1,  1,  1,  2,  3,  2,  1];
 
 /**
  * Classifies an idle-pose pixel into an independently deformable body region.
@@ -22,12 +19,16 @@ const TAIL_SWAY = [0, -1, -2, -2, -1,  0,  1,  2,  2,  1,  0, -1];
  * @returns {"tail"|"left-leg"|"right-leg"|"left-arm"|"right-arm"|"body"} Region identifier.
  */
 function region(direction, x, y) {
-    // Tail masks differ by view because the brush sits behind a different hip.
-    if ((direction === "N" || direction === "S") && x >= 42 && y >= 34) return "tail";
-    if ((direction === "NE" || direction === "SE") && x <= 15 && y >= 34) return "tail";
-    if ((direction === "NW" || direction === "SW") && x >= 48 && y >= 34) return "tail";
-    if (direction === "E" && x <= 28 && y >= 34) return "tail";
-    if (direction === "W" && x >= 35 && y >= 34) return "tail";
+    // Tail masks deliberately stay away from the body boundary so body pixels
+    // drawn on top of the tail root are not misclassified.
+    if ((direction === "N" || direction === "S") && x >= 42 && y >= 31) return "tail";
+    if ((direction === "NW" || direction === "SE") && x <= 15 && y >= 31) return "tail";
+    if ((direction === "NE" || direction === "SW") && x >= 48 && y >= 31) return "tail";
+    // Profile root pixels at x=29..34 stay attached beneath the torso; only
+    // the visible brush is animated. This also keeps the rear foot out of the
+    // tail mask.
+    if (direction === "E" && x <= 28 && y >= 38) return "tail";
+    if (direction === "W" && x >= 36 && y >= 38) return "tail";
     // Limbs divide around the body centre; everything else moves as the torso.
     if (y >= 43 && x >= 14 && x <= 50) return x < 32 ? "left-leg" : "right-leg";
     if (y >= 27 && y <= 52 && x <= 23) return "left-arm";
@@ -43,11 +44,11 @@ function region(direction, x, y) {
  * @returns {number} Normalized root-to-tip progress in the inclusive range 0..1.
  */
 function tailProgress(direction, x) {
-    if (direction === "N" || direction === "S") return Math.max(0, Math.min(1, (x - 42) / 20));
-    if (direction === "NE" || direction === "SE") return Math.max(0, Math.min(1, (15 - x) / 14));
-    if (direction === "NW" || direction === "SW") return Math.max(0, Math.min(1, (x - 48) / 14));
-    if (direction === "E") return Math.max(0, Math.min(1, (28 - x) / 27));
-    return Math.max(0, Math.min(1, (x - 35) / 27));
+    if (direction === "N" || direction === "S") return Math.max(0, Math.min(1, (x - 41) / 22));
+    if (direction === "NW" || direction === "SE") return Math.max(0, Math.min(1, (15 - x) / 15));
+    if (direction === "NE" || direction === "SW") return Math.max(0, Math.min(1, (x - 48) / 15));
+    if (direction === "E") return Math.max(0, Math.min(1, (28 - x) / 28));
+    return Math.max(0, Math.min(1, (x - 35) / 28));
 }
 
 /**
@@ -118,11 +119,17 @@ function connectArticulations(frame, width, height) {
  * Builds one walk phase with anchored hips, shoulders, and tail root.
  *
  * Leg and arm deformation is view-direction-aware:
- * - N/S (front/back): stride maps to the Y axis (depth in 3-D space), so
- *   feet alternately dip toward and away from the viewer instead of swaying
- *   sideways.
- * - E/W (profile): stride maps to the X axis (forward/backward in 3-D).
- * - Diagonals: a weighted mix of both axes.
+ *
+ * - N/S (front/back): depth stride maps to Y.  A short ramp `(y-43)/8` reaches
+ *   full displacement at the upper thigh and holds it there for the rest of the
+ *   leg.  This eliminates the stretch-and-split artifact that occurs when the
+ *   hip barely moves but the foot moves 3× as far.
+ * - E/W (profile): the full progressive factor is kept – it reads naturally as a
+ *   swinging leg when seen from the side.
+ * - Diagonals: weighted mix of both axes with the same short ramp for Y.
+ *
+ * The tail swings laterally (X axis) in N/S view and bobs vertically (Y axis) in
+ * E/W view, with root-to-tip progress so the tip swings more than the root.
  *
  * @param {Buffer} idle - Directional idle pose used as the deformation source.
  * @param {string} direction - Compass direction of the pose.
@@ -145,35 +152,51 @@ export function buildWalkFrame(idle, direction, phase, width, height) {
             let dx = 0;
             let dy = bob;
             if (part === "left-leg" || part === "right-leg") {
-                // Displacement grows from the fixed hip toward the moving paw.
-                const progress = Math.max(0, Math.min(1, (y - 42) / 25));
                 const sign = part === "left-leg" ? 1 : -1;
                 if (isFrontBack) {
-                    // Front/back: legs stride in depth → screen Y axis.
-                    dy += Math.round(sign * stride * 0.7 * progress);
+                    // Short ramp: 0 at hip (y=43) → full at upper thigh (y=51).
+                    // Every pixel at y≥51 moves the same amount, so the leg
+                    // translates as a unit and cannot stretch-split at the ankle.
+                    const depthP = Math.max(0, Math.min(1, (y - 43) / 8));
+                    dy += Math.round(sign * stride * 0.45 * depthP);
                 } else if (isSide) {
-                    // Profile: legs stride forward/backward → screen X axis.
+                    // Full progressive factor looks natural as a swinging leg.
+                    const progress = Math.max(0, Math.min(1, (y - 42) / 25));
                     dx += Math.round(sign * stride * 0.75 * progress);
                 } else {
-                    // Diagonal: weighted mix of both axes.
+                    const progress = Math.max(0, Math.min(1, (y - 42) / 25));
+                    const depthP = Math.max(0, Math.min(1, (y - 43) / 8));
                     dx += Math.round(sign * stride * 0.5 * progress);
-                    dy += Math.round(sign * stride * 0.4 * progress);
+                    dy += Math.round(sign * stride * 0.3 * depthP);
                 }
             } else if (part === "left-arm" || part === "right-arm") {
                 // Arms counter-swing against their corresponding legs.
-                const progress = Math.max(0, Math.min(1, (y - 27) / 24));
                 const sign = part === "left-arm" ? -1 : 1;
                 if (isFrontBack) {
-                    dy += Math.round(sign * stride * 0.4 * progress);
+                    // Flat arm displacement avoids the same stretch problem.
+                    dy += Math.round(sign * stride * 0.3);
                 } else if (isSide) {
+                    const progress = Math.max(0, Math.min(1, (y - 27) / 24));
                     dx += Math.round(sign * stride * 0.55 * progress);
                 } else {
+                    const progress = Math.max(0, Math.min(1, (y - 27) / 24));
                     dx += Math.round(sign * stride * 0.35 * progress);
-                    dy += Math.round(sign * stride * 0.3 * progress);
+                    dy += Math.round(sign * stride * 0.2);
                 }
             } else if (part === "tail") {
                 // Tail sway grows from zero at the root to full motion at the tip.
-                dy += Math.round(TAIL_SWAY[phase] * tailProgress(direction, x));
+                const progress = tailProgress(direction, x);
+                if (isFrontBack) {
+                    // Front/back: tail swings left/right as the hips counter-rotate.
+                    dx += Math.round(TAIL_SWAY[phase] * progress);
+                } else if (isSide) {
+                    // Profile: tail bobs vertically.
+                    dy += Math.round(TAIL_SWAY[phase] * progress);
+                } else {
+                    // Diagonal: blend lateral swing with a gentler vertical bob.
+                    dx += Math.round(TAIL_SWAY[phase] * progress * 0.7);
+                    dy += Math.round(TAIL_SWAY[phase] * progress * 0.4);
+                }
             }
             setPixel(result, width, height, x + dx, y + dy, color);
         }

@@ -15,7 +15,10 @@ export const colors = {
 const { outline: K, orange: O, shadow: D, cream: W, white: X } = colors;
 
 /**
- * Draws the oversized fox brush behind the body, including its cream tip.
+ * Draws the oversized fox brush behind the body, including its layered cream tip.
+ *
+ * The tail is drawn in four passes so each layer composites cleanly:
+ * black outer silhouette → orange body → cream tip → white inner highlight → shadow.
  *
  * @param {Buffer} frame - Destination idle-pose frame.
  * @param {"left"|"right"} [side="right"] - Side on which the tail appears.
@@ -23,10 +26,17 @@ const { outline: K, orange: O, shadow: D, cream: W, white: X } = colors;
  */
 function drawTail(frame, side = "right") {
     const flip = (points) => side === "right" ? points : points.map(([x, y]) => [CELL_WIDTH - 1 - x, y]);
-    polygon(frame, CELL_WIDTH, CELL_HEIGHT, flip([[37,34],[45,34],[53,38],[60,44],[62,51],[60,58],[54,64],[45,67],[37,65],[34,60],[39,58],[46,59],[53,55],[55,50],[52,45],[46,42],[38,42]]), K);
-    polygon(frame, CELL_WIDTH, CELL_HEIGHT, flip([[38,36],[44,36],[51,40],[58,45],[59,51],[57,56],[51,61],[44,64],[38,63],[37,61],[44,60],[50,57],[54,53],[56,49],[52,44],[45,39],[38,39]]), O);
-    polygon(frame, CELL_WIDTH, CELL_HEIGHT, flip([[58,47],[60,51],[57,57],[51,62],[44,64],[38,63],[37,61],[44,60],[48,57],[52,58],[51,54],[56,53],[54,49]]), W);
-    polygon(frame, CELL_WIDTH, CELL_HEIGHT, flip([[38,36],[44,36],[51,40],[48,42],[42,40],[38,40]]), D);
+    // Big rounded outer silhouette – ~30 % wider and taller than the old shape.
+    // Right edge capped at x=59 so a ±3 px tail-sway never reaches the cell boundary.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,flip([[33,30],[40,27],[49,26],[57,29],[59,35],[59,45],[58,55],[55,63],[47,68],[37,68],[30,63],[28,53],[29,43],[31,37]]),K);
+    // Orange body 1–2 px inside the outline.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,flip([[34,32],[40,29],[48,28],[56,31],[58,37],[58,46],[57,56],[54,63],[46,67],[37,67],[31,62],[30,52],[30,44],[32,38]]),O);
+    // Large cream tip covering the outer ~40 % of the tail.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,flip([[58,41],[59,48],[58,57],[54,64],[46,68],[36,68],[29,63],[28,53],[32,58],[38,64],[46,66],[53,64],[57,59],[59,51]]),W);
+    // White inner highlight makes the tip look thick and fluffy.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,flip([[57,45],[58,52],[57,60],[53,65],[45,67],[36,66],[31,62],[30,57],[34,61],[42,65],[50,63],[55,60],[57,54]]),X);
+    // Dark shadow on the root to give depth to the thick base.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,flip([[34,32],[40,29],[48,28],[54,31],[50,36],[44,38],[38,37],[34,38]]),D);
 }
 
 /**
@@ -130,8 +140,14 @@ function drawFrontRuff(frame) {
  */
 function front(back = false, tailSide = "right") {
     const frame=createFrame(CELL_WIDTH,CELL_HEIGHT);
-    // Rear layers precede limbs, torso, head, and finally front-facing chest fur.
-    drawTail(frame,tailSide); drawFrontLegs(frame,back); drawFrontTorso(frame,back); drawFrontHead(frame,back);
+    // Front-facing tails sit behind the body. Rear-facing tails are painted
+    // after legs/torso so they appear in the foreground where they attach to
+    // the visible back, while the head remains the topmost layer.
+    if (!back) drawTail(frame,tailSide);
+    drawFrontLegs(frame,back);
+    drawFrontTorso(frame,back);
+    if (back) drawTail(frame,tailSide);
+    drawFrontHead(frame,back);
     if (!back) drawFrontRuff(frame);
     return frame;
 }
@@ -143,10 +159,19 @@ function front(back = false, tailSide = "right") {
  */
 function side() {
     const frame=createFrame(CELL_WIDTH,CELL_HEIGHT);
-    // In profile, the tail projects behind the legs and torso.
-    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[27,36],[19,35],[11,38],[4,43],[1,50],[3,57],[10,62],[20,64],[27,61],[29,56],[24,55],[18,58],[11,57],[7,53],[8,48],[13,44],[20,42],[27,43]],K);
-    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[26,38],[19,38],[12,41],[6,46],[4,51],[6,55],[11,59],[18,61],[24,59],[26,57],[20,59],[13,56],[8,52],[10,47],[15,43],[21,40],[26,41]],O);
-    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[4,50],[6,55],[11,59],[18,61],[24,59],[26,57],[20,59],[16,56],[12,57],[11,53],[7,54]],W);
+    // The profile tail keeps the corrected low-back attachment but returns to
+    // the simpler original style. Its contour is small at the root, remains
+    // similarly small through the middle, then expands into a broad distal
+    // brush—never thick, pinched, then thick again.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[34,40],[30,41],[26,42],[22,43],[18,44],[13,44],[8,46],[4,48],[2,52],[2,58],[5,63],[11,66],[17,67],[22,65],[25,62],[27,58],[25,55],[22,53],[18,52],[14,53],[10,56],[7,57],[6,54],[8,51],[13,48],[18,47],[23,47],[28,46],[34,45]],K);
+    // Orange interior preserves the narrow root/middle and rounded brush.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[32,42],[29,42],[25,44],[21,45],[17,46],[12,46],[7,48],[4,51],[4,57],[7,61],[12,64],[17,65],[21,63],[23,61],[25,58],[23,56],[20,54],[17,54],[13,55],[9,58],[6,57],[8,53],[12,50],[18,49],[23,49],[28,47],[32,45]],O);
+    // The large cream cap begins only where the narrow shaft opens into brush.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[12,46],[7,48],[4,51],[3,55],[4,59],[7,63],[12,66],[17,67],[22,65],[25,62],[24,58],[20,55],[17,54],[13,55],[9,58],[6,57],[8,53],[12,50]],W);
+    // White centre gives the cream brush its familiar full fox-tail volume.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[8,50],[5,53],[5,58],[8,61],[12,64],[17,65],[20,63],[22,60],[20,57],[17,56],[13,57],[9,59],[7,56],[9,53],[13,51]],X);
+    // Root shadow places the small base behind the hip without widening it.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[32,42],[29,42],[25,44],[21,45],[23,48],[28,49],[32,46]],D);
     // Legs are offset to preserve depth in the narrow side silhouette.
     polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[29,44],[36,44],[37,54],[35,62],[40,65],[39,68],[30,68],[28,65],[31,60]],K);
     polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[35,43],[42,44],[42,54],[44,61],[49,65],[48,68],[38,68],[36,65],[38,60],[37,52]],K);
@@ -179,10 +204,66 @@ function side() {
  * @returns {Buffer} The completed diagonal RGBA frame.
  */
 function threeQuarter(back = false) {
-    // Start from the front construction, then use the side-facing silhouette as
-    // a subtle asymmetric overlay. This keeps all eight views stylistically aligned.
-    const frame=front(back,"left");
+    const frame=createFrame(CELL_WIDTH,CELL_HEIGHT);
+
+    // In the front diagonal the tail stays behind the body. In the rear
+    // diagonal it is painted after the body so its root is visible over the
+    // fox's back, matching the straight rear view.
+    if (!back) drawTail(frame,"left");
+
+    // Offset legs establish near/far depth and rotate the hips toward screen-right.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[23,43],[30,43],[30,53],[27,62],[25,67],[17,67],[16,65],[21,60]],K);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[32,43],[40,44],[42,54],[46,62],[49,65],[48,68],[38,68],[35,64],[37,59],[36,51]],K);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[24,46],[28,46],[27,56],[22,64],[19,64],[24,58]],O);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[35,46],[38,47],[39,55],[45,64],[39,64],[38,61]],back?D:O);
     if (!back) {
+        rectangle(frame,CELL_WIDTH,CELL_HEIGHT,19,64,25,66,W);
+        rectangle(frame,CELL_WIDTH,CELL_HEIGHT,40,64,47,66,W);
+    }
+
+    // Far arm sits partly behind the rotated torso.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[23,28],[17,31],[15,40],[16,49],[20,52],[23,49],[21,45],[22,37],[27,32]],K);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[22,31],[19,33],[18,40],[19,47],[21,49],[21,45],[23,35]],D);
+
+    // Asymmetric shoulders, waist, and side shadow make the torso visibly turn.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[27,25],[22,28],[21,35],[23,43],[27,48],[39,48],[44,43],[44,34],[42,27],[36,24]],K);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[28,28],[24,30],[24,35],[26,41],[29,45],[37,45],[41,42],[41,34],[39,28],[35,27]],O);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[36,27],[40,29],[40,38],[38,44],[34,45],[35,36]],D);
+
+    // Near arm is farther right and remains unobscured by the torso.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[40,27],[46,31],[48,39],[48,47],[45,52],[40,50],[41,47],[44,44],[43,36],[38,32]],K);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[41,30],[44,33],[46,39],[46,45],[44,48],[42,47],[44,43],[42,34]],O);
+
+    if (back) {
+        drawTail(frame,"left");
+    }
+
+    // Neck and head lean toward screen-right; the muzzle/cheek silhouette is
+    // visibly offset rather than retaining the straight-on head shape.
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[29,21],[38,21],[39,26],[43,29],[42,32],[36,31],[32,32],[27,29],[29,26]],K);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[31,22],[36,22],[37,27],[40,29],[39,30],[35,29],[32,30],[29,29],[31,26]],O);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[20,5],[26,9],[30,6],[36,7],[42,3],[41,13],[46,16],[49,20],[46,24],[39,27],[29,26],[23,23],[22,19],[18,17],[21,13]],K);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[22,8],[26,11],[30,8],[36,9],[40,6],[39,14],[44,17],[47,20],[44,22],[38,24],[30,23],[26,21],[25,17],[21,16],[24,14]],O);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[22,7],[27,11],[23,14]],D);
+    polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[40,6],[36,10],[39,13]],D);
+
+    if (back) {
+        // Rear diagonal shows crown/nape shading and no face or chest white.
+        polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[25,11],[30,8],[37,9],[39,14],[37,20],[33,24],[28,21],[25,17]],D);
+        line(frame,CELL_WIDTH,CELL_HEIGHT,[29,21],[34,23],K);
+        line(frame,CELL_WIDTH,CELL_HEIGHT,[34,23],[39,20],K);
+    } else {
+        // Unequal eye masks and a right-projecting muzzle sell the turn.
+        polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[24,14],[29,11],[32,14],[29,17],[25,17]],W);
+        polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[38,13],[42,14],[44,17],[40,18],[36,16]],W);
+        rectangle(frame,CELL_WIDTH,CELL_HEIGHT,28,14,30,16,K);
+        rectangle(frame,CELL_WIDTH,CELL_HEIGHT,39,14,41,16,K);
+        setPixel(frame,CELL_WIDTH,CELL_HEIGHT,29,14,X);
+        setPixel(frame,CELL_WIDTH,CELL_HEIGHT,40,14,X);
+        polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[29,18],[34,16],[37,18],[42,17],[46,20],[44,22],[38,23],[33,22]],W);
+        polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[43,19],[46,20],[44,22],[42,21]],K);
+
+        // Chest fur follows the rotated sternum instead of being centred.
         polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[31,29],[35,30],[39,29],[41,31],[39,33],[38,37],[36,40],[34,36],[31,34]],K);
         polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[33,30],[35,31],[38,30],[39,31],[37,33],[37,36],[36,38],[35,34],[32,33]],W);
         polygon(frame,CELL_WIDTH,CELL_HEIGHT,[[34,31],[36,32],[37,31],[36,35],[35,33]],X);
@@ -196,8 +277,21 @@ function threeQuarter(back = false) {
  * @returns {Record<string, Buffer>} Idle frames keyed by compass direction.
  */
 export function buildIdlePoses() {
-    const S=front(false); const N=front(true); const E=side(); const SE=threeQuarter(false); const NE=threeQuarter(true);
-    return { N, NE, E, SE, S, SW:mirror(SE,CELL_WIDTH,CELL_HEIGHT), W:mirror(E,CELL_WIDTH,CELL_HEIGHT), NW:mirror(NE,CELL_WIDTH,CELL_HEIGHT) };
+    const S=front(false);
+    const N=front(true);
+    const E=side();
+    const SE=threeQuarter(false);
+    const NW=threeQuarter(true);
+    return {
+        N,
+        NE:mirror(NW,CELL_WIDTH,CELL_HEIGHT),
+        E,
+        SE,
+        S,
+        SW:mirror(SE,CELL_WIDTH,CELL_HEIGHT),
+        W:mirror(E,CELL_WIDTH,CELL_HEIGHT),
+        NW,
+    };
 }
 
 
