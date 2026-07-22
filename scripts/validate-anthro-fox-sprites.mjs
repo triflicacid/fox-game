@@ -88,7 +88,7 @@ const second = buildSheet();
 assert(first.sheet.equals(second.sheet), "generation is not deterministic");
 const { sheet, sheetW, sheetH, descriptor } = first;
 const { cellWidth, cellHeight } = descriptor;
-assert(sheetW === cellWidth * 9 && sheetH === cellHeight * 8, "unexpected sheet dimensions");
+assert(sheetW === cellWidth * (PHASES + 1) && sheetH === cellHeight * DIRECTIONS.length, "unexpected sheet dimensions");
 assert(descriptor.rows.map(({ type }) => type).join(",") === DIRECTIONS.join(","), "direction row order differs");
 
 const palette = new Set([[0,0,0,0], ...Object.values(colors)].map((color) => color.join(",")));

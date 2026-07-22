@@ -138,6 +138,42 @@ export function mirror(frame, width, height) {
 }
 
 /**
+ * Scales an RGBA pixel buffer up 2× using nearest-neighbor interpolation,
+ * replicating each pixel into a 2×2 block.
+ *
+ * @param {Buffer} buffer - Source RGBA pixel buffer.
+ * @param {number} width - Source width in pixels.
+ * @param {number} height - Source height in pixels.
+ * @returns {Buffer} A new RGBA buffer at twice the source dimensions.
+ */
+export function scale2x(buffer, width, height) {
+    const scaledW = width * 2;
+    const scaledH = height * 2;
+    const result = Buffer.alloc(scaledW * scaledH * 4, 0);
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const srcIdx = (y * width + x) * 4;
+            const r = buffer[srcIdx];
+            const g = buffer[srcIdx + 1];
+            const b = buffer[srcIdx + 2];
+            const a = buffer[srcIdx + 3];
+            if (!a) continue;
+            // Write four output pixels for each source pixel.
+            for (let oy = 0; oy < 2; oy++) {
+                for (let ox = 0; ox < 2; ox++) {
+                    const dstIdx = ((y * 2 + oy) * scaledW + (x * 2 + ox)) * 4;
+                    result[dstIdx] = r;
+                    result[dstIdx + 1] = g;
+                    result[dstIdx + 2] = b;
+                    result[dstIdx + 3] = a;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+/**
  * Alpha-blits opaque source pixels into a larger destination buffer.
  *
  * @param {Buffer} source - Source RGBA frame.
