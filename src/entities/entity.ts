@@ -125,17 +125,19 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
     }
 
     /**
-     * Steps this entity's sprite forward by one frame once
-     * {@link frameIntervalMs} has elapsed since the last step.
+     * Steps this entity's sprite forward once its row-specific
+     * {@link SpriteFrame.frameIntervalMs}, or the entity's default
+     * {@link frameIntervalMs} when no override exists, has elapsed.
      *
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
     private updateAnimation(deltaMs: number): void {
         this.animationElapsedMs += deltaMs;
-        if (this.animationElapsedMs < this.frameIntervalMs) {
+        const frameIntervalMs = this.currentFrame.frameIntervalMs ?? this.frameIntervalMs;
+        if (this.animationElapsedMs < frameIntervalMs) {
             return;
         }
-        this.animationElapsedMs -= this.frameIntervalMs;
+        this.animationElapsedMs -= frameIntervalMs;
         this.currentFrame = this.currentSpriteSheet.next(this.currentFrame);
         this.refreshBitmap();
         this.onFrameAdvanced?.(this.currentFrame);

@@ -6,7 +6,7 @@ import { buildCurlFrame } from "./curl.mjs";
 import { buildUncurlFrame } from "./uncurl.mjs";
 import { buildSleepTurnFrame } from "./sleep-turn.mjs";
 
-const { grid: GRID, block: BLOCK, cellPx: CELL_PX, phases: PHASES } = constants;
+const { grid: GRID, block: BLOCK, cellPx: CELL_PX, phases: PHASES, frameIntervalMs: FRAME_INTERVAL_MS } = constants;
 const DIR_ORDER = constants.dirs.order;
 
 export const ROWS = [...DIR_ORDER, "CURL", "UNCURL", "SLEEPTURN"];
@@ -50,6 +50,7 @@ export function buildSheet() {
             y: row * CELL_PX,
             phases: PHASES,
             loops: true, // the walk cycle repeats indefinitely
+            frameIntervalMs: FRAME_INTERVAL_MS,
             idleX: 0,
             bounds: hullToBounds(convexHull(hullPoints)),
         });
@@ -69,6 +70,7 @@ export function buildSheet() {
             y: row * CELL_PX,
             phases: PHASES,
             loops,
+            frameIntervalMs: FRAME_INTERVAL_MS,
             bounds: hullToBounds(convexHull(hullPoints)),
         });
     });

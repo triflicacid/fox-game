@@ -46,6 +46,11 @@ export interface SpriteRowDescriptor<TType extends string = string> extends Spri
      */
     loops: boolean;
     /**
+     * Milliseconds each phase remains visible. When absent, the entity uses
+     * its default animation interval, preserving existing sheet behaviour.
+     */
+    frameIntervalMs?: number;
+    /**
      * Pixel x of a static "idle" frame for this row - shown when not
      * animating but has the same `type` - if it has one.
      */

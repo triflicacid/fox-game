@@ -8,8 +8,8 @@ import {KeyBinding} from "../help/key-binding";
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling";
 
-/** How long, in milliseconds, any of the fox's animations show each frame before advancing. */
-const WALK_FRAME_MS = 120;
+/** Default milliseconds per frame for rows that don't define their own timing. */
+const DEFAULT_FRAME_INTERVAL_MS = 120;
 
 /** Direction a fox faces when spawned. */
 const INITIAL_FACING: CompassDirection = "N";
@@ -45,7 +45,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
-        super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), WALK_FRAME_MS);
+        super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), DEFAULT_FRAME_INTERVAL_MS);
         this.foxSpriteSheet = spriteSheet;
         this.anthroFoxSpriteSheet = new AnthroFoxSpriteSheet();
     }

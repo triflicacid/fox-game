@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { DIRECTIONS, colors } from "./anthro-fox-sprites/poses.mjs";
-import { buildSheet, PHASES } from "./anthro-fox-sprites/sheet.mjs";
+import { buildSheet, FRAME_INTERVAL_MS, PHASES } from "./anthro-fox-sprites/sheet.mjs";
 
 /**
  * Throws a validation error when a required invariant is false.
@@ -100,7 +100,8 @@ for (let i = 0; i < sheet.length; i += 4) {
 descriptor.rows.forEach((row, rowIndex) => {
     // Descriptor offsets must point exactly at their generated directional row.
     assert(row.x === cellWidth && row.y === rowIndex * cellHeight, `${row.type} row origin is invalid`);
-    assert(row.phases === PHASES && row.loops === true && row.idleX === 0, `${row.type} animation metadata is invalid`);
+    assert(row.phases === PHASES && row.loops === true && row.idleX === 0
+        && row.frameIntervalMs === FRAME_INTERVAL_MS, `${row.type} animation metadata is invalid`);
     assert(row.bounds.points.length >= 3, `${row.type} has no collision polygon`);
     const walkHashes = new Set();
     for (let column = 0; column <= PHASES; column++) {

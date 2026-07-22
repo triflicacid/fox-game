@@ -3,6 +3,8 @@ import { buildIdlePoses, CELL_HEIGHT, CELL_WIDTH, DIRECTIONS } from "./poses.mjs
 import { buildWalkFrame } from "./walk.mjs";
 
 export const PHASES = 12;
+/** Faster cadence used only by anthro directional walking rows. */
+export const FRAME_INTERVAL_MS = 90;
 
 const FRONT_BOUNDS = [[-13,-31],[13,-31],[17,-24],[17,24],[12,32],[-12,32],[-17,24],[-17,-24]];
 const SIDE_BOUNDS = [[-10,-31],[11,-31],[14,-23],[14,26],[9,32],[-9,32],[-14,26],[-14,-23]];
@@ -29,7 +31,7 @@ function boundsFor(direction) {
 /**
  * Builds the original fox-compatible sheet and descriptor layout.
  *
- * Each directional row contains an idle pose in column zero followed by eight
+ * Each directional row contains an idle pose in column zero followed by twelve
  * looping walk phases. Rows follow clockwise compass order from north. The
  * entire sheet is upscaled 2× using nearest-neighbor interpolation so the
  * upright anthro fox is proportionally larger than the top-down quadruped fox.
@@ -72,6 +74,7 @@ export function buildSheet() {
             y: row * scaledCellH,
             phases: PHASES,
             loops: true,
+            frameIntervalMs: FRAME_INTERVAL_MS,
             idleX: 0,
             bounds: boundsFor(direction),
         });

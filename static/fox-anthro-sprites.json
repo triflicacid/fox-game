@@ -8,6 +8,7 @@
       "y": 0,
       "phases": 12,
       "loops": true,
+      "frameIntervalMs": 90,
       "idleX": 0,
       "bounds": {
         "points": [
@@ -52,6 +53,7 @@
       "y": 144,
       "phases": 12,
       "loops": true,
+      "frameIntervalMs": 90,
       "idleX": 0,
       "bounds": {
         "points": [
@@ -96,6 +98,7 @@
       "y": 288,
       "phases": 12,
       "loops": true,
+      "frameIntervalMs": 90,
       "idleX": 0,
       "bounds": {
         "points": [
@@ -140,6 +143,7 @@
       "y": 432,
       "phases": 12,
       "loops": true,
+      "frameIntervalMs": 90,
       "idleX": 0,
       "bounds": {
         "points": [
@@ -184,6 +188,7 @@
       "y": 576,
       "phases": 12,
       "loops": true,
+      "frameIntervalMs": 90,
       "idleX": 0,
       "bounds": {
         "points": [
@@ -228,6 +233,7 @@
       "y": 720,
       "phases": 12,
       "loops": true,
+      "frameIntervalMs": 90,
       "idleX": 0,
       "bounds": {
         "points": [
@@ -272,6 +278,7 @@
       "y": 864,
       "phases": 12,
       "loops": true,
+      "frameIntervalMs": 90,
       "idleX": 0,
       "bounds": {
         "points": [
@@ -316,6 +323,7 @@
       "y": 1008,
       "phases": 12,
       "loops": true,
+      "frameIntervalMs": 90,
       "idleX": 0,
       "bounds": {
         "points": [

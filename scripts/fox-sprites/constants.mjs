@@ -6,6 +6,8 @@ const CELL_PX = GRID * BLOCK;
 
 // frames per animation row
 const PHASES = 8;
+// milliseconds each walk/rest animation phase remains visible
+const FRAME_INTERVAL_MS = 120;
 
 // 8 directions, clockwise starting at north (must match COMPASS_DIRECTIONS in
 // src/geometry/direction.ts)
@@ -64,6 +66,7 @@ export const constants = {
     block: BLOCK,
     cellPx: CELL_PX,
     phases: PHASES,
+    frameIntervalMs: FRAME_INTERVAL_MS,
 
     colors: {
         orange: [232, 117, 44, 255],
