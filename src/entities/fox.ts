@@ -1,5 +1,5 @@
 import {MovableEntity} from "./movable-entity";
-import {FoxSpriteSheet, FoxSpriteType} from "../sprites/fox";
+import {AnthroFoxSpriteSheet, FoxSpriteSheet, FoxSpriteType} from "../sprites/fox";
 import {CompassDirection} from "../geometry/direction";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
@@ -29,6 +29,8 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      * of the generic `AnimatedSpriteSheet` type that field is declared with.
      */
     private readonly foxSpriteSheet: FoxSpriteSheet;
+    private readonly anthroFoxSpriteSheet: AnthroFoxSpriteSheet;
+    private anthroStandingEnabled = false;
 
     /**
      * Facing/velocity requested by a movement key press while asleep (or
@@ -45,6 +47,19 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
         const spriteSheet = new FoxSpriteSheet();
         super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), WALK_FRAME_MS);
         this.foxSpriteSheet = spriteSheet;
+        this.anthroFoxSpriteSheet = new AnthroFoxSpriteSheet();
+    }
+
+    /**
+     * Toggles the debug anthropomorphic standing pose. The alternate art is
+     * applied immediately only while normally idle; movement and all resting
+     * actions continue using {@link foxSpriteSheet}.
+     */
+    public toggleAnthroStanding(): void {
+        this.anthroStandingEnabled = !this.anthroStandingEnabled;
+        if (this.status === "idle" && !this.isMoving()) {
+            this.setFrameForFacing(this.facing, false);
+        }
     }
 
     /**
@@ -124,7 +139,20 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     protected override locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame {
+        if (this.shouldUseAnthroStanding(moving)) {
+            return this.anthroFoxSpriteSheet.locateIdleSprite(direction);
+        }
         return moving ? this.foxSpriteSheet.locateSprite(direction) : this.foxSpriteSheet.locateIdleSprite(direction);
+    }
+
+    /** Selects the alternate sheet only for an enabled, stationary idle pose. */
+    protected override locateSpriteSheetForFacing(direction: CompassDirection, moving: boolean): FoxSpriteSheet | AnthroFoxSpriteSheet {
+        return this.shouldUseAnthroStanding(moving) ? this.anthroFoxSpriteSheet : this.foxSpriteSheet;
+    }
+
+    /** Whether the current directional selection should use anthro standing art. */
+    private shouldUseAnthroStanding(moving: boolean): boolean {
+        return this.anthroStandingEnabled && !moving && this.status === "idle";
     }
 
     /**
@@ -220,7 +248,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
         const moving = velocity.x !== 0 || velocity.y !== 0;
         this.status = moving ? "walking" : "idle";
-        this.setCurrentFrame(this.locateFrameForFacing(this.facing, moving));
+        this.setFrameForFacing(this.facing, moving);
         this.setVelocity(velocity);
     }
 }
