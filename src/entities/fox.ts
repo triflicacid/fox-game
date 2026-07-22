@@ -51,14 +51,14 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     /**
-     * Toggles the debug anthropomorphic standing pose. The alternate art is
-     * applied immediately only while normally idle; movement and all resting
-     * actions continue using {@link foxSpriteSheet}.
+     * Toggles the debug anthropomorphic sprites. When enabled, directional
+     * idle and walking frames are taken from {@link anthroFoxSpriteSheet};
+     * resting actions (curl/uncurl/sleep) always use {@link foxSpriteSheet}.
      */
     public toggleAnthroStanding(): void {
         this.anthroStandingEnabled = !this.anthroStandingEnabled;
-        if (this.status === "idle" && !this.isMoving()) {
-            this.setFrameForFacing(this.facing, false);
+        if (!this.isRestState()) {
+            this.setFrameForFacing(this.facing, this.isMoving());
         }
     }
 
@@ -139,20 +139,22 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     protected override locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame {
-        if (this.shouldUseAnthroStanding(moving)) {
-            return this.anthroFoxSpriteSheet.locateIdleSprite(direction);
+        if (this.shouldUseAnthroSprites()) {
+            return moving ? this.anthroFoxSpriteSheet.locateSprite(direction) : this.anthroFoxSpriteSheet.locateIdleSprite(direction);
         }
         return moving ? this.foxSpriteSheet.locateSprite(direction) : this.foxSpriteSheet.locateIdleSprite(direction);
     }
 
-    /** Selects the alternate sheet only for an enabled, stationary idle pose. */
+    /** Selects the correct sheet for each directional pose based on the anthro toggle and rest state. */
     protected override locateSpriteSheetForFacing(direction: CompassDirection, moving: boolean): FoxSpriteSheet | AnthroFoxSpriteSheet {
-        return this.shouldUseAnthroStanding(moving) ? this.anthroFoxSpriteSheet : this.foxSpriteSheet;
+        void direction;
+        void moving;
+        return this.shouldUseAnthroSprites() ? this.anthroFoxSpriteSheet : this.foxSpriteSheet;
     }
 
-    /** Whether the current directional selection should use anthro standing art. */
-    private shouldUseAnthroStanding(moving: boolean): boolean {
-        return this.anthroStandingEnabled && !moving && this.status === "idle";
+    /** Whether directional frames should come from the anthro sheet rather than the normal fox sheet. */
+    private shouldUseAnthroSprites(): boolean {
+        return this.anthroStandingEnabled && !this.isRestState();
     }
 
     /**

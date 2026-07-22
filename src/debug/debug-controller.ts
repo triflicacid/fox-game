@@ -47,7 +47,7 @@ export class DebugController {
     public getKeyBindings(): KeyBinding[] {
         const bindings: KeyBinding[] = [{key: "D", description: "Toggle debug overlay"}];
         if (this.enabled) {
-            bindings.push({key: "A", description: "Toggle anthro standing fox"});
+            bindings.push({key: "A", description: "Toggle anthro fox sprites"});
             bindings.push({key: "R", description: "Reload all chunks"});
             if (this.isSpectating()) {
                 bindings.push({key: "T", description: "Teleport to camera"});
