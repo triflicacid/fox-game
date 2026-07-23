@@ -1,5 +1,5 @@
-import {DisplayLine} from "@lib/display/input";
-import {button, checkbox, hr, line, numberBox, radio, select, textbox} from "@lib/display/builders";
+import {DisplayLine} from "@display/input";
+import {button, checkbox, hr, line, numberBox, radio, select, textbox} from "@display/builders";
 import {KeyBinding} from "../help/key-binding";
 import {KeyBindingPopupController} from "../popup/key-binding-popup-controller";
 import {CameraFollowMode} from "../entities/movement-controller";
@@ -72,7 +72,7 @@ export class SettingsController extends KeyBindingPopupController {
      *
      * @returns This controller's key bindings.
      */
-    public getKeyBindings(): KeyBinding[] {
+    public override getKeyBindings(): KeyBinding[] {
         return [
             {key: "#", description: "Toggle the settings window"},
             {key: "Esc", description: "Close this popup"},

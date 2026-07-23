@@ -1,5 +1,5 @@
 import {Popup, PopupOptions} from "./popup";
-import {DisplayLine} from "../display/input";
+import {DisplayLine} from "@display/input";
 
 /**
  * Base for anything that owns a {@link Popup}, toggled independently of

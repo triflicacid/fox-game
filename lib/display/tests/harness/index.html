@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Display Visual Harness</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            color: #ddd;
+            font-family: monospace;
+        }
+
+        #frame {
+            width: 980px;
+            height: 560px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+
+        #scene {
+            image-rendering: pixelated;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+<div id="frame">
+    <canvas id="scene" width="920" height="480"></canvas>
+</div>
+<script type="module" src="./main.ts"></script>
+</body>
+</html>
+
