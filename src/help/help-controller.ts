@@ -2,7 +2,7 @@ import {KeyBinding} from "./key-binding";
 import {DisplayLine} from "@lib/display/input";
 import {TextFormat} from "@lib/display/text-style";
 import {COLORS} from "@lib/display/colors";
-import {PopupController} from "@lib/popup/popup-controller";
+import {KeyBindingPopupController} from "../popup/key-binding-popup-controller";
 
 /** Gap, in characters, between a key's label and its description. */
 const KEY_DESCRIPTION_GAP = 2;
@@ -11,7 +11,7 @@ const KEY_DESCRIPTION_GAP = 2;
  * Shows the game's key bindings in a {@link Popup}, opened with `?` and
  * closed with `Esc` or `?` again (or by selecting its `Close` button).
  */
-export class HelpController extends PopupController {
+export class HelpController extends KeyBindingPopupController {
     /**
      * @param getBindings - Called on every {@link draw} to fetch every key
      * binding currently in effect across the game, since this controller
