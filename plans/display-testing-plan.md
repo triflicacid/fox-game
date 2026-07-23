@@ -467,3 +467,34 @@ Notes:
     including dropdown open/commit and occupied-bounds expansion checks
   - `focusMode: "click"` flow with builder-built controls (focus on inside click,
     blur on outside click)
+
+### 2026-07-23 - Playwright screenshot/e2e phase started
+
+- Added browser-level Playwright test tooling inside `lib/display`:
+  - `lib/display/playwright.config.ts`
+  - `lib/display/package.json` scripts: `test:e2e`, `test:e2e:update`,
+    `playwright:install`
+- Added a tiny browser render harness for deterministic scene snapshots:
+  - `lib/display/tests/harness/index.html`
+  - `lib/display/tests/harness/main.ts`
+- Added initial screenshot-backed Playwright spec and baseline scenarios:
+  - `lib/display/tests/e2e/interactable-display.visual.spec.ts`
+  - scenario coverage:
+    - mixed flat-theme controls composed with builders
+    - Win98 select dropdown open/highlight state
+    - click-focus mode with a keyboard-held pressed button state
+- Added e2e usage docs:
+  - `lib/display/tests/e2e/README.md`
+
+### 2026-07-23 - Playwright visual matrix expansion
+
+- Expanded screenshot scenario count from `3` to `9` in
+  `lib/display/tests/e2e/interactable-display.visual.spec.ts`.
+- Added targeted regression-oriented visual scenes in
+  `lib/display/tests/harness/main.ts` for:
+  - top/centre/bottom alignment across mixed text+input rows
+  - focused background-color rendering across varied input kinds
+  - focused font-size changes across varied input kinds
+  - padding/margin stress with Win98 chrome
+- Kept scenarios builder-driven where possible to mirror real calling patterns.
+
