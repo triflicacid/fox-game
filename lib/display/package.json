@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev:sandbox": "vite --open /sandbox/",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.unit.config.ts",
     "test:unit": "vitest run --config vitest.unit.config.ts",

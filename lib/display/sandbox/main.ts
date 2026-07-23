@@ -1,26 +1,10 @@
-import {button, checkbox, hr, line, numberBox, select, textbox} from "@display/builders";
-import {DisplayLine} from "@display/input";
-import {InteractableDisplay} from "@display/interactable-display";
-import {WIN98_THEME} from "@display/win98-theme";
+import {button, checkbox, hr, line, numberBox, select, textbox} from "../src/builders";
+import {DisplayLine} from "../src/input";
+import {InteractableDisplay} from "../src/interactable-display";
+import {WIN98_THEME} from "../src/win98-theme";
 
 const LINE_SPACING = 18;
 const PANEL_PADDING = 24;
-const FOCUSABLE_NAMES = ["name", "speed", "palette", "debugHud", "ping", "reset"] as const;
-
-type SandboxState = {
-    username: string;
-    speed: number;
-    palette: string;
-    debugHud: boolean;
-    pingCount: number;
-};
-
-declare global {
-    interface Window {
-        __sandboxState?: SandboxState;
-        __sandboxFocusables?: Array<{name: string; rect: {x: number; y: number; w: number; h: number}}>;
-    }
-}
 
 const DISPLAY_DEFAULTS = {
     fontFamily: "monospace",
@@ -46,14 +30,13 @@ const ctx: CanvasRenderingContext2D = canvasContext;
 const display = new InteractableDisplay(DISPLAY_DEFAULTS, WIN98_THEME, "always");
 display.setActive(true);
 
-const state: SandboxState = {
+const state = {
     username: "Fox",
     speed: 5,
     palette: "forest",
     debugHud: false,
     pingCount: 0,
 };
-window.__sandboxState = state;
 
 function resizeCanvasToDisplaySize(): void {
     const width = Math.floor(window.innerWidth);
@@ -68,7 +51,7 @@ function resizeCanvasToDisplaySize(): void {
 
 function buildLines(): DisplayLine[] {
     return [
-        line().content("Sandbox playground"),
+        line().content("Display sandbox"),
         line().content("Tab/arrows/Enter or click."),
         line().content(hr()),
         line().content("Name:").content(textbox({
@@ -159,10 +142,6 @@ function render(): void {
     const contentY = panelY + PANEL_PADDING;
     const focusables = display.layoutLineFocusables(rows, contentX, contentY, LINE_SPACING);
     display.setFocusables(focusables);
-    window.__sandboxFocusables = focusables.map((focusable, index) => ({
-        name: FOCUSABLE_NAMES[index] ?? `extra-${index}`,
-        rect: focusable.rect,
-    }));
     display.drawLines(ctx, rows, contentX, contentY, LINE_SPACING);
     display.drawOverlays(ctx);
 
@@ -171,5 +150,4 @@ function render(): void {
 
 window.addEventListener("resize", resizeCanvasToDisplaySize);
 requestAnimationFrame(render);
-
 
