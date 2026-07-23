@@ -33,7 +33,7 @@ export interface NumberInput extends TextBoxInputBase {
     allowDecimal?: boolean;
     /** Lower bound `value` may not go below, inclusive. Unset for no lower bound. */
     min?: number;
-    /** Upper bound `value` may not reach or exceed, exclusive. Unset for no upper bound. */
+    /** Upper bound `value` may not reach or exceed, exclusive (`value < max`). Unset for no upper bound. */
     max?: number;
     /** Invoked with the new value once an edit commits. */
     onChange: (value: number) => void;

@@ -28,11 +28,32 @@ export interface TextStyle {
     fontSize?: number;
     /** Bitwise combination of {@link TextFormat} flags. */
     format?: number;
-    /** If `true`, swaps this style's resolved `foreground`/`background`, applied to its own text and inherited (already swapped) by child segments. A no-op if `background` is unset - there's nothing to swap into `foreground`. */
+    /**
+     * If `true`, swaps this style's resolved `foreground`/`background`.
+     *
+     * Applied to this segment's own text and inherited (already swapped) by
+     * child segments. A no-op if `background` is unset - there is nothing to
+     * swap into `foreground`.
+     */
     invert?: boolean;
-    /** Bitwise {@link TextFormat} flags to clear from this style's resolved `format`, applied to its own text and inherited (already cleared) by child segments. Only clears bits - e.g. `invertFormat: TextFormat.BOLD` un-bolds within an inherited bold context, but can't itself add bold. */
+    /**
+     * Bitwise {@link TextFormat} flags to clear from this style's resolved
+     * `format`.
+     *
+     * Applied to this segment's own text and inherited (already cleared) by
+     * child segments. Only clears bits - e.g.
+     * `invertFormat: TextFormat.BOLD` un-bolds within an inherited bold
+     * context, but cannot itself add bold.
+     */
     invertFormat?: number;
-    /** Adjusts this style's resolved `fontSize`, applied to its own text and inherited (already adjusted) by child segments. A number is added (e.g. `-2` shrinks text relative to an inherited size); a function is called with the resolved size and returns the new one. */
+    /**
+     * Adjusts this style's resolved `fontSize`.
+     *
+     * Applied to this segment's own text and inherited (already adjusted) by
+     * child segments. A number is added (e.g. `-2` shrinks text relative to
+     * an inherited size); a function is invoked with the resolved size and
+     * returns the new one.
+     */
     fontSizeDelta?: number | ((size: number) => number);
 }
 
