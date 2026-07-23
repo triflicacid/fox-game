@@ -1,6 +1,10 @@
 import {ElementBase} from "./base";
 
-/** Which neighbouring row(s) an {@link HrInput}'s bar matches - see {@link HrInput.length}. */
+/**
+ * Strategy for choosing an {@link HrInput}'s target width from neighbouring
+ * rows: use the row above (`"top"`), below (`"bottom"`), or whichever is
+ * wider (`"max"`).
+ */
 export type HrLength = "top" | "bottom" | "max";
 
 /**

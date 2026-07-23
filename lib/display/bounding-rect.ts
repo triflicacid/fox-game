@@ -2,13 +2,13 @@ import {ResolvedSpacing} from "./spacing";
 
 /** An axis-aligned rectangular region an element occupies on screen, in canvas pixels. */
 export interface BoundingRect {
-    /** Left edge, in pixels. */
+    /** Left edge, in canvas pixels. */
     x: number;
-    /** Top edge, in pixels. */
+    /** Top edge, in canvas pixels. */
     y: number;
-    /** Width, in pixels. */
+    /** Width, in canvas pixels. */
     w: number;
-    /** Height, in pixels. */
+    /** Height, in canvas pixels. */
     h: number;
 }
 

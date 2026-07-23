@@ -60,17 +60,44 @@ export function hr(props: BuildProps<HrInput> = {}): HrInput {
     return {kind: "hr", ...normaliseStyles<Omit<HrInput, "kind">>(props)};
 }
 
-/** A {@link Line} built via chained `.content(...)` calls. */
+/**
+ * Fluent builder for one display/input line.
+ *
+ * Call {@link content} repeatedly to append items in render order, then use
+ * the builder anywhere a {@link Line} is accepted.
+ */
 export class LineBuilder implements Line {
     public readonly items: DisplayLineItem[] = [];
 
+    /**
+     * Appends one item to this line.
+     *
+     * - `string` becomes `{content: string}` automatically.
+     * - `DisplayLineItem` is appended as-is.
+     *
+     * Returns `this` for chaining.
+     */
     public content(item: DisplayLineItem | string): this {
         this.items.push(typeof item === "string" ? {content: item} : item);
         return this;
     }
 }
 
-/** Starts a {@link LineBuilder} chain for composing a {@link DisplayLine}. */
+/**
+ * Starts a fluent line-construction chain.
+ *
+ * Typical usage:
+ *
+ * ```ts
+ * const row = line()
+ *   .content("Volume")
+ *   .content(select({
+ *     options: ["Low", "High"],
+ *     selected: 0,
+ *     onSelect: () => {},
+ *   }));
+ * ```
+ */
 export function line(): LineBuilder {
     return new LineBuilder();
 }
