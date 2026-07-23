@@ -1,5 +1,5 @@
-import {Display} from "@lib/display/display";
-import {TextSegment} from "@lib/display/text-style";
+import {Display} from "@display/display";
+import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
 
 /**

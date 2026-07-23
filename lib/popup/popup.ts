@@ -1,8 +1,8 @@
-import {ButtonInput, DisplayLine} from "../display/input";
-import {FocusableElement, InteractableDisplay, InteractableDisplayDefaults, ResolvedButtonElement} from "../display/interactable-display";
-import {WIN98_THEME} from "../display/win98-theme";
+import {ButtonInput, DisplayLine} from "@display/input";
+import {FocusableElement, InteractableDisplay, InteractableDisplayDefaults, ResolvedButtonElement} from "@display/interactable-display";
+import {WIN98_THEME} from "@display/win98-theme";
 import {POPUP_CONFIG} from "./popup-config";
-import {BoundingRect, rectContains, unionRect} from "../display/bounding-rect";
+import {BoundingRect, rectContains, unionRect} from "@display/bounding-rect";
 
 /** Configures a {@link Popup} at construction. */
 export interface PopupOptions {
