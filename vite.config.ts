@@ -7,6 +7,7 @@ export default defineConfig({
   base: "./",
   resolve: {
     alias: {
+      "@display": path.resolve(__dirname, "lib/display/src"),
       "@lib": path.resolve(__dirname, "lib"),
     }
   },
