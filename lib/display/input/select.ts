@@ -1,7 +1,12 @@
 import {TextSegment, TextStyle} from "../text-style";
 import {InputBase} from "./base";
 
-/** A single selectable option within a {@link SelectInput}. */
+/**
+ * One row in a {@link SelectInput}'s option list.
+ *
+ * Option-level styles and flags apply only to this row and fall back to the
+ * owning select's corresponding fields where documented.
+ */
 export interface SelectOption {
     /** Uniquely identifies this option; passed to the owning {@link SelectInput}'s `onSelect`. */
     key: string;
@@ -20,11 +25,12 @@ export interface SelectOption {
 /**
  * A dropdown, themed per whichever {@link ChromeTheme} its owning display uses.
  *
- * Colour precedence, resolved per field (foreground/background
- * independently): closed box - selected option's `selectedStyle` >
- * (`expandedStyle` while open, else `focusedStyle` while focused) > default;
- * open dropdown row - highlighted option's `focusedStyle` > selected
- * option's `selectedStyle` > `expandedStyle` (ambient) > default.
+ * Colour precedence is resolved per field (foreground/background
+ * independently): in the closed box, the selected option's
+ * `selectedStyle` falls back to (`expandedStyle` while open, else
+ * `focusedStyle` while focused), then default. In an open dropdown row,
+ * a highlighted option's `focusedStyle` falls back to the selected
+ * option's `selectedStyle`, then `expandedStyle` (ambient), then default.
  */
 export interface SelectInput extends InputBase {
     kind: "select";

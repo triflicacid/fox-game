@@ -298,7 +298,7 @@ export interface FocusableElement {
     textEdit?: TextEditHandle;
     /** Present only for select-input focusables - see {@link InteractableDisplay.handleSelectInputKey}. */
     selectEdit?: SelectEditHandle;
-    /** Whether this element is disabled - skipped by arrow-key navigation and unclickable/unactivatable. It can still be the current cursor position (e.g. if it became disabled while focused), just not drawn highlighted. */
+    /** Whether this element is disabled - skipped by arrow-key navigation and unclickable/unactivatable. It can still be the current cursor position (e.g. if it became disabled while focused), but is not drawn highlighted. */
     disabled: boolean;
     /** Whether this element shows a visible pressed state while held. Defaults to `false`. */
     pressable?: boolean;
@@ -312,7 +312,7 @@ const MODIFIER_KEYS = new Set(["Alt", "AltGraph", "CapsLock", "Control", "Fn", "
 /** Debug-rect colour for an element's own tight content box - see {@link InteractableDisplay.strokeSpacingDebugRects} for the padding/margin rings drawn around it. */
 const CONTENT_DEBUG_COLOR = "lime";
 
-/** Fallback {@link InteractableDisplayDefaults} used for any field an {@link InteractableDisplay} isn't given. */
+/** Default {@link InteractableDisplayDefaults} values used for any field an {@link InteractableDisplay} isn't given. */
 export const DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS: InteractableDisplayDefaults = {
     ...DEFAULT_DISPLAY_DEFAULTS,
     radioMarkerSize: 12,
@@ -343,8 +343,8 @@ function isInput(item: DisplayLineItem): item is Input {
  *
  * Keyboard input only reaches it while {@link isFocused} - in `"always"`
  * mode that's simply whenever it's {@link setActive active};
- * in `"click"` mode, focus is gained by a clicking on it {@link setBounds its bounds}
- * and lost by a click off it.
+ * in `"click"` mode, focus is gained by clicking within
+ * {@link setClickRegion its bounds} and lost by clicking outside them.
  */
 export class InteractableDisplay extends Display {
     private readonly theme: ChromeTheme;
@@ -389,7 +389,7 @@ export class InteractableDisplay extends Display {
      * @param defaults - Default text style, minimum line height, and input geometry. Any field left unset falls back to {@link DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS}.
      * @param theme - Chrome (borders/boxes/markers) this display paints its inputs and panel with.
      * @param focusMode - Whether this display is always focused while active, or only once clicked into.
-     * @param initialFocusIndex - Index into {@link focusables} the cursor lands on when {@link setActive} is called with `true`, or `null` for no initial focus. Defaults to `0` (the first element).
+     * @param initialFocusIndex - Index into {@link focusables} the cursor lands on when {@link setActive} is invoked with `true`, or `null` for no initial focus. Defaults to `0` (the first element).
      */
     public constructor(defaults: Partial<InteractableDisplayDefaults>, theme: ChromeTheme, focusMode: FocusMode, initialFocusIndex: number | null = 0) {
         const resolved: InteractableDisplayDefaults = {...DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS, ...defaults};
@@ -444,7 +444,7 @@ export class InteractableDisplay extends Display {
     }
 
     /**
-     * Whether this display currently accepts keyboard input
+     * Whether this display currently accepts keyboard input.
      *
      * @returns `true` if focused.
      */
@@ -471,7 +471,7 @@ export class InteractableDisplay extends Display {
     /**
      * Installs a hook invoked before any built-in key handling, whenever
      * this display is focused and no select-dropdown/number-edit is
-     * intercepting the key first.Returning `true` skips the built-in
+     * intercepting the key first. Returning `true` skips the built-in
      * cursor/activation handling for that key.
      *
      * @param fn - The hook, or `undefined` to remove it.

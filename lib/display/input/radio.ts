@@ -1,9 +1,20 @@
 import {TextSegment, TextStyle} from "../text-style";
 import {InputBase} from "./base";
 
-/** A single selectable option within a {@link RadioInput} - shares every {@link InputBase} field, resolved against the owning input as a fallback. */
+/**
+ * A single selectable option within a {@link RadioInput}.
+ *
+ * Inherited {@link InputBase} fields are interpreted per option: `style`,
+ * `focusedStyle`, and `selectedStyle` colour this option's label/background;
+ * behavioural flags such as `hidden` and `disabled` gate whether the option
+ * participates in focus/selection; layout fields (for example `padding`) apply
+ * to this option's row box before falling back to the owning input.
+ *
+ * `kind` is intentionally omitted because options are data inside one parent
+ * `kind: "radio"` input, not standalone input elements.
+ */
 export interface RadioOption extends Omit<InputBase, "kind"> {
-    /** Uniquely identifies this option; passed to the owning {@link RadioInput}'s `onSelect`. */
+    /** Uniquely identifies this option within its owning `options` array; passed to the owning {@link RadioInput}'s `onSelect`. */
     key: string;
     /** Content shown as this option's label. Unset for no label. */
     content?: string | TextSegment[];
@@ -17,14 +28,16 @@ export interface RadioOption extends Omit<InputBase, "kind"> {
  * An interactive radio-button group. Exactly one option is selected at a time;
  * selecting another invokes `onSelect` with its `key`.
  *
- * Colour precedence, resolved per field (foreground/background
- * independently) and per option: label and its background rect -
- * `focusedStyle` while focused > `selectedStyle` while selected > default.
- * The marker is unaffected by focus: `inputSelectedStyle` (falls back to
- * `selectedStyle`, then the theme's default marker look) while selected >
- * `inputStyle` (falls back to `style`, then the theme's default marker
- * look) at rest. That default is always concrete, so `invert` on either
- * always has a colour pair to swap even with nothing else set.
+ * Colour precedence is resolved per field (foreground/background
+ * independently) and per option: the label and its background rect use
+ * `focusedStyle` while focused, otherwise `selectedStyle` while selected,
+ * then default.
+ *
+ * The marker is unaffected by focus: while selected, `inputSelectedStyle`
+ * falls back to `selectedStyle`, then the theme's default marker look;
+ * at rest, `inputStyle` falls back to `style`, then the theme's default
+ * marker look. That default is always concrete, so `invert` on either
+ * style always has a colour pair to swap even when nothing else is set.
  */
 export interface RadioInput extends InputBase {
     kind: "radio";

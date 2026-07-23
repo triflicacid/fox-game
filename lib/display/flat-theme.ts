@@ -15,10 +15,11 @@ function drawOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
 }
 
 /**
- * A flat, ANSI-terminal-style look: solid single-line borders, no bevels,
- * reverse video (swapped fore/background) for focus - the "sunken"/"raised"
- * distinction {@link ChromeTheme.drawBox} takes is a no-op here, since a
- * flat theme has no depth to show.
+ * Concrete {@link ChromeTheme} implementation for a flat, terminal-like look.
+ *
+ * Borders are single-pixel outlines and focus is shown via reverse video.
+ * Depth hints like "raised" vs "sunken" intentionally collapse into the same
+ * treatment.
  */
 class FlatTheme extends ChromeTheme {
     public constructor() {
@@ -105,4 +106,10 @@ class FlatTheme extends ChromeTheme {
     }
 }
 
+/**
+ * Shared singleton instance of the flat theme.
+ *
+ * Use this when you want minimal, non-bevelled chrome with clear high-contrast
+ * outlines.
+ */
 export const FLAT_THEME: ChromeTheme = new FlatTheme();

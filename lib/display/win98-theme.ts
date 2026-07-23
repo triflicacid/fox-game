@@ -58,9 +58,10 @@ function drawSunkenBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w
 }
 
 /**
- * The classic Windows 98 "raised panel, sunken control" look: bevelled
- * two-tone borders, grey control faces, a white sunken box for
- * checkboxes/number inputs/selects.
+ * Concrete {@link ChromeTheme} implementation for a Windows 98 visual style.
+ *
+ * It uses raised outer panels and sunken editable controls, matching the
+ * classic two-tone bevel language.
  */
 class Win98Theme extends ChromeTheme {
     public constructor() {
@@ -179,4 +180,10 @@ class Win98Theme extends ChromeTheme {
     }
 }
 
+/**
+ * Shared singleton instance of the Windows 98 theme.
+ *
+ * Use this when you want the default retro bevelled chrome without creating a
+ * custom theme subclass.
+ */
 export const WIN98_THEME: ChromeTheme = new Win98Theme();
