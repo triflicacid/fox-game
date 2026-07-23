@@ -1,7 +1,7 @@
 import {KeyBinding} from "./key-binding";
-import {DisplayLine} from "@lib/display/input";
-import {TextFormat} from "@lib/display/text-style";
-import {COLORS} from "@lib/display/colors";
+import {DisplayLine} from "@display/input";
+import {TextFormat} from "@display/text-style";
+import {COLORS} from "@display/colors";
 import {KeyBindingPopupController} from "../popup/key-binding-popup-controller";
 
 /** Gap, in characters, between a key's label and its description. */
@@ -27,7 +27,7 @@ export class HelpController extends KeyBindingPopupController {
      *
      * @returns This controller's key bindings.
      */
-    public getKeyBindings(): KeyBinding[] {
+    public override getKeyBindings(): KeyBinding[] {
         return [
             {key: "?", description: "Toggle the help window"},
             {key: "Esc", description: "Close this popup"},
