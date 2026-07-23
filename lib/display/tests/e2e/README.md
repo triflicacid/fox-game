@@ -17,6 +17,15 @@ Current scenario coverage includes:
 - focused background-color matrices across varied input kinds
 - focused font-size change scenes across varied input kinds
 - padding and margin stress scenes (especially Win98 chrome)
+- disabled-overlay matrices for varied input kinds in both themes
+- textbox caret/selection highlight rendering
+- dropdown disabled-row visual + skip-navigation states
+- HR length-resolution scenes (`max`/`top`)
+- nested text-segment font scaling inside controls
+
+Screenshot assertions are configured for strict diffing (`threshold: 0`,
+`maxDiffPixels: 0`) to catch even tiny visual deltas in the canonical baseline
+environment.
 
 ## Commands
 
