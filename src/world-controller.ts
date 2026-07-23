@@ -5,12 +5,12 @@ import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";
 import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
-import {FrameLoopController} from "./lib/frames/FrameLoopController";
+import {FrameLoopController} from "@lib/frames/FrameLoopController";
 import {requireNonNull} from "./util";
 import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
 import {SettingsController} from "./settings/settings-controller";
-import {PopupController} from "./lib/popup/popup-controller";
+import {PopupController} from "@lib/popup/popup-controller";
 
 /**
  * Owns everything needed to run the game against a canvas.
