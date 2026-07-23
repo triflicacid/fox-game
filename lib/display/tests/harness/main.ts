@@ -2,7 +2,7 @@ import {InteractableDisplay, FocusMode} from "../../src/interactable-display";
 import {FLAT_THEME} from "../../src/flat-theme";
 import {WIN98_THEME} from "../../src/win98-theme";
 import {DisplayLine} from "../../src/input";
-import {button, checkbox, line, numberBox, select, style, textbox} from "../../src/builders";
+import {button, checkbox, hr, line, numberBox, select, style, textbox} from "../../src/builders";
 import {ChromeTheme} from "../../src/chrome-theme";
 
 type KeyEventType = "keydown" | "keyup";
@@ -10,7 +10,7 @@ type MouseEventType = "mousedown" | "mouseup" | "click";
 
 interface SceneRuntime {
     render: () => void;
-    key: (key: string, type?: KeyEventType) => void;
+    key: (key: string, type?: KeyEventType, init?: Partial<KeyboardEventInit>) => void;
     mouse: (x: number, y: number, type?: MouseEventType) => void;
 }
 
@@ -29,7 +29,12 @@ if (!ctx) {
     throw new Error("Missing 2D canvas context for visual harness.");
 }
 
-ctx.textBaseline = "top";
+const canvasCtx: CanvasRenderingContext2D = ctx;
+
+// Keep caret blink phase deterministic across screenshot runs.
+Date.now = () => 1_000;
+
+canvasCtx.textBaseline = "top";
 
 const sharedState = {
     volume: 7,
@@ -287,6 +292,159 @@ const scenes: Record<string, Scene> = {
             render();
         },
     },
+    "flat-disabled-all-controls": {
+        theme: FLAT_THEME,
+        focusMode: "always",
+        lines: () => [
+            line()
+                .content({content: "Disabled", style: style().fontSize(20).foreground("#b8dfff").build(), align: "top"})
+                .content({content: "link", interactive: true, disabled: true, onClick: () => undefined, align: "bottom", focusedStyle: style().background("#224466").build()}),
+            line()
+                .content(checkbox({checked: true, content: "Checkbox", disabled: true, onToggle: () => undefined, align: "centre"}))
+                .content(numberBox({value: 8, disabled: true, onChange: () => undefined, align: "top"}))
+                .content(textbox({value: "ghost", disabled: true, onChange: () => true, align: "bottom"})),
+            line()
+                .content(select({
+                    selected: "b",
+                    disabled: true,
+                    options: [
+                        {key: "a", content: "A"},
+                        {key: "b", content: "B"},
+                        {key: "c", content: "C", disabled: true},
+                    ],
+                    onSelect: () => undefined,
+                    align: "top",
+                }))
+                .content(button({content: "Disabled Btn", disabled: true, onClick: () => undefined, align: "centre"})),
+        ],
+    },
+    "win98-disabled-all-controls": {
+        theme: WIN98_THEME,
+        focusMode: "always",
+        lines: () => [
+            line().content({content: "Disabled", style: style().fontSize(20).foreground("#000000").build(), align: "top"}),
+            line()
+                .content(checkbox({checked: false, content: "Legacy", disabled: true, onToggle: () => undefined, align: "bottom"}))
+                .content(numberBox({value: 2, disabled: true, onChange: () => undefined, align: "centre"}))
+                .content(textbox({value: "win98", disabled: true, onChange: () => true, align: "top"})),
+            line()
+                .content(select({
+                    selected: "safe",
+                    disabled: true,
+                    options: [
+                        {key: "safe", content: "Safe"},
+                        {key: "fast", content: "Fast"},
+                    ],
+                    onSelect: () => undefined,
+                    align: "bottom",
+                }))
+                .content(button({content: "Run", disabled: true, onClick: () => undefined, align: "top"})),
+        ],
+    },
+    "flat-textbox-selection-caret": {
+        theme: FLAT_THEME,
+        focusMode: "always",
+        lines: () => [
+            line()
+                .content({content: "Selection", style: style().foreground("#e4d085").fontSize(18).build()})
+                .content(textbox({
+                    value: "Visual Test",
+                    onChange: () => true,
+                    selectedStyle: style().background("#6e204f").foreground("#ffe7f7"),
+                    focusedStyle: style().background("#2a2f66").foreground("#d3dcff"),
+                    minWidth: 260,
+                    align: "bottom",
+                })),
+        ],
+        run: ({render, key}) => {
+            key("x");
+            render();
+            key("ArrowLeft", "keydown", {shiftKey: true});
+            key("ArrowLeft", "keydown", {shiftKey: true});
+            key("ArrowLeft", "keydown", {shiftKey: true});
+            key("ArrowLeft", "keydown", {shiftKey: true});
+            key("ArrowLeft", "keydown", {shiftKey: true});
+            render();
+        },
+    },
+    "win98-dropdown-disabled-row-nav": {
+        theme: WIN98_THEME,
+        focusMode: "always",
+        lines: () => [
+            line().content("Route:").content(select({
+                selected: "a",
+                options: [
+                    {key: "a", content: "Alpha"},
+                    {key: "b", content: "Beta", disabled: true},
+                    {key: "c", content: "Gamma"},
+                    {key: "d", content: "Delta", disabled: true},
+                    {key: "e", content: "Epsilon"},
+                ],
+                onSelect: () => undefined,
+                focusedStyle: style().background("#000080").foreground("#ffffff"),
+                expandedStyle: style().background("#d9e4ff").foreground("#000000"),
+            })),
+            line().content(button({content: "Commit", onClick: () => undefined})),
+        ],
+        run: ({render, key}) => {
+            key("Enter");
+            render();
+            key("ArrowDown");
+            render();
+        },
+    },
+    "flat-button-mouse-pressed": {
+        theme: FLAT_THEME,
+        focusMode: "always",
+        lines: () => [
+            line()
+                .content(button({content: "Mouse Press", onClick: () => undefined, align: "bottom"}))
+                .content(button({content: "Idle", onClick: () => undefined, align: "top"})),
+        ],
+        run: ({render, mouse}) => {
+            mouse(40, 40, "mousedown");
+            render();
+        },
+    },
+    "win98-hr-layout-modes": {
+        theme: WIN98_THEME,
+        focusMode: "always",
+        lines: () => [
+            line().content({content: "Short", style: style().fontSize(14).build()}),
+            line().content(hr({length: "max", thickness: 2, style: style().background("#b0b0b0")})),
+            line().content({content: "Very long middle row for HR reference", style: style().fontSize(16).build()}),
+            line().content(hr({length: "top", thickness: 2})),
+            line().content({content: "Tail", style: style().fontSize(12).build()}),
+        ],
+    },
+    "flat-nested-format-scaling": {
+        theme: FLAT_THEME,
+        focusMode: "always",
+        lines: () => [
+            line()
+                .content(button({
+                    content: [
+                        {content: "Big", style: style().fontSize(24).foreground("#ffe08a").build()},
+                        {content: " ", style: style().fontSize(24).build()},
+                        {content: "Btn", style: style().fontSize(14).foreground("#9ae6ff").build()},
+                    ],
+                    onClick: () => undefined,
+                    align: "bottom",
+                }))
+                .content(checkbox({
+                    checked: true,
+                    content: [
+                        {content: "XL", style: style().fontSize(20).foreground("#86ffa8").build()},
+                        {content: " label", style: style().fontSize(14).build()},
+                    ],
+                    onToggle: () => undefined,
+                    align: "centre",
+                })),
+            line()
+                .content({content: "Mixed nested segments", style: style().foreground("#d2b7ff").fontSize(16).build(), align: "top"})
+                .content(textbox({value: "sizes", onChange: () => true, align: "bottom", focusedStyle: style().fontSize(20).background("#3f2a5f")})),
+        ],
+    },
 };
 
 const params = new URLSearchParams(window.location.search);
@@ -301,8 +459,13 @@ const display = new InteractableDisplay({}, scene.theme, scene.focusMode, scene.
 display.setClickRegion({x: 0, y: 0, w: canvas.width, h: canvas.height});
 display.setActive(true);
 
-function key(keyValue: string, type: KeyEventType = "keydown"): void {
-    window.dispatchEvent(new KeyboardEvent(type, {key: keyValue, bubbles: true, cancelable: true}));
+function key(keyValue: string, type: KeyEventType = "keydown", init: Partial<KeyboardEventInit> = {}): void {
+    window.dispatchEvent(new KeyboardEvent(type, {
+        key: keyValue,
+        bubbles: true,
+        cancelable: true,
+        ...init,
+    }));
 }
 
 function mouse(x: number, y: number, type: MouseEventType = "click"): void {
@@ -310,15 +473,15 @@ function mouse(x: number, y: number, type: MouseEventType = "click"): void {
 }
 
 function render(): void {
-    ctx.fillStyle = "#111";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    canvasCtx.fillStyle = "#111";
+    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
     const lines = scene.lines();
     display.beginResolvePass();
-    const {rows} = display.resolveLines(ctx, lines, 8);
+    const {rows} = display.resolveLines(canvasCtx, lines, 8);
     display.setFocusables(display.layoutLineFocusables(rows, 20, 30, 8));
-    display.drawLines(ctx, rows, 20, 30, 8);
-    display.drawOverlays(ctx);
+    display.drawLines(canvasCtx, rows, 20, 30, 8);
+    display.drawOverlays(canvasCtx);
 
     canvas.dataset.rendered = "true";
 }

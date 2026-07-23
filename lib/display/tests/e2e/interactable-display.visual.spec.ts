@@ -7,6 +7,13 @@ const scenarios = [
     "flat-alignment-matrix",
     "flat-focused-background-matrix",
     "flat-focused-fontsize-matrix",
+    "flat-disabled-all-controls",
+    "win98-disabled-all-controls",
+    "flat-textbox-selection-caret",
+    "win98-dropdown-disabled-row-nav",
+    "flat-button-mouse-pressed",
+    "win98-hr-layout-modes",
+    "flat-nested-format-scaling",
     "win98-padding-alignment-matrix",
     "win98-focused-background-matrix",
     "win98-focused-fontsize-select-open",
@@ -23,7 +30,8 @@ for (const scenario of scenarios) {
             scale: "css",
             animations: "disabled",
             caret: "hide",
-            maxDiffPixels: 30,
+            threshold: 0,
+            maxDiffPixels: 0,
         });
     });
 }

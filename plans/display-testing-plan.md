@@ -498,3 +498,17 @@ Notes:
   - padding/margin stress with Win98 chrome
 - Kept scenarios builder-driven where possible to mirror real calling patterns.
 
+### 2026-07-23 - Playwright hardening for tiny-diff detection
+
+- Expanded screenshot scenario count from `9` to `16` by adding scenes for:
+  - disabled overlays across all major input kinds in both themes
+  - textbox caret + selection-highlight rendering state
+  - dropdown disabled-row visuals after keyboard navigation
+  - mouse-held button pressed rendering state
+  - hr length-resolution visuals (`max` and `top`)
+  - nested text-segment font scaling inside controls
+- Tightened screenshot assertions to strict diffing in
+  `lib/display/tests/e2e/interactable-display.visual.spec.ts`:
+  - `threshold: 0`
+  - `maxDiffPixels: 0`
+
