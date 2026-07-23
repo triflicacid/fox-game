@@ -5,7 +5,7 @@ import {ResolvedStateStyle, resolveStateStyle} from "./state-style";
 import {Alignment, TextSegment, TextStyle} from "./text-style";
 import {BoundingRect, expandRect, pointInRect, rectsEqual, unionRect} from "./bounding-rect";
 import {ResolvedSpacing, resolveSpacing, ZERO_SPACING} from "./spacing";
-import {copyToClipboard, readFromClipboard} from "../../util";
+import {copyToClipboard, readFromClipboard} from "../../src/util";
 
 /** Whether keyboard input reaches an {@link InteractableDisplay} whenever it's active ("always"), or only after it's been clicked into ("click"). */
 export type FocusMode = "always" | "click";

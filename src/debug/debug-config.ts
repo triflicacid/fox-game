@@ -1,4 +1,4 @@
-import {COLORS} from "../lib/display/colors";
+import {COLORS} from "../../lib/display/colors";
 
 /**
  * Colours, line widths, and layout used by the debug rendering overlay
