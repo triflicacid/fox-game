@@ -442,4 +442,28 @@ Notes:
   checks and higher-level behaviour tests.
 
 
+### 2026-07-23 - Integration-test phase started (separate Vitest project)
 
+- Split test runner configuration into separate projects/config files inside
+  `lib/display`:
+  - `lib/display/vitest.unit.config.ts`
+  - `lib/display/vitest.integration.config.ts`
+  - `lib/display/vitest.config.ts` now runs both projects.
+- Added dedicated scripts in `lib/display/package.json`:
+  - `test:unit`
+  - `test:integration`
+  - `test` (runs both)
+- Added first integration suite under:
+  - `lib/display/tests/integration/interactable-display.integration.spec.ts`
+- Current integration coverage focus:
+  - select dropdown keyboard flow (open, disabled-option skip, commit)
+  - number input edit lifecycle (start + commit)
+  - textbox `allowedChars` filtering and commit
+
+- Added additional integration scenarios (builder-heavy):
+  - mixed line built with `line()/checkbox()/numberBox()/button()`
+    exercising disabled-skip navigation, number commit, and button activation
+  - multi-row builder layout using `select()` + `textbox()` with style builders,
+    including dropdown open/commit and occupied-bounds expansion checks
+  - `focusMode: "click"` flow with builder-built controls (focus on inside click,
+    blur on outside click)
