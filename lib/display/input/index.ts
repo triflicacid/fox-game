@@ -24,7 +24,12 @@ export type Input = RadioInput | CheckboxInput | NumberInput | TextInput | Butto
 /** A single item within a {@link DisplayLine}: styled text, or an {@link Input}. */
 export type DisplayLineItem = TextSegment | Input;
 
-/** A line built incrementally via the `line()` builder. */
+/**
+ * Builder-friendly wrapper form of a display line.
+ *
+ * `items` are rendered and laid out left-to-right in array order, identical to
+ * the bare-array {@link DisplayLineItem[]} form.
+ */
 export interface Line {
     items: DisplayLineItem[];
 }
