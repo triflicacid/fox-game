@@ -371,5 +371,75 @@ The testing initiative is considered complete when:
 
 This delivers immediate confidence while keeping implementation effort bounded.
 
+---
+
+## Progress log
+
+### 2026-07-23 - Unit-test phase (isolated package) completed
+
+- Created an isolated package for `lib/display` with its own tooling:
+  - `lib/display/package.json`
+  - `lib/display/tsconfig.json`
+  - `lib/display/vitest.config.ts`
+  - `pnpm-workspace.yaml` (workspace registration for `lib/display`)
+- Kept `vitest` local to `lib/display` (not in root `package.json`).
+- Added initial deterministic unit suites under
+  `lib/display/__tests__/unit/`:
+  - `spacing.unit.test.ts`
+  - `bounding-rect.unit.test.ts`
+  - `state-style.unit.test.ts`
+  - `style-builder.unit.test.ts`
+  - `input-builder.unit.test.ts`
+- Current unit-test coverage focus:
+  - spacing normalization and shorthand helpers
+  - rectangle geometry utilities
+  - state-style resolution and invert semantics
+  - fluent style-builder format/invert-format flag logic
+  - input builders and line-builder normalization/chaining
+- Verification status:
+  - `pnpm --dir lib/display test` passes
+  - `pnpm --dir lib/display typecheck` passes
+
+Next planned step: start integration tests for deterministic behavioural flows
+in `InteractableDisplay` (still avoiding screenshot tests until logic/math
+assertions are exhausted for those behaviours).
+
+### 2026-07-23 - Co-located `*.spec.ts` migration and unit expansion
+
+- Switched unit test discovery to co-located spec files by updating
+  `lib/display/vitest.config.ts` to `include: ["**/*.spec.ts"]`.
+- Added a canvas test helper for deterministic contract tests:
+  - `lib/display/test-helpers/mock-canvas.ts`
+- Added co-located unit tests across nearly all runtime files in
+  `lib/display`:
+  - `lib/display/spacing.spec.ts`
+  - `lib/display/bounding-rect.spec.ts`
+  - `lib/display/state-style.spec.ts`
+  - `lib/display/text-style.spec.ts`
+  - `lib/display/colors.spec.ts`
+  - `lib/display/copy-paste.spec.ts`
+  - `lib/display/display.spec.ts`
+  - `lib/display/chrome-theme.spec.ts`
+  - `lib/display/flat-theme.spec.ts`
+  - `lib/display/win98-theme.spec.ts`
+  - `lib/display/interactable-display.spec.ts`
+  - `lib/display/builders/style.spec.ts`
+  - `lib/display/builders/input.spec.ts`
+  - `lib/display/builders/index.spec.ts`
+- Coverage approach used in this phase:
+  - deterministic math/behaviour assertions first
+  - lightweight canvas contract checks (no strict operation-order coupling)
+  - no screenshot tests yet (deferred per plan rule)
+- Verification status:
+  - `pnpm --dir lib/display test` passes (`14` files, `41` tests)
+  - `pnpm --dir lib/display typecheck` passes
+
+Notes:
+
+- Type-only declaration files under `lib/display/input/*` are not directly
+  runtime-testable and are currently covered indirectly through builder and
+  consumer-level tests. They will continue to be validated through TypeScript
+  checks and higher-level behaviour tests.
+
 
 
