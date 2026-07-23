@@ -1,7 +1,7 @@
 import {DisplayLine} from "@lib/display/input";
 import {button, checkbox, hr, line, numberBox, radio, select, textbox} from "@lib/display/builders";
 import {KeyBinding} from "../help/key-binding";
-import {PopupController} from "@lib/popup/popup-controller";
+import {KeyBindingPopupController} from "../popup/key-binding-popup-controller";
 import {CameraFollowMode} from "../entities/movement-controller";
 import {copyToClipboard} from "../util";
 
@@ -9,7 +9,7 @@ import {copyToClipboard} from "../util";
  * Shows the game's settings in a {@link Popup}, opened with `#` and closed
  * with `Esc` or `#` again (or by selecting its `Close` button).
  */
-export class SettingsController extends PopupController {
+export class SettingsController extends KeyBindingPopupController {
     /** How long the seed's "Copy" button reads "Copied" for after a click, in milliseconds. */
     private static readonly COPY_FEEDBACK_DURATION_MS = 1500;
 
