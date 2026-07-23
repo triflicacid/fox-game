@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "lint": "eslint .",
+    "clean": "rm -r -fo dist",
     "dev:client": "vite",
     "copy:static": "cp static dist/web -r -Force",
     "build:client": "tsc -p tsconfig.json && vite build && pnpm run copy:static",

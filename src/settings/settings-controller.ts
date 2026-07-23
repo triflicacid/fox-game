@@ -1,7 +1,7 @@
-import {DisplayLine} from "../lib/display/input";
-import {button, checkbox, hr, line, numberBox, radio, select, textbox} from "../lib/display/builders";
+import {DisplayLine} from "@lib/display/input";
+import {button, checkbox, hr, line, numberBox, radio, select, textbox} from "@lib/display/builders";
 import {KeyBinding} from "../help/key-binding";
-import {PopupController} from "../lib/popup/popup-controller";
+import {PopupController} from "@lib/popup/popup-controller";
 import {CameraFollowMode} from "../entities/movement-controller";
 import {copyToClipboard} from "../util";
 
