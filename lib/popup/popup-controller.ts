@@ -1,6 +1,5 @@
 import {Popup, PopupOptions} from "./popup";
 import {DisplayLine} from "../display/input";
-import {KeyBinding} from "../../src/help/key-binding";
 
 /**
  * Base for anything that owns a {@link Popup}, toggled independently of
@@ -32,12 +31,6 @@ export abstract class PopupController {
         return this.popup.isOpen();
     }
 
-    /**
-     * This controller's own key bindings, for the help popup to list.
-     *
-     * @returns This controller's key bindings.
-     */
-    public abstract getKeyBindings(): KeyBinding[];
 
     /**
      * Paints the dimming layer behind this controller's popup. A no-op if it

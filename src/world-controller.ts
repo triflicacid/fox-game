@@ -11,6 +11,7 @@ import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
 import {SettingsController} from "./settings/settings-controller";
 import {PopupController} from "@lib/popup/popup-controller";
+import {KeyBindingPopupController} from "./popup/key-binding-popup-controller";
 
 /**
  * Owns everything needed to run the game against a canvas.
@@ -34,6 +35,7 @@ export class WorldController {
     private readonly helpController: HelpController;
     private readonly settingsController: SettingsController;
     private readonly popupControllers: PopupController[];
+    private readonly keyBindingPopupControllers: KeyBindingPopupController[];
     private readonly frameLoop: FrameLoopController;
 
     private lastTickTime = 0;
@@ -90,6 +92,7 @@ export class WorldController {
             this.handlePopupOpenChange,
         );
         this.popupControllers = [this.helpController, this.settingsController];
+        this.keyBindingPopupControllers = [this.helpController, this.settingsController];
         this.userTargetFps = targetFps;
         this.frameLoop = new FrameLoopController(this.onFrame, targetFps);
 
@@ -238,7 +241,7 @@ export class WorldController {
         const all = [
             ...this.movementController.getKeyBindings(),
             ...this.debugController.getKeyBindings(),
-            ...this.popupControllers.flatMap((source) => source.getKeyBindings()),
+            ...this.keyBindingPopupControllers.flatMap((source) => source.getKeyBindings()),
             ...(this.world.getMainEntity().getKeyBindings?.() ?? []),
         ];
         const seenKeys = new Set<string>();
