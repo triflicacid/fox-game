@@ -43,11 +43,12 @@ const CURL_TAIL_SWEEP = Array.from(
     { length: PHASES },
     (_, phase) => (CURL_TAIL_SWEEP_MAX * (phase + 1)) / PHASES,
 );
+const CURL_POSE_T = Array.from({ length: PHASES }, (_, phase) => (phase + 1) / PHASES); // stand -> curl blend factor
 
-// uncurl continues the tail's rotation on past CURL_TAIL_SWEEP_MAX, up to a full 360
-const UNCURL_TAIL_ANGLE = Array.from(
+// uncurl reverses the curl arc, ending with the standing tail straight behind
+const UNCURL_TAIL_SWEEP = Array.from(
     { length: PHASES },
-    (_, phase) => CURL_TAIL_SWEEP_MAX + (360 - CURL_TAIL_SWEEP_MAX) * ((phase + 1) / PHASES),
+    (_, phase) => CURL_TAIL_SWEEP_MAX * (1 - (phase + 1) / PHASES),
 );
 const UNCURL_T = Array.from({ length: PHASES }, (_, phase) => (phase + 1) / PHASES); // curl -> stand blend factor
 
@@ -109,10 +110,11 @@ export const constants = {
             segments: 10, // arc sample resolution
             tipR: 1.7,
         },
+        t: CURL_POSE_T,
     },
 
     uncurl: {
-        tailAngle: UNCURL_TAIL_ANGLE,
+        tailSweep: UNCURL_TAIL_SWEEP,
         t: UNCURL_T,
     },
 

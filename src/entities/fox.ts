@@ -188,10 +188,10 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
     /**
      * Starts the `uncurl` animation in response to a movement key press
-     * while `curling`/`sleeping`. If already mid-`curling`, continues the
-     * tail sweep from its current phase rather than restarting from `uncurl`'s
-     * first frame, since both rows share the same phase count and sweep
-     * direction. Rotated to face the direction being woken up into (from
+     * while `curling`/`sleeping`. If already mid-`curling`, starts at the
+     * mirrored `uncurl` phase so the body and tail take one step back toward
+     * standing rather than jumping to the fully curled end. Rotated to face
+     * the direction being woken up into (from
      * {@link pendingWakeFacing}), which may differ from the direction the fox
      * fell asleep facing.
      *
@@ -199,7 +199,8 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      */
     private beginWaking(velocity: Vector2d): void {
         this.pendingWakeVelocity = velocity;
-        const startPhase = this.status === "curling" ? this.getCurrentFrame().frameIndex + 1 : 1;
+        const currentFrame = this.getCurrentFrame();
+        const startPhase = this.status === "curling" ? currentFrame.frameCount - currentFrame.frameIndex : 1;
         const wakeFacing = this.pendingWakeFacing ?? this.facing;
         this.status = "uncurling";
         this.setCurrentFrame({
