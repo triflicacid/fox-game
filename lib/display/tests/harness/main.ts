@@ -1,9 +1,9 @@
-import {InteractableDisplay, FocusMode} from "../../src/interactable-display";
-import {FLAT_THEME} from "../../src/flat-theme";
-import {WIN98_THEME} from "../../src/win98-theme";
-import {DisplayLine} from "../../src/input";
-import {button, checkbox, hr, line, numberBox, select, style, textbox} from "../../src/builders";
-import {ChromeTheme} from "../../src/chrome-theme";
+import {InteractableDisplay, FocusMode} from "@display/interactable-display";
+import {FLAT_THEME} from "@display/flat-theme";
+import {WIN98_THEME} from "@display/win98-theme";
+import {DisplayLine} from "@display/input";
+import {button, checkbox, hr, line, numberBox, select, style, textbox} from "@display/builders";
+import {ChromeTheme} from "@display/chrome-theme";
 
 type KeyEventType = "keydown" | "keyup";
 type MouseEventType = "mousedown" | "mouseup" | "click";
