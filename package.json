@@ -10,6 +10,8 @@
     "dev:client": "vite",
     "copy:static": "cp static dist/web -r -Force",
     "build:client": "tsc -p tsconfig.json && vite build && pnpm run copy:static",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
     "electron": "tsc -p electron/tsconfig.json && electron dist/electron/main.js",
     "electron:rebuild": "electron-rebuild -f -w ."
   },
@@ -20,6 +22,7 @@
     "eslint": "^10.7.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.64.0",
+    "vitest": "^3.2.4",
     "vite": "^8.1.4",
     "vite-plugin-singlefile": "^2.3.3"
   },
