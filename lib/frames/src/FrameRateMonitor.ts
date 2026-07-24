@@ -35,7 +35,8 @@ export class FrameRateMonitor {
 
         // calculate fps from cached average interval
         if (this.frameTimestamps.length >= 2) {
-            const averageIntervalMs = this.cachedDeltaSum / (this.frameTimestamps.length + 1);
+            const intervalCount = this.frameTimestamps.length - 1;
+            const averageIntervalMs = this.cachedDeltaSum / intervalCount;
             if (averageIntervalMs > 0) {
                 this.fps = 1000 / averageIntervalMs;
             }
