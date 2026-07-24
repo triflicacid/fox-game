@@ -1,0 +1,12 @@
+import {defineConfig} from "vitest/config";
+
+export default defineConfig({
+    test: {
+        name: "unit",
+        environment: "node",
+        include: ["src/**/*.spec.ts"],
+        exclude: ["lib/**", "node_modules/**", "dist/**"],
+    },
+});
+
+
