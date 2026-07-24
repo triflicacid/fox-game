@@ -36,6 +36,9 @@ importers:
       vite-plugin-singlefile:
         specifier: ^2.3.3
         version: 2.3.3(rollup@4.62.2)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1))
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(lightningcss@1.32.0)
 
   lib/display:
     devDependencies:

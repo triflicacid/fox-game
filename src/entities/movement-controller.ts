@@ -3,6 +3,7 @@ import {CompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
 import {Camera} from "../camera/camera";
 import {KeyBinding} from "../help/key-binding";
+import {Debouncer} from "../input/debouncer";
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {
@@ -62,7 +63,7 @@ export class MovementController {
 
     private readonly pressedDirections = new Set<CompassDirection>();
     private entity: MovableEntity | null;
-    private debounceTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    private readonly movementDebouncer: Debouncer;
     private readonly cameraFollow: CameraFollowOptions | null;
     private spectating = false;
 
@@ -73,6 +74,9 @@ export class MovementController {
     public constructor(entity: MovableEntity | null = null, cameraFollow: CameraFollowOptions | null = null) {
         this.entity = entity;
         this.cameraFollow = cameraFollow;
+        this.movementDebouncer = new Debouncer(MovementController.DEBOUNCE_MS, () => {
+            this.applyMovement();
+        });
         window.addEventListener("keydown", this.handleKeyDown);
         window.addEventListener("keyup", this.handleKeyUp);
     }
@@ -218,10 +222,7 @@ export class MovementController {
     private toggleSpectatorMode(): void {
         this.spectating = !this.spectating;
         this.pressedDirections.clear();
-        if (this.debounceTimeoutId !== null) {
-            clearTimeout(this.debounceTimeoutId);
-            this.debounceTimeoutId = null;
-        }
+        this.movementDebouncer.cancel();
         if (this.spectating) {
             this.entity?.setVelocity(Vector2d.ZERO);
         }
@@ -339,13 +340,7 @@ export class MovementController {
      * transient states occur in between them.
      */
     private scheduleApplyMovement(): void {
-        if (this.debounceTimeoutId !== null) {
-            clearTimeout(this.debounceTimeoutId);
-        }
-        this.debounceTimeoutId = setTimeout(() => {
-            this.debounceTimeoutId = null;
-            this.applyMovement();
-        }, MovementController.DEBOUNCE_MS);
+        this.movementDebouncer.trigger();
     }
 
     /**
