@@ -33,6 +33,7 @@ interface KeyDownSubscription {
 export class Keyboard {
     private readonly pressedKeys = new Set<string>();
     private readonly keyDownListeners = new Set<KeyboardKeyDownListener>();
+    private readonly keyUpListeners = new Set<KeyboardKeyDownListener>();
     private readonly keyDownSubscriptions = new Set<KeyDownSubscription>();
     private readonly eventSource: KeyboardEventSource;
 
@@ -91,6 +92,19 @@ export class Keyboard {
     }
 
     /**
+     * registers a listener for every keyup event
+     *
+     * @param listener - listener to notify
+     * @returns cleanup callback that unregisters the listener
+     */
+    public onKeyUp(listener: KeyboardKeyDownListener): () => void {
+        this.keyUpListeners.add(listener);
+        return () => {
+            this.keyUpListeners.delete(listener);
+        };
+    }
+
+    /**
      * registers a listener for keydown events of one specific key
      *
      * @param key - key to watch (same shape as `KeyboardEvent.key`)
@@ -120,6 +134,7 @@ export class Keyboard {
         this.eventSource.removeEventListener("blur", this.handleWindowBlur);
         this.pressedKeys.clear();
         this.keyDownListeners.clear();
+        this.keyUpListeners.clear();
         this.keyDownSubscriptions.clear();
     }
 
@@ -150,6 +165,10 @@ export class Keyboard {
 
     private readonly handleWindowKeyUp = (event: KeyboardEvent): void => {
         this.pressedKeys.delete(event.key);
+        const key = event.key;
+        for (const listener of this.keyUpListeners) {
+            listener(event, key);
+        }
     };
 
     private readonly handleWindowBlur = (): void => {
