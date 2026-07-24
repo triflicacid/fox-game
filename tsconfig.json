@@ -17,6 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "paths": {
       "@display/*": ["lib/display/src/*"],
+      "@keyboard": ["lib/keyboard/src/index.ts"],
+      "@keyboard/*": ["lib/keyboard/src/*"],
       "@lib/*": ["lib/*"]
     }
   },

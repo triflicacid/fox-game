@@ -91,7 +91,8 @@ describe("InteractableDisplay integration flows", () => {
 
     it("opens a select, skips disabled options, and commits via keyboard", () => {
         const selectedKeys: string[] = [];
-        const display = new InteractableDisplay({}, FLAT_THEME, "always");
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
 
         const lines: DisplayLine[] = [[{
             kind: "select",
@@ -133,7 +134,8 @@ describe("InteractableDisplay integration flows", () => {
             value = next;
         });
 
-        const display = new InteractableDisplay({}, FLAT_THEME, "always");
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
         const lines = (): DisplayLine[] => [[{
             kind: "number",
             value,
@@ -157,7 +159,8 @@ describe("InteractableDisplay integration flows", () => {
             return true;
         });
 
-        const display = new InteractableDisplay({}, FLAT_THEME, "always");
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
         const lines = (): DisplayLine[] => [[{
             kind: "textbox",
             value,
@@ -184,7 +187,8 @@ describe("InteractableDisplay integration flows", () => {
         });
         const onButtonClick = vi.fn();
 
-        const display = new InteractableDisplay({}, FLAT_THEME, "always");
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
         const lines: DisplayLine[] = [
             line()
                 .content("Builder:")
@@ -211,7 +215,8 @@ describe("InteractableDisplay integration flows", () => {
     it("builds select/textbox rows via builders and expands occupied bounds when select opens", () => {
         const selectedKeys: string[] = [];
         const onTextCommit = vi.fn(() => true);
-        const display = new InteractableDisplay({}, FLAT_THEME, "always");
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
 
         const lines: DisplayLine[] = [
             line().content("Theme").content(select({
@@ -252,10 +257,11 @@ describe("InteractableDisplay integration flows", () => {
 
     it("supports click-focus mode with builder-built controls", () => {
         const onButtonClick = vi.fn();
-        const display = new InteractableDisplay({}, FLAT_THEME, "click");
+        const display = new InteractableDisplay({}, FLAT_THEME, "click")
+            .setKeyboardEventSource(window)
+            .setClickRegion({x: 0, y: 0, w: 200, h: 200});
         const lines: DisplayLine[] = [line().content(button({content: "Open", onClick: onButtonClick}))];
 
-        display.setClickRegion({x: 0, y: 0, w: 200, h: 200});
         layoutFrame(display, lines);
         display.setActive(true);
 
@@ -267,5 +273,4 @@ describe("InteractableDisplay integration flows", () => {
         expect(display.isFocused()).toBe(false);
     });
 });
-
 
