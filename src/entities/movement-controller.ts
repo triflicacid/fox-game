@@ -62,10 +62,7 @@ export class MovementController {
      */
     private static readonly DEBOUNCE_MS = 10;
 
-    private entity: MovableEntity | null;
     private readonly movementDebouncer: Debouncer;
-    private readonly cameraFollow: CameraFollowOptions | null;
-    private readonly keyboard: Keyboard;
     private spectating = false;
 
     /**
@@ -73,8 +70,11 @@ export class MovementController {
      * @param entity - Entity to bind to initially. Defaults to unbound (`null`).
      * @param cameraFollow - Optional camera to keep positioned around the bound entity as it moves.
      */
-    public constructor(keyboard: Keyboard, entity: MovableEntity | null = null, cameraFollow: CameraFollowOptions | null = null) {
-        this.keyboard = keyboard;
+    public constructor(
+        private readonly keyboard: Keyboard,
+        private entity: MovableEntity | null = null,
+        private readonly cameraFollow: CameraFollowOptions | null = null
+    ) {
         this.entity = entity;
         this.cameraFollow = cameraFollow;
         this.movementDebouncer = new Debouncer(MovementController.DEBOUNCE_MS, () => {
