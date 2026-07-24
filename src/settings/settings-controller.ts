@@ -4,26 +4,13 @@ import {KeyBinding} from "../help/key-binding";
 import {KeyBindingPopupController} from "../popup/key-binding-popup-controller";
 import {CameraFollowMode} from "../entities/movement-controller";
 import {copyToClipboard} from "../util";
+import {Keyboard} from "@keyboard";
 
 /**
  * Shows the game's settings in a {@link Popup}, opened with `#` and closed
  * with `Esc` or `#` again (or by selecting its `Close` button).
  */
 export class SettingsController extends KeyBindingPopupController {
-    /** How long the seed's "Copy" button reads "Copied" for after a click, in milliseconds. */
-    private static readonly COPY_FEEDBACK_DURATION_MS = 1500;
-
-    /** Characters the world-seed text box accepts - an optional leading `-` followed by digits. */
-    private static readonly SEED_CHARS = [..."0123456789-"];
-
-    /** Minimum width of the world-seed text box, in canvas pixels - wide enough for the longest seed `World.refreshWorldSeed` can generate, `4294967294` (10 digits, since it draws from `[0, 0xffffffff)`). */
-    private static readonly SEED_BOX_MIN_WIDTH = 100;
-
-    /** The seed line's Copy button's current label - see {@link handleCopyClick}. */
-    private copyButtonLabel = "Copy";
-    /** Pending revert-to-"Copy" timer from the last Copy click, if any. */
-    private copyRevertTimeoutId: ReturnType<typeof setTimeout> | null = null;
-
     /**
      * @param getCameraFollowMode - Called on every {@link draw} to read the current camera follow mode.
      * @param setCameraFollowMode - Invoked when the user selects a different camera follow mode.
@@ -44,8 +31,11 @@ export class SettingsController extends KeyBindingPopupController {
      * @param getMinChunkGenerationDelayMs - Called on every {@link draw} to read the debug minimum-delay-between-chunks knob.
      * @param setMinChunkGenerationDelayMs - Invoked when the user edits the minimum chunk generation delay field.
      * @param onOpenChange - Called whenever this popup opens or closes.
+     * @param keyboard - The keyboard to use for this controller.
      */
     public constructor(
+        keyboard: Keyboard,
+        onOpenChange: (open: boolean) => void,
         private readonly getCameraFollowMode: () => CameraFollowMode | undefined,
         private readonly setCameraFollowMode: (mode: CameraFollowMode) => void,
         private readonly getSpectating: () => boolean,
@@ -62,10 +52,23 @@ export class SettingsController extends KeyBindingPopupController {
         private readonly getWorldSeed: () => number,
         private readonly setWorldSeed: (seed: number) => void,
         private readonly refreshWorldSeed: () => void,
-        onOpenChange: (open: boolean) => void,
     ) {
-        super("Settings", "#", {closeKeys: ["Escape", "#"], onOpenChange});
+        super(keyboard, "Settings", "#", {closeKeys: ["Escape", "#"], onOpenChange});
     }
+
+    /** How long the seed's "Copy" button reads "Copied" for after a click, in milliseconds. */
+    private static readonly COPY_FEEDBACK_DURATION_MS = 1500;
+
+    /** Characters the world-seed text box accepts - an optional leading `-` followed by digits. */
+    private static readonly SEED_CHARS = [..."0123456789-"];
+
+    /** Minimum width of the world-seed text box, in canvas pixels - wide enough for the longest seed `World.refreshWorldSeed` can generate, `4294967294` (10 digits, since it draws from `[0, 0xffffffff)`). */
+    private static readonly SEED_BOX_MIN_WIDTH = 100;
+    /** The seed line's Copy button's current label - see {@link handleCopyClick}. */
+    private copyButtonLabel = "Copy";
+
+    /** Pending revert-to-"Copy" timer from the last Copy click, if any. */
+    private copyRevertTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
     /**
      * This controller's own key bindings, for the help popup to list.
