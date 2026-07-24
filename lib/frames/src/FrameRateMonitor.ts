@@ -3,8 +3,8 @@
  */
 export class FrameRateMonitor {
     private readonly sampleDurationMs: number;
-    private frameCount = 0;
-    private sampleStartTime = 0;
+    private frameTimestamps: number[] = [];
+    private cachedDeltaSum = 0;
     private fps = 0;
 
     public constructor(sampleDurationMs: number) {
@@ -14,22 +14,31 @@ export class FrameRateMonitor {
 
     /**
      * record a frame event at the given timestamp.
-     * this is used to adjust the calculated frame rate.
+     * calculated fps based on the average interval between all frames.
      */
     public recordFrame(timestamp: number) {
-        if (this.sampleStartTime === 0) {
-            this.sampleStartTime = timestamp;
-            this.frameCount = 0;
-            return;
+        this.frameTimestamps.push(timestamp);
+
+        // add the new delta to the cache
+        if (this.frameTimestamps.length >= 2) {
+            const delta = timestamp - this.frameTimestamps[this.frameTimestamps.length - 2];
+            this.cachedDeltaSum += delta;
         }
 
-        this.frameCount++;
+        // remove frames outside the sample window and subtract their deltas from the cached value
+        const windowStart = timestamp - this.sampleDurationMs;
+        while (this.frameTimestamps.length > 1 && this.frameTimestamps[0] < windowStart) {
+            const delta = this.frameTimestamps[1] - this.frameTimestamps[0];
+            this.cachedDeltaSum -= delta;
+            this.frameTimestamps.shift();
+        }
 
-        const elapsed = timestamp - this.sampleStartTime;
-        if (elapsed >= this.sampleDurationMs) {
-            this.fps = this.frameCount / (elapsed / 1000);
-            this.sampleStartTime = timestamp;
-            this.frameCount = 0;
+        // calculate fps from cached average interval
+        if (this.frameTimestamps.length >= 2) {
+            const averageIntervalMs = this.cachedDeltaSum / (this.frameTimestamps.length + 1);
+            if (averageIntervalMs > 0) {
+                this.fps = 1000 / averageIntervalMs;
+            }
         }
     }
 
@@ -38,8 +47,8 @@ export class FrameRateMonitor {
     }
 
     public reset() {
-        this.frameCount = 0;
-        this.sampleStartTime = 0;
+        this.frameTimestamps.length = 0;
+        this.cachedDeltaSum = 0;
         this.fps = 0;
     }
 }
