@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@display": path.resolve(__dirname, "lib/display/src"),
+      "@frames": path.resolve(__dirname, "lib/frames/src"),
       "@lib": path.resolve(__dirname, "lib"),
     }
   },
