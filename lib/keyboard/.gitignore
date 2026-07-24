@@ -1,0 +1,17 @@
+# Package dependencies
+node_modules/
+
+# Test outputs
+coverage/
+.vitest/
+
+# Build/type artifacts
+*.tsbuildinfo
+*.tgz
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
