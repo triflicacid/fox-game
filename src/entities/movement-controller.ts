@@ -4,6 +4,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {Camera} from "../camera/camera";
 import {KeyBinding} from "../help/key-binding";
 import {Debouncer} from "../input/debouncer";
+import {Keyboard} from "@keyboard";
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {
@@ -61,24 +62,26 @@ export class MovementController {
      */
     private static readonly DEBOUNCE_MS = 10;
 
-    private readonly pressedDirections = new Set<CompassDirection>();
     private entity: MovableEntity | null;
     private readonly movementDebouncer: Debouncer;
     private readonly cameraFollow: CameraFollowOptions | null;
+    private readonly keyboard: Keyboard;
     private spectating = false;
 
     /**
+     * @param keyboard - Shared keyboard state used for input queries and subscriptions.
      * @param entity - Entity to bind to initially. Defaults to unbound (`null`).
      * @param cameraFollow - Optional camera to keep positioned around the bound entity as it moves.
      */
-    public constructor(entity: MovableEntity | null = null, cameraFollow: CameraFollowOptions | null = null) {
+    public constructor(keyboard: Keyboard, entity: MovableEntity | null = null, cameraFollow: CameraFollowOptions | null = null) {
+        this.keyboard = keyboard;
         this.entity = entity;
         this.cameraFollow = cameraFollow;
         this.movementDebouncer = new Debouncer(MovementController.DEBOUNCE_MS, () => {
             this.applyMovement();
         });
-        window.addEventListener("keydown", this.handleKeyDown);
-        window.addEventListener("keyup", this.handleKeyUp);
+        keyboard.onKeyDown((event) => this.handleKeyDown(event));
+        keyboard.onKeyUp((event) => this.handleKeyUp(event));
     }
 
     /**
@@ -221,7 +224,6 @@ export class MovementController {
      */
     private toggleSpectatorMode(): void {
         this.spectating = !this.spectating;
-        this.pressedDirections.clear();
         this.movementDebouncer.cancel();
         if (this.spectating) {
             this.entity?.setVelocity(Vector2d.ZERO);
@@ -316,18 +318,15 @@ export class MovementController {
             this.entity?.handleKeyPress?.(event.key);
             return;
         }
-        this.pressedDirections.add(direction);
         if (!this.spectating) {
             this.scheduleApplyMovement();
         }
     };
 
     private readonly handleKeyUp = (event: KeyboardEvent): void => {
-        const direction = KEY_DIRECTIONS[event.key];
-        if (!direction) {
+        if (!KEY_DIRECTIONS[event.key]) {
             return;
         }
-        this.pressedDirections.delete(direction);
         if (!this.spectating) {
             this.scheduleApplyMovement();
         }
@@ -370,10 +369,10 @@ export class MovementController {
      * @returns The combined direction, or `undefined` if nothing is pressed.
      */
     private resolveDirection(): CompassDirection | undefined {
-        const up = this.pressedDirections.has("N");
-        const down = this.pressedDirections.has("S");
-        const left = this.pressedDirections.has("W");
-        const right = this.pressedDirections.has("E");
+        const up = this.keyboard.hasKeyPressed("ArrowUp");
+        const down = this.keyboard.hasKeyPressed("ArrowDown");
+        const left = this.keyboard.hasKeyPressed("ArrowLeft");
+        const right = this.keyboard.hasKeyPressed("ArrowRight");
 
         const vertical = up === down ? "" : (up ? "N" : "S");
         const horizontal = left === right ? "" : (left ? "W" : "E");

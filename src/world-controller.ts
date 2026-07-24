@@ -12,6 +12,7 @@ import {KeyBinding} from "./help/key-binding";
 import {SettingsController} from "./settings/settings-controller";
 import {PopupController} from "@lib/popup/popup-controller";
 import {KeyBindingPopupController} from "./popup/key-binding-popup-controller";
+import {keyboard} from "./input/keyboard-instance";
 
 /**
  * Owns everything needed to run the game against a canvas.
@@ -65,7 +66,7 @@ export class WorldController {
         this.world = new World(WorldController.TILE_SIZE);
         this.camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
         new CameraDragController(canvas, this.camera);
-        this.movementController = new MovementController(this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
+        this.movementController = new MovementController(keyboard, this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
         this.debugController = new DebugController(
             () => this.world.reloadAllChunks(),
             () => this.world.teleportMainEntityTo(this.camera.getCenter()),

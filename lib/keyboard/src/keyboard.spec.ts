@@ -102,6 +102,23 @@ describe("keyboard", () => {
         expect(dListener).toHaveBeenCalledTimes(2);
     });
 
+    it("notifies keyup listeners and supports unsubscription", () => {
+        const fakeWindow = new FakeWindow();
+        const keyboard = new Keyboard(fakeWindow);
+        const listener = vi.fn();
+
+        const unsubscribe = keyboard.onKeyUp(listener);
+        fakeWindow.dispatch("keydown", "ArrowUp");
+        fakeWindow.dispatch("keyup", "ArrowUp");
+
+        expect(listener).toHaveBeenCalledTimes(1);
+        expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({key: "ArrowUp"}), "ArrowUp");
+
+        unsubscribe();
+        fakeWindow.dispatch("keyup", "ArrowUp");
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
     it("clears pressed key state on blur", () => {
         const fakeWindow = new FakeWindow();
         const keyboard = new Keyboard(fakeWindow);
