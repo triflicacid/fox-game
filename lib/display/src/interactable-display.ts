@@ -6,6 +6,7 @@ import {Alignment, TextSegment, TextStyle} from "./text-style";
 import {BoundingRect, expandRect, pointInRect, rectsEqual, unionRect} from "./bounding-rect";
 import {ResolvedSpacing, resolveSpacing, ZERO_SPACING} from "./spacing";
 import {copyToClipboard, readFromClipboard} from "./copy-paste";
+import type {KeyboardEventSource} from "./keyboard-event-source";
 
 /** Whether keyboard input reaches an {@link InteractableDisplay} whenever it's active ("always"), or only after it's been clicked into ("click"). */
 export type FocusMode = "always" | "click";
@@ -355,6 +356,7 @@ export class InteractableDisplay extends Display {
     private active = false;
     private focused = false;
     private debug = false;
+    private keyboardEventSource: KeyboardEventSource | null = null;
     /** On-screen hit box used in `"click"` focus mode to decide whether a click focuses/blurs this display - see {@link setClickRegion}. Unrelated to {@link getOccupiedBounds}. */
     private clickRegion: BoundingRect | null = null;
     private keyDownInterceptor: ((event: KeyboardEvent) => boolean) | undefined;
@@ -399,8 +401,6 @@ export class InteractableDisplay extends Display {
         this.focusMode = focusMode;
         this.initialFocusIndex = initialFocusIndex;
         this.plainFont = `${resolved.fontSize}px ${resolved.fontFamily}`;
-        window.addEventListener("keydown", this.handleKeyDown, {capture: true});
-        window.addEventListener("keyup", this.handleKeyUp, {capture: true});
         window.addEventListener("mousedown", this.handleMouseDown, {capture: true});
         window.addEventListener("mouseup", this.handleMouseUp, {capture: true});
         window.addEventListener("click", this.handleClick, {capture: true});
@@ -411,7 +411,7 @@ export class InteractableDisplay extends Display {
      *
      * @param active - Whether this display is currently shown/interactive at all.
      */
-    public setActive(active: boolean): void {
+    public setActive(active: boolean): this {
         if (active) {
             this.active = true;
             this.cursor = this.initialFocusIndex;
@@ -432,6 +432,7 @@ export class InteractableDisplay extends Display {
             this.mousePressedIndex = null;
             this.keyboardPressedIndex = null;
         }
+        return this;
     }
 
     /**
@@ -459,13 +460,15 @@ export class InteractableDisplay extends Display {
      *
      * @param rect - This display's current on-screen bounds, or `null` if not shown.
      */
-    public setClickRegion(rect: BoundingRect | null): void {
+    public setClickRegion(rect: BoundingRect | null): this {
         this.clickRegion = rect;
+        return this;
     }
 
     /** Toggles debug mode - see {@link drawDebugBounds}. */
-    public setDebug(enabled: boolean): void {
+    public setDebug(enabled: boolean): this {
         this.debug = enabled;
+        return this;
     }
 
     /**
@@ -476,8 +479,34 @@ export class InteractableDisplay extends Display {
      *
      * @param fn - The hook, or `undefined` to remove it.
      */
-    public setKeyDownInterceptor(fn: ((event: KeyboardEvent) => boolean) | undefined): void {
+    public setKeyDownInterceptor(fn: ((event: KeyboardEvent) => boolean) | undefined): this {
         this.keyDownInterceptor = fn;
+        return this;
+    }
+
+    /**
+     * Attaches this display's key listeners to a new event source, replacing
+     * the previous one. The old source's listeners are removed before the new
+     * ones are added, preventing double-firing.
+     *
+     * Defaults to `window` (with capture phase, so the display can intercept
+     * keys before other handlers). Injected sources receive listeners without
+     * capture options — the source itself controls event propagation.
+     *
+     * @param source - The new keyboard event source to listen on.
+     */
+    public setKeyboardEventSource(source: KeyboardEventSource): this {
+        if (this.keyboardEventSource !== null) {
+            this.detachKeyboardListeners(this.keyboardEventSource);
+        }
+        this.keyboardEventSource = source;
+        this.attachKeyboardListeners(source);
+        return this;
+    }
+
+    /** @returns the current keyboard event source, or `null` if none has been set */
+    public getKeyboardEventSource(): KeyboardEventSource | null {
+        return this.keyboardEventSource;
     }
 
     /** Resets {@link resolveFocusIndex} to `0` - call once per frame, before the first `resolve*` call. */
@@ -1771,7 +1800,7 @@ export class InteractableDisplay extends Display {
      *
      * @param focusables - Every focusable element, pre-sorted by the caller.
      */
-    public setFocusables(focusables: FocusableElement[]): void {
+    public setFocusables(focusables: FocusableElement[]): this {
         this.focusables = focusables;
         this.cachedBounds = undefined;
 
@@ -1795,6 +1824,7 @@ export class InteractableDisplay extends Display {
         if (this.keyboardPressedIndex !== null && (this.keyboardPressedIndex >= this.focusables.length || !this.focusables[this.keyboardPressedIndex].pressable)) {
             this.keyboardPressedIndex = null;
         }
+        return this;
     }
 
     /** The currently focused element's rect, if any - `null` whenever this display itself isn't {@link isFocused focused} (e.g. blurred in `"click"` mode), even if a cursor position is still remembered. */
@@ -2352,6 +2382,18 @@ export class InteractableDisplay extends Display {
                 this.openSelectCursor = null;
             }
         }
+    }
+
+    private attachKeyboardListeners(source: KeyboardEventSource): void {
+        const options = source === window ? {capture: true} : undefined;
+        source.addEventListener("keydown", this.handleKeyDown, options);
+        source.addEventListener("keyup", this.handleKeyUp, options);
+    }
+
+    private detachKeyboardListeners(source: KeyboardEventSource): void {
+        const options = source === window ? {capture: true} : undefined;
+        source.removeEventListener("keydown", this.handleKeyDown, options);
+        source.removeEventListener("keyup", this.handleKeyUp, options);
     }
 
     /**

@@ -455,9 +455,10 @@ if (!scene) {
     throw new Error(`Unknown harness scenario: ${sceneName}`);
 }
 
-const display = new InteractableDisplay({}, scene.theme, scene.focusMode, scene.initialFocusIndex ?? 0);
-display.setClickRegion({x: 0, y: 0, w: canvas.width, h: canvas.height});
-display.setActive(true);
+const display = new InteractableDisplay({}, scene.theme, scene.focusMode, scene.initialFocusIndex ?? 0)
+    .setKeyboardEventSource(window)
+    .setClickRegion({x: 0, y: 0, w: canvas.width, h: canvas.height})
+    .setActive(true);
 
 function key(keyValue: string, type: KeyEventType = "keydown", init: Partial<KeyboardEventInit> = {}): void {
     window.dispatchEvent(new KeyboardEvent(type, {

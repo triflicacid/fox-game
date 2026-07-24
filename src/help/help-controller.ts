@@ -3,6 +3,7 @@ import {DisplayLine} from "@display/input";
 import {TextFormat} from "@display/text-style";
 import {COLORS} from "@display/colors";
 import {KeyBindingPopupController} from "../popup/key-binding-popup-controller";
+import {Keyboard} from "@keyboard";
 
 /** Gap, in characters, between a key's label and its description. */
 const KEY_DESCRIPTION_GAP = 2;
@@ -13,13 +14,18 @@ const KEY_DESCRIPTION_GAP = 2;
  */
 export class HelpController extends KeyBindingPopupController {
     /**
+     * @param keyboard - Keyboard we receive keyboard events from
      * @param getBindings - Called on every {@link draw} to fetch every key
      * binding currently in effect across the game, since this controller
      * doesn't own the other controllers that contribute them.
      * @param onOpenChange - Called whenever this popup opens or closes.
      */
-    public constructor(private readonly getBindings: () => KeyBinding[], onOpenChange: (open: boolean) => void) {
-        super("Keyboard Controls", "?", {closeKeys: ["Escape", "?"], onOpenChange});
+    public constructor(
+        keyboard: Keyboard,
+        onOpenChange: (open: boolean) => void,
+        private readonly getBindings: () => KeyBinding[],
+    ) {
+        super(keyboard, "Keyboard Controls", "?", {closeKeys: ["Escape", "?"], onOpenChange});
     }
 
     /**

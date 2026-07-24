@@ -27,8 +27,9 @@ if (!canvasElement || !canvasContext) {
 const canvas: HTMLCanvasElement = canvasElement;
 const ctx: CanvasRenderingContext2D = canvasContext;
 
-const display = new InteractableDisplay(DISPLAY_DEFAULTS, WIN98_THEME, "always");
-display.setActive(true);
+const display = new InteractableDisplay(DISPLAY_DEFAULTS, WIN98_THEME, "always")
+    .setKeyboardEventSource(window)
+    .setActive(true);
 
 const state = {
     username: "Fox",

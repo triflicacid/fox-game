@@ -64,7 +64,7 @@ export class Popup {
     public constructor(options: PopupOptions = {}) {
         this.closeKeys = new Set(options.closeKeys ?? ["Escape"]);
         this.onOpenChange = options.onOpenChange;
-        this.display.setKeyDownInterceptor((event) => {
+        this.display.setKeyboardEventSource(window).setKeyDownInterceptor((event) => {
             if (this.closeKeys.has(event.key)) {
                 this.close();
                 return true;
