@@ -1,5 +1,6 @@
 packages:
   - "lib/display"
+  - "lib/frames"
   - "lib/keyboard"
 allowBuilds:
   esbuild: set this to true or false
