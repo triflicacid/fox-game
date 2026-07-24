@@ -11,13 +11,59 @@ class TestTheme extends ChromeTheme {
         return {foreground: "#fff", background: "#000"};
     }
 
-    public drawPanelBorder(_ctx: CanvasRenderingContext2D, _x: number, _y: number, _w: number, _h: number): void {}
-    public drawBox(_ctx: CanvasRenderingContext2D, _x: number, _y: number, _w: number, _h: number, _kind: "sunken" | "raised"): void {}
+    public drawPanelBorder(_ctx: CanvasRenderingContext2D, _x: number, _y: number, _w: number, _h: number): void {
+        void _ctx;
+        void _x;
+        void _y;
+        void _w;
+        void _h;
+    }
+
+    public drawBox(_ctx: CanvasRenderingContext2D, _x: number, _y: number, _w: number, _h: number, _kind: "sunken" | "raised"): void {
+        void _ctx;
+        void _x;
+        void _y;
+        void _w;
+        void _h;
+        void _kind;
+    }
+
     public boxDimensionsFor(contentWidth: number, contentHeight: number): {w: number; h: number} { return {w: contentWidth, h: contentHeight}; }
-    public drawRadioMarker(_ctx: CanvasRenderingContext2D, _cx: number, _cy: number, _radius: number, _selected: boolean): void {}
-    public drawSelectArrowButton(_ctx: CanvasRenderingContext2D, _x: number, _y: number, _w: number, _h: number, _open: boolean): void {}
-    public drawButtonBox(_ctx: CanvasRenderingContext2D, _x: number, _y: number, _w: number, _h: number, _pressed: boolean): void {}
-    public drawLine(_ctx: CanvasRenderingContext2D, _x1: number, _y1: number, _x2: number, _y2: number, _thickness: number): void {}
+
+    public drawRadioMarker(_ctx: CanvasRenderingContext2D, _cx: number, _cy: number, _radius: number, _selected: boolean): void {
+        void _ctx;
+        void _cx;
+        void _cy;
+        void _radius;
+        void _selected;
+    }
+
+    public drawSelectArrowButton(_ctx: CanvasRenderingContext2D, _x: number, _y: number, _w: number, _h: number, _open: boolean): void {
+        void _ctx;
+        void _x;
+        void _y;
+        void _w;
+        void _h;
+        void _open;
+    }
+
+    public drawButtonBox(_ctx: CanvasRenderingContext2D, _x: number, _y: number, _w: number, _h: number, _pressed: boolean): void {
+        void _ctx;
+        void _x;
+        void _y;
+        void _w;
+        void _h;
+        void _pressed;
+    }
+
+    public drawLine(_ctx: CanvasRenderingContext2D, _x1: number, _y1: number, _x2: number, _y2: number, _thickness: number): void {
+        void _ctx;
+        void _x1;
+        void _y1;
+        void _x2;
+        void _y2;
+        void _thickness;
+    }
 }
 
 describe("ChromeTheme.drawButtonFocus", () => {
