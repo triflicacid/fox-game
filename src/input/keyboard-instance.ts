@@ -7,4 +7,3 @@ import {Keyboard} from "@keyboard";
  * rather than adding raw window listeners
  */
 export const keyboard = new Keyboard(window);
-

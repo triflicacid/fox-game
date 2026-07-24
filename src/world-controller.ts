@@ -68,12 +68,15 @@ export class WorldController {
         new CameraDragController(canvas, this.camera);
         this.movementController = new MovementController(keyboard, this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
         this.debugController = new DebugController(
+            keyboard,
             () => this.world.reloadAllChunks(),
             () => this.world.teleportMainEntityTo(this.camera.getCenter()),
             () => this.movementController.isSpectating(),
         );
-        this.helpController = new HelpController(() => this.getKeyBindings(), this.handlePopupOpenChange);
+        this.helpController = new HelpController(keyboard, this.handlePopupOpenChange, () => this.getKeyBindings());
         this.settingsController = new SettingsController(
+            keyboard,
+            this.handlePopupOpenChange,
             () => this.movementController.getCameraFollowMode(),
             (mode) => this.movementController.setCameraFollowMode(mode),
             () => this.movementController.isSpectating(),
@@ -90,7 +93,6 @@ export class WorldController {
             () => this.world.getWorldSeed(),
             (seed) => this.world.setWorldSeed(seed),
             () => this.world.refreshWorldSeed(),
-            this.handlePopupOpenChange,
         );
         this.popupControllers = [this.helpController, this.settingsController];
         this.keyBindingPopupControllers = [this.helpController, this.settingsController];

@@ -1,5 +1,6 @@
 import {Popup, PopupOptions} from "./popup";
 import {DisplayLine} from "@display/input";
+import {Keyboard} from "@keyboard";
 
 /**
  * Base for anything that owns a {@link Popup}, toggled independently of
@@ -9,17 +10,19 @@ export abstract class PopupController {
     protected readonly popup: Popup;
 
     /**
+     * @param keyboard - Shared keyboard state used to observe popup hotkeys.
      * @param title - Title shown atop the popup.
      * @param toggleKey - Key that opens the popup.
      * @param popupOptions - Forwarded to the underlying {@link Popup}.
      */
     protected constructor(
+        keyboard: Keyboard,
         private readonly title: string,
         private readonly toggleKey: string,
         popupOptions: PopupOptions,
     ) {
         this.popup = new Popup(popupOptions);
-        window.addEventListener("keydown", this.handleKeyDown);
+        keyboard.onKeyDownForKey(toggleKey, this.handleKeyDown, {caseInsensitive: true});
     }
 
     /**
@@ -67,9 +70,7 @@ export abstract class PopupController {
      */
     protected abstract buildContent(): DisplayLine[];
 
-    private readonly handleKeyDown = (event: KeyboardEvent): void => {
-        if (event.key === this.toggleKey) {
-            this.popup.show();
-        }
+    private readonly handleKeyDown = (): void => {
+        this.popup.show();
     };
 }
