@@ -1,9 +1,9 @@
 import {beforeEach, describe, expect, it, vi} from "vitest";
-import {InteractableDisplay} from "../../src/interactable-display";
-import {FLAT_THEME} from "../../src/flat-theme";
-import {DisplayLine} from "../../src/input";
-import {createMockCanvasContext} from "../../src/test-helpers/mock-canvas";
-import {button, checkbox, line, numberBox, select, style, textbox} from "../../src/builders";
+import {InteractableDisplay} from "@display/interactable-display";
+import {FLAT_THEME} from "@display/flat-theme";
+import {DisplayLine} from "@display/input";
+import {createMockCanvasContext} from "@display/test-helpers/mock-canvas";
+import {button, checkbox, line, numberBox, select, style, textbox} from "@display/builders";
 
 type Listener = (event: KeyboardEvent | MouseEvent) => void;
 
@@ -119,7 +119,11 @@ describe("InteractableDisplay integration flows", () => {
 
         expect(closedBounds).not.toBeNull();
         expect(openBounds).not.toBeNull();
-        expect(openBounds!.h).toBeGreaterThan(closedBounds!.h);
+        if (closedBounds === null || openBounds === null) {
+            throw new Error("Expected occupied bounds to be available");
+        }
+
+        expect(openBounds.h).toBeGreaterThan(closedBounds.h);
         expect(selectedKeys).toEqual(["c"]);
     });
 
@@ -238,7 +242,11 @@ describe("InteractableDisplay integration flows", () => {
 
         expect(closedBounds).not.toBeNull();
         expect(openBounds).not.toBeNull();
-        expect(openBounds!.h).toBeGreaterThan(closedBounds!.h);
+        if (closedBounds === null || openBounds === null) {
+            throw new Error("Expected occupied bounds to be available");
+        }
+
+        expect(openBounds.h).toBeGreaterThan(closedBounds.h);
         expect(selectedKeys).toEqual(["high"]);
     });
 
