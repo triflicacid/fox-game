@@ -47,6 +47,10 @@ export const DEBUG_CONFIG = {
     hudStringValueColor: COLORS.brightYellow,
     /** Text colour for the HUD's numeric-valued values. */
     hudNumberValueColor: COLORS.brightGreen,
+    /** Text colour for a still-generating neighbouring chunk indicator in the HUD. */
+    hudChunkGeneratingColor: "#3399ff",
+    /** Text colour for an unloaded neighbouring chunk indicator in the HUD. */
+    hudChunkUnloadedColor: "#666666",
     /** Text colour for the HUD's spectator-mode indicator. */
     hudSpectatorColor: "#ffff00",
     /** Background colour behind the HUD text. */

@@ -10,7 +10,7 @@ import {ClimateFields} from "../biome/climate-fields";
 import {GenerationContext} from "../generation-context";
 
 /** Fraction of a chunk that one biome must occupy to be its debug summary. */
-const DOMINANT_BIOME_FRACTION = 0.9;
+const DOMINANT_BIOME_FRACTION = 2 / 3;
 
 /** One chunk's generated tile grid and non-authoritative biome summary. */
 export interface GeneratedChunk {
@@ -133,7 +133,7 @@ export class ChunkGenerator {
             resolveBiome(this.biomes, this.climate.sample(x, y)));
     }
 
-    /** Returns a biome tag only when it occupies at least 90% of the chunk. */
+    /** Returns a biome tag only when it occupies at least two-thirds of the chunk. */
     private summariseBiomes(counts: ReadonlyMap<BiomeTag, number>): BiomeSummary {
         const dominantTileCount = Math.ceil(CHUNK_SIZE * CHUNK_SIZE * DOMINANT_BIOME_FRACTION);
         for (const [tag, count] of counts) {
