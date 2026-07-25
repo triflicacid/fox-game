@@ -28,6 +28,18 @@ interface ChunkRange {
     endChunkY: number;
 }
 
+/** Everything {@link World.drawDebugHud} needs besides the canvas context and camera. */
+interface DebugHudOptions {
+    /** Whether spectator mode is currently active. */
+    spectating: boolean;
+    /** Camera's current pan velocity while spectating; ignored otherwise. */
+    spectatorVelocity: Vector2d;
+    /** Currently measured rendering FPS. */
+    actualFps: number;
+    /** Configured FPS cap, or `undefined` when uncapped. */
+    targetFps: number | undefined;
+}
+
 /**
  * The game world: an effectively infinite 2D grid of tiles, split into
  * fixed-size {@link Chunk}s that are generated on demand and cached in
@@ -686,6 +698,7 @@ export class World {
         camera: Camera,
         debugEnabled = false,
         spectating = false,
+        spectatorVelocity: Vector2d = Vector2d.ZERO,
         actualFps = 0,
         targetFps?: number,
         noiseFieldName?: string,
@@ -725,7 +738,7 @@ export class World {
         this.drawEntities(ctx, camera, debugEnabled);
 
         if (debugEnabled) {
-            this.drawDebugHud(ctx, camera, spectating, actualFps, targetFps);
+            this.drawDebugHud(ctx, camera, {spectating, spectatorVelocity, actualFps, targetFps});
         }
     }
 
@@ -814,19 +827,20 @@ export class World {
 
     /**
      * Draws a top-left HUD showing the camera's centre point and viewport
-     * size, plus the main entity's position and current speed, plus the
-     * current/target FPS, plus a spectator-mode indicator when active.
+     * size, plus the main entity's position and current speed (or, while
+     * spectating, the camera's pan speed instead), plus the current/target
+     * FPS, plus a spectator-mode indicator when active.
      *
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera to read position/viewport info from.
-     * @param spectating - Whether spectator mode is currently active.
-     * @param actualFps - Currently measured rendering FPS.
-     * @param targetFps - Configured FPS cap, or `undefined` when uncapped.
+     * @param options - Remaining data the HUD needs - see {@link DebugHudOptions}.
      */
-    private drawDebugHud(ctx: CanvasRenderingContext2D, camera: Camera, spectating: boolean, actualFps: number, targetFps: number | undefined): void {
+    private drawDebugHud(ctx: CanvasRenderingContext2D, camera: Camera, options: DebugHudOptions): void {
+        const {spectating, spectatorVelocity, actualFps, targetFps} = options;
         const center = camera.getCenter();
         const position = this.mainEntity.getPosition();
-        const velocity = this.mainEntity.getVelocity();
+        const velocity = spectating ? spectatorVelocity : this.mainEntity.getVelocity();
+        const velocityLabel = spectating ? "Spectator" : this.mainEntity.getDisplayName();
         const speed = Math.hypot(velocity.x, velocity.y);
         const tileX = Math.floor(position.x / this.tileSize);
         const tileY = Math.floor(position.y / this.tileSize);
@@ -855,6 +869,7 @@ export class World {
             averageChunkGenerationTimeMs: this.getAverageChunkGenerationTimeMs(),
             exactFeature,
             nearbyFeature,
+            velocityLabel,
             velocityX: velocity.x,
             velocityY: velocity.y,
             speed,

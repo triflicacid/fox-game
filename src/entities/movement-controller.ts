@@ -206,20 +206,33 @@ export class MovementController {
     }
 
     /**
-     * Pans `camera` from the currently held arrow keys, at
-     * {@link SPECTATOR_SPEED} (or that scaled by {@link RUN_MULTIPLIER} if
-     * any held key was double-tapped), scaled by the elapsed frame time.
+     * Pans `camera` by {@link getSpectatorVelocity}, scaled by the elapsed
+     * frame time.
      *
      * @param camera - Camera to pan.
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
     private panCamera(camera: Camera, deltaMs: number): void {
+        camera.pan(this.getSpectatorVelocity().scale(deltaMs / 1000));
+    }
+
+    /**
+     * This controller's current spectator-mode camera-pan velocity: zero
+     * unless spectator mode is active and at least one arrow key is
+     * currently held, in which case it's {@link SPECTATOR_SPEED} (scaled by
+     * {@link RUN_MULTIPLIER} if double-tapped) in the held direction.
+     *
+     * @returns The current spectator pan velocity, in world pixels per second.
+     */
+    public getSpectatorVelocity(): Vector2d {
+        if (!this.spectating) {
+            return Vector2d.ZERO;
+        }
         const direction = this.resolveDirection();
         if (!direction) {
-            return;
+            return Vector2d.ZERO;
         }
-        const distance = this.applyRunMultiplier(MovementController.SPECTATOR_SPEED) * (deltaMs / 1000);
-        camera.pan(Vector2d.fromDirection(direction).scale(distance));
+        return Vector2d.fromDirection(direction).scale(this.applyRunMultiplier(MovementController.SPECTATOR_SPEED));
     }
 
     /**

@@ -25,6 +25,7 @@ export interface DebugHudData {
     averageChunkGenerationTimeMs: number;
     exactFeature: string;
     nearbyFeature: string;
+    velocityLabel: string;
     velocityX: number;
     velocityY: number;
     speed: number;
@@ -97,7 +98,8 @@ export class DebugHud {
             ],
             [this.text("feature: exact="), this.stringValue(data.exactFeature), this.text(", nearby="), this.stringValue(data.nearbyFeature)],
             [
-                this.text("velocity: ("), this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
+                this.stringValue(`[${data.velocityLabel}]`), this.text(" velocity: ("),
+                this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
                 this.text("), speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s"),
             ],
             [
