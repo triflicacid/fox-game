@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from "vitest";
 import {coordinateKey, CoordinateKey} from "../coordinate-key";
-import {erodeComponent, findCoreTiles, floodFill8, isFullySurrounded} from "./grid-algorithms";
+import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8, isFullySurrounded} from "./grid-algorithms";
 
 /** Builds a filled rectangular set of coordinateKey strings. */
 function filledRect(x0: number, y0: number, x1: number, y1: number): Set<CoordinateKey> {
@@ -12,6 +12,71 @@ function filledRect(x0: number, y0: number, x1: number, y1: number): Set<Coordin
     }
     return tiles;
 }
+
+describe("computeEdgeDistances", () => {
+    it("returns an empty map for an empty component", () => {
+        expect(computeEdgeDistances(new Set())).toEqual(new Map());
+    });
+
+    it("gives a single tile distance 1", () => {
+        const component = new Set([coordinateKey(0, 0)]);
+        const distances = computeEdgeDistances(component);
+        expect(distances.get(coordinateKey(0, 0))).toBe(1);
+        expect(distances.size).toBe(1);
+    });
+
+    it("gives every border tile distance 1 and the centre distance 2 in a 3x3 square", () => {
+        // The centre (1,1) is the only fully-surrounded tile; all 8 border tiles are at distance 1.
+        const component = filledRect(0, 0, 2, 2);
+        const distances = computeEdgeDistances(component);
+        for (let y = 0; y <= 2; y++) {
+            for (let x = 0; x <= 2; x++) {
+                const expected = (x === 1 && y === 1) ? 2 : 1;
+                expect(distances.get(coordinateKey(x, y))).toBe(expected);
+            }
+        }
+    });
+
+    it("produces distances 1, 2, 3 for successive rings of a 5x5 square", () => {
+        // Outer ring: distance 1. Next ring: distance 2. Centre tile: distance 3.
+        const component = filledRect(0, 0, 4, 4);
+        const distances = computeEdgeDistances(component);
+        const outerRing = [
+            ...[0, 1, 2, 3, 4].map(x => coordinateKey(x, 0)),
+            ...[0, 1, 2, 3, 4].map(x => coordinateKey(x, 4)),
+            ...[1, 2, 3].map(y => coordinateKey(0, y)),
+            ...[1, 2, 3].map(y => coordinateKey(4, y)),
+        ];
+        for (const key of outerRing) {
+            expect(distances.get(key)).toBe(1);
+        }
+        const midRing = [
+            coordinateKey(1, 1), coordinateKey(2, 1), coordinateKey(3, 1),
+            coordinateKey(1, 3), coordinateKey(2, 3), coordinateKey(3, 3),
+            coordinateKey(1, 2), coordinateKey(3, 2),
+        ];
+        for (const key of midRing) {
+            expect(distances.get(key)).toBe(2);
+        }
+        expect(distances.get(coordinateKey(2, 2))).toBe(3);
+    });
+
+    it("assigns distance 1 to all tiles of two disconnected single tiles", () => {
+        // Neither isolated tile is fully surrounded, so both are shore tiles.
+        const component = new Set([coordinateKey(0, 0), coordinateKey(10, 10)]);
+        const distances = computeEdgeDistances(component);
+        expect(distances.get(coordinateKey(0, 0))).toBe(1);
+        expect(distances.get(coordinateKey(10, 10))).toBe(1);
+        expect(distances.size).toBe(2);
+    });
+
+    it("does not mutate the input set", () => {
+        const component = filledRect(0, 0, 2, 2);
+        const snapshot = new Set(component);
+        computeEdgeDistances(component);
+        expect(component).toEqual(snapshot);
+    });
+});
 
 describe("findCoreTiles", () => {
     it("returns only the centre of a filled 3x3 square", () => {

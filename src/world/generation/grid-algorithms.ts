@@ -40,6 +40,47 @@ export function findCoreTiles(component: ReadonlySet<CoordinateKey>): Set<Coordi
 }
 
 /**
+ * Each tile's distance from the component's edge, in 8-connected rings:
+ * edge tiles (at least one neighbour outside `component`) get distance 1,
+ * increasing by 1 per ring moving inward.
+ *
+ * @param component - The tile set, as {@link coordinateKey} strings.
+ * @returns Every tile's edge distance, keyed by {@link coordinateKey}.
+ */
+export function computeEdgeDistances(component: ReadonlySet<CoordinateKey>): Map<CoordinateKey, number> {
+    const distances = new Map<CoordinateKey, number>();
+    const queue: CoordinateKey[] = [];
+
+    for (const key of component) {
+        const [x, y] = parseCoordinateKey(key);
+        if (!isFullySurrounded(component, x, y)) {
+            distances.set(key, 1);
+            queue.push(key);
+        }
+    }
+
+    for (const currentKey of queue) {
+        const [x, y] = parseCoordinateKey(currentKey);
+        const distance = distances.get(currentKey) as number;
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) {
+                    continue;
+                }
+                const key = coordinateKey(x + dx, y + dy);
+                if (!component.has(key) || distances.has(key)) {
+                    continue;
+                }
+                distances.set(key, distance + 1);
+                queue.push(key);
+            }
+        }
+    }
+
+    return distances;
+}
+
+/**
  * 8-connected flood fill from `(startX, startY)`. The seed is always included
  * regardless of `isCandidate`. Fills until no more candidate neighbours exist
  * or `tiles.size` exceeds `maxTiles`, in which case `exceededCap` is `true`.
