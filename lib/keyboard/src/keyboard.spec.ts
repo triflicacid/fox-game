@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import {Keyboard} from "./keyboard";
 import type {KeyboardEventSource} from "./keyboard-event-source";
 
@@ -31,14 +31,14 @@ class FakeWindow implements KeyboardEventSource {
         this.keyListeners.get(type)?.delete(listener as KeyHandler);
     }
 
-    public dispatch(type: string, key = ""): void {
+    public dispatch(type: string, key = "", repeat = false): void {
         if (type === "blur") {
             for (const listener of this.blurListeners) {
                 listener();
             }
             return;
         }
-        const event = {key} as KeyboardEvent;
+        const event = {key, repeat} as KeyboardEvent;
         const keyType = type as "keydown" | "keyup";
         for (const listener of this.keyListeners.get(keyType) ?? []) {
             listener(event);
@@ -47,6 +47,10 @@ class FakeWindow implements KeyboardEventSource {
 }
 
 describe("keyboard", () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it("tracks pressed keys with case-sensitive matching by default", () => {
         const fakeWindow = new FakeWindow();
         const keyboard = new Keyboard(fakeWindow);
@@ -69,7 +73,7 @@ describe("keyboard", () => {
         fakeWindow.dispatch("keydown", "A");
 
         expect(listener).toHaveBeenCalledTimes(1);
-        expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({key: "A"}), "A");
+        expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({key: "A"}), "A", false);
 
         unsubscribe();
         fakeWindow.dispatch("keydown", "A");
@@ -87,7 +91,7 @@ describe("keyboard", () => {
         fakeWindow.dispatch("keydown", "G");
 
         expect(fListener).toHaveBeenCalledTimes(1);
-        expect(fListener).toHaveBeenLastCalledWith(expect.objectContaining({key: "f"}), "f");
+        expect(fListener).toHaveBeenLastCalledWith(expect.objectContaining({key: "f"}), "f", false);
     });
 
     it("can use case-insensitive matching for key-specific listeners", () => {
@@ -145,6 +149,66 @@ describe("keyboard", () => {
 
         expect(listener).toHaveBeenCalledTimes(1);
         expect(keyboard.hasKeyPressed("x")).toBe(false);
+    });
+
+    it("flags a keydown as a double-tap when re-pressed shortly after release", () => {
+        vi.useFakeTimers();
+        const fakeWindow = new FakeWindow();
+        const keyboard = new Keyboard(fakeWindow);
+        const listener = vi.fn();
+        keyboard.onKeyDown(listener);
+
+        fakeWindow.dispatch("keydown", "ArrowRight");
+        expect(listener).toHaveBeenLastCalledWith(expect.anything(), "ArrowRight", false);
+
+        fakeWindow.dispatch("keyup", "ArrowRight");
+        vi.advanceTimersByTime(100);
+        fakeWindow.dispatch("keydown", "ArrowRight");
+
+        expect(listener).toHaveBeenLastCalledWith(expect.anything(), "ArrowRight", true);
+    });
+
+    it("does not flag a double-tap once the gap exceeds the window", () => {
+        vi.useFakeTimers();
+        const fakeWindow = new FakeWindow();
+        const keyboard = new Keyboard(fakeWindow);
+        const listener = vi.fn();
+        keyboard.onKeyDown(listener);
+
+        fakeWindow.dispatch("keydown", "ArrowRight");
+        fakeWindow.dispatch("keyup", "ArrowRight");
+        vi.advanceTimersByTime(1000);
+        fakeWindow.dispatch("keydown", "ArrowRight");
+
+        expect(listener).toHaveBeenLastCalledWith(expect.anything(), "ArrowRight", false);
+    });
+
+    it("ignores OS key-repeat when checking for a double-tap", () => {
+        vi.useFakeTimers();
+        const fakeWindow = new FakeWindow();
+        const keyboard = new Keyboard(fakeWindow);
+        const listener = vi.fn();
+        keyboard.onKeyDown(listener);
+
+        fakeWindow.dispatch("keydown", "ArrowRight");
+        fakeWindow.dispatch("keyup", "ArrowRight");
+        vi.advanceTimersByTime(50);
+        fakeWindow.dispatch("keydown", "ArrowRight", true);
+
+        expect(listener).toHaveBeenLastCalledWith(expect.anything(), "ArrowRight", false);
+    });
+
+    it("calls keyup listeners without a doubleTap argument", () => {
+        const fakeWindow = new FakeWindow();
+        const keyboard = new Keyboard(fakeWindow);
+        const listener = vi.fn();
+        keyboard.onKeyUp(listener);
+
+        fakeWindow.dispatch("keydown", "ArrowRight");
+        fakeWindow.dispatch("keyup", "ArrowRight");
+
+        expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({key: "ArrowRight"}), "ArrowRight");
+        expect(listener.mock.calls[0]).toHaveLength(2);
     });
 });
 
