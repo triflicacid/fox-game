@@ -230,6 +230,7 @@ export class WorldController {
             this.camera,
             this.debugController.isEnabled(),
             this.movementController.isSpectating(),
+            this.movementController.getSpectatorVelocity(),
             this.frameLoop.getActualFps(),
             this.frameLoop.getTargetFps(),
             this.noiseFieldName,

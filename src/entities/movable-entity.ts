@@ -119,6 +119,13 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     protected abstract locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame;
 
     /**
+     * This entity's display name.
+     *
+     * @returns The display name.
+     */
+    public abstract getDisplayName(): string;
+
+    /**
      * Whether this entity's animation should keep stepping even while
      * stationary (velocity zero). `false` by default, since a stationary
      * entity normally just shows a single-frame idle pose.
