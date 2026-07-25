@@ -5,7 +5,7 @@ import {BiomeTagResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
 import {PositionCache} from "../position-cache";
 import {coordinateKey, CoordinateKey, parseCoordinateKey} from "../../coordinate-key";
-import {erodeComponent, findCoreTiles, floodFill8, isFullySurrounded} from "../grid-algorithms";
+import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8} from "../grid-algorithms";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
@@ -50,46 +50,6 @@ const LAKE_CONFIG = {
     allowedBiomes: ["plains"] as readonly BiomeTag[],
 } as const;
 
-/**
- * Each tile's distance from the component's edge, in 8-connected rings:
- * edge tiles (at least one neighbour outside `component`) get distance 1,
- * increasing by 1 per ring moving inward.
- *
- * @param component - The final (smoothed) tile set, as {@link coordinateKey} strings.
- * @returns Every tile's shore distance, keyed by {@link coordinateKey}.
- */
-function computeShoreDistances(component: ReadonlySet<CoordinateKey>): Map<CoordinateKey, number> {
-    const distances = new Map<CoordinateKey, number>();
-    const queue: CoordinateKey[] = [];
-
-    for (const key of component) {
-        const [x, y] = parseCoordinateKey(key);
-        if (!isFullySurrounded(component, x, y)) {
-            distances.set(key, 1);
-            queue.push(key);
-        }
-    }
-
-    for (const currentKey of queue) {
-        const [x, y] = parseCoordinateKey(currentKey);
-        const distance = distances.get(currentKey) as number;
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                if (dx === 0 && dy === 0) {
-                    continue;
-                }
-                const key = coordinateKey(x + dx, y + dy);
-                if (!component.has(key) || distances.has(key)) {
-                    continue;
-                }
-                distances.set(key, distance + 1);
-                queue.push(key);
-            }
-        }
-    }
-
-    return distances;
-}
 
 /** One accepted lake, ready to paint. */
 interface LakeComponent {
@@ -121,7 +81,7 @@ export class LakeFeature extends Feature {
     public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeTagAt: BiomeTagResolver): void {
         const components = this.discoverComponents(resolveBiomeTagAt, chunkX, chunkY);
         for (const component of components) {
-            const shoreDistances = computeShoreDistances(component.tiles);
+            const shoreDistances = computeEdgeDistances(component.tiles);
             for (const key of component.tiles) {
                 const [worldX, worldY] = parseCoordinateKey(key);
                 const localX = worldX - chunkX * CHUNK_SIZE;
