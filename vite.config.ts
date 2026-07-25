@@ -9,6 +9,7 @@ export default defineConfig({
     alias: {
       "@display": path.resolve(__dirname, "lib/display/src"),
       "@frames": path.resolve(__dirname, "lib/frames/src"),
+      "@keyboard": path.resolve(__dirname, "lib/keyboard/src"),
       "@lib": path.resolve(__dirname, "lib"),
     }
   },
