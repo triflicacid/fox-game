@@ -26,8 +26,8 @@ export interface DebugHudData {
     chunkBiome: string;
     /** State of the four cardinal neighbours: north, south, east, west. */
     neighborStates: {n: ChunkState; s: ChunkState; e: ChunkState; w: ChunkState};
-    /** Distance in chunks to the nearest chunk with a different biome, or `undefined` when generating/mixed. */
-    distanceToBiomeEdgeChunks: number | undefined;
+    /** Distance and compass direction to the nearest chunk with a different biome, or `undefined` when generating/mixed. */
+    distanceToBiomeEdge: {distance: number; direction: string} | undefined;
     /** Connected loaded-chunk count for the current biome, or `undefined` when generating/mixed. */
     biomeRegionChunks: number | undefined;
     /** `true` when the region extends into unloaded chunks - the count is a lower bound. */
@@ -120,8 +120,8 @@ export class DebugHud {
             [
                 this.text("chunk ("), this.numberValue(String(data.chunkX)), this.text(", "), this.numberValue(String(data.chunkY)),
                 this.text(")  biome: "), this.stringValue(data.chunkBiome),
-                ...(data.distanceToBiomeEdgeChunks !== undefined
-                    ? [this.text("  edge: "), this.numberValue(String(data.distanceToBiomeEdgeChunks)), this.text("ch")]
+                ...(data.distanceToBiomeEdge !== undefined
+                    ? [this.text("  edge: "), this.numberValue(String(data.distanceToBiomeEdge.distance)), this.text("ch "), this.stringValue(data.distanceToBiomeEdge.direction)]
                     : []),
                 ...(data.biomeRegionChunks !== undefined
                     ? [this.text("  size: "), this.numberValue(String(data.biomeRegionChunks) + (data.biomeRegionIsPartial ? "+" : "")), this.text("ch")]

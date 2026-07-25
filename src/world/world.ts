@@ -499,21 +499,26 @@ export class World {
 
     /**
      * Finds the minimum chunk-grid distance to a chunk with a different biome
-     * summary, checking only loaded ready chunks. Returns `undefined` if all
-     * neighbors within the search radius match or are unloaded/generating.
+     * summary, checking only loaded ready chunks. Also returns the approximate
+     * compass direction by averaging the displacement vectors of all different-
+     * biome chunks found at that minimum distance.
      *
      * @param chunkX - Starting chunk X.
      * @param chunkY - Starting chunk Y.
      * @param biome - The biome to compare against.
-     * @returns Distance in chunks to the nearest different biome, or `undefined`.
+     * @returns Distance and direction to the nearest different biome, or `undefined`.
      */
-    private getDistanceToBiomeEdge(chunkX: number, chunkY: number, biome: BiomeSummary): number | undefined {
+    private getDistanceToBiomeEdge(chunkX: number, chunkY: number, biome: BiomeSummary): {distance: number; direction: string} | undefined {
         const MAX_SEARCH_DISTANCE = 16;
         const visited = new Set<string>([coordinateKey(chunkX, chunkY)]);
         let currentRing = [{chunkX, chunkY}];
 
         for (let distance = 1; distance <= MAX_SEARCH_DISTANCE; distance++) {
             const nextRing: {chunkX: number; chunkY: number}[] = [];
+            let sumDx = 0;
+            let sumDy = 0;
+            let foundCount = 0;
+
             for (const {chunkX: cx, chunkY: cy} of currentRing) {
                 for (const {dx, dy} of [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}]) {
                     const nx = cx + dx;
@@ -528,10 +533,17 @@ export class World {
                         continue;
                     }
                     if (neighbor.biomeSummary !== biome && neighbor.biomeSummary !== "" && neighbor.biomeSummary !== "mixed") {
-                        return distance;
+                        sumDx += nx - chunkX;
+                        sumDy += ny - chunkY;
+                        foundCount++;
+                    } else {
+                        nextRing.push({chunkX: nx, chunkY: ny});
                     }
-                    nextRing.push({chunkX: nx, chunkY: ny});
                 }
+            }
+
+            if (foundCount > 0) {
+                return {distance, direction: World.toCompassDirection(sumDx / foundCount, sumDy / foundCount)};
             }
             if (nextRing.length === 0) {
                 break;
@@ -539,6 +551,21 @@ export class World {
             currentRing = nextRing;
         }
         return undefined;
+    }
+
+    /**
+     * Maps a displacement vector to one of the eight compass directions.
+     * Positive Y is down (screen space), so N is negative Y.
+     *
+     * @param dx - Horizontal displacement.
+     * @param dy - Vertical displacement (positive = south).
+     * @returns One of N, NE, E, SE, S, SW, W, NW.
+     */
+    private static toCompassDirection(dx: number, dy: number): string {
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        const normalized = (angle + 360) % 360;
+        const index = Math.round(normalized / 45) % 8;
+        return ["E", "SE", "S", "SW", "W", "NW", "N", "NE"][index];
     }
 
     /**
@@ -1016,7 +1043,7 @@ export class World {
         const frame = this.mainEntity.getCurrentFrame();
         const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);
 
-        const distanceToBiomeEdgeChunks = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
+        const distanceToBiomeEdge = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
             ? this.getDistanceToBiomeEdge(chunkX, chunkY, chunk.biomeSummary)
             : undefined;
 
@@ -1046,7 +1073,7 @@ export class World {
             chunkY,
             chunkBiome,
             neighborStates,
-            distanceToBiomeEdgeChunks,
+            distanceToBiomeEdge,
             biomeRegionChunks: biomeRegion?.count,
             biomeRegionIsPartial: biomeRegion?.isPartial ?? false,
             visibleChunkCount: this.lastVisibleChunkCount,
