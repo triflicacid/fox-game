@@ -1,6 +1,28 @@
 import {coordinateKey, CoordinateKey, parseCoordinateKey} from "../coordinate-key";
 
 /**
+ * Whether every one of `(x, y)`'s 8 neighbours is also in `component`.
+ *
+ * @param component - The tile set to check against, as {@link coordinateKey} strings.
+ * @param x - Tile's X position, in tiles from the world origin.
+ * @param y - Tile's Y position, in tiles from the world origin.
+ * @returns Whether `(x, y)` is fully interior to `component`.
+ */
+export function isFullySurrounded(component: ReadonlySet<CoordinateKey>, x: number, y: number): boolean {
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) {
+                continue;
+            }
+            if (!component.has(coordinateKey(x + dx, y + dy))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/**
  * 8-connected flood fill from `(startX, startY)`. The seed is always included
  * regardless of `isCandidate`. Fills until no more candidate neighbours exist
  * or `tiles.size` exceeds `maxTiles`, in which case `exceededCap` is `true`.
