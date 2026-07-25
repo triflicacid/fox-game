@@ -101,23 +101,23 @@ export class DebugHud {
      */
     private buildLines(data: DebugHudData): TextSegment[][] {
         const lines: TextSegment[][] = [
-            // FPS — most frequently glanced stat, always first
+            // FPS
             [
                 this.text("FPS: "), this.numberValue(data.actualFps.toFixed(2)), this.text("/"),
                 data.targetFps !== undefined ? this.numberValue(data.targetFps.toFixed(0)) : this.stringValue("uncapped"),
             ],
             // Camera + viewport on one line
             [
-                this.text("vel: ("), this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
-                this.text(")  speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s"),
+                this.text("cam: ("), this.numberValue(data.cameraCenterX.toFixed(1)), this.text(", "), this.numberValue(data.cameraCenterY.toFixed(1)),
+                this.text(")  view: "), this.numberValue(data.viewportWidth.toFixed(0)), this.text("x"), this.numberValue(data.viewportHeight.toFixed(0)),
             ],
-            // Position — tile (grid-aligned), pixel (exact), facing
+            // Position: tile (grid-aligned), pixel (exact), facing
             [
                 this.text("tile ("), this.numberValue(String(data.tileX)), this.text(", "), this.numberValue(String(data.tileY)),
                 this.text(")  pos ("), this.numberValue(data.entityX.toFixed(1)), this.text(", "), this.numberValue(data.entityY.toFixed(1)),
                 this.text(")  facing: "), this.stringValue(data.entityFacing),
             ],
-            // Chunk + biome + edge distance + size on one line
+            // Chunk + biome + edge distance + size
             [
                 this.text("chunk ("), this.numberValue(String(data.chunkX)), this.text(", "), this.numberValue(String(data.chunkY)),
                 this.text(")  biome: "), this.stringValue(data.chunkBiome),
@@ -128,7 +128,7 @@ export class DebugHud {
                     ? [this.text("  size: "), this.numberValue(String(data.biomeRegionChunks) + (data.biomeRegionIsPartial ? "+" : "")), this.text("ch")]
                     : []),
             ],
-            // Neighbours + feature on one line
+            // Neighbours + feature
             [
                 this.text("neighbors: N"), this.chunkStateSegment(data.neighborStates.n),
                 this.text(" S"), this.chunkStateSegment(data.neighborStates.s),
@@ -139,14 +139,14 @@ export class DebugHud {
                     ? [this.text(" (nearby: "), this.stringValue(data.nearbyFeature), this.text(")")]
                     : []),
             ],
-            // Chunk counts — compact notation
+            // Chunk counts
             [
                 this.text("chunks: "), this.numberValue(String(data.visibleChunkCount)), this.text(" vis  "),
                 this.numberValue(String(data.loadedChunkCount)), this.text(" loaded ("),
                 this.numberValue(this.readyPercent(data).toFixed(1)), this.text("%)  "),
                 this.numberValue(String(data.generatingChunkCount)), this.text(" gen"),
             ],
-            // Generation timing — 3 decimal places is plenty
+            // Generation timing
             [
                 this.text("gen: "), this.numberValue(data.averageChunkGenerationTimeMs.toFixed(3)), this.text("ms avg  "),
                 this.numberValue(data.latestChunkGenerationTimeMs.toFixed(3)), this.text("ms last"),
@@ -155,7 +155,7 @@ export class DebugHud {
             [
                 this.stringValue(`[${data.velocityLabel}] `),
                 this.text("vel: ("), this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
-                this.text(")  speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s  facing: "), this.stringValue(data.entityFacing),
+                this.text(")  speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s"),
             ],
         ];
         if (data.spectating) {
