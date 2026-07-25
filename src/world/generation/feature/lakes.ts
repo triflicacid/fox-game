@@ -4,7 +4,8 @@ import {BiomeTag} from "../biome/biome";
 import {BiomeTagResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
 import {PositionCache} from "../position-cache";
-import {coordinateKey, parseCoordinateKey} from "../../coordinate-key";
+import {coordinateKey, CoordinateKey, parseCoordinateKey} from "../../coordinate-key";
+import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8} from "../grid-algorithms";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
@@ -27,7 +28,7 @@ const LAKE_CONFIG = {
     /** Below this many tiles (after smoothing), a component is discarded as too small to read as a lake. */
     minSize: 6,
 
-    /** Neighbour-count threshold {@link smoothComponent} uses to erode a lake's raw shape. */
+    /** Neighbour-count threshold {@link erodeComponent} uses to erode a lake's raw shape. */
     smoothingNeighbourThreshold: 5,
 
     /** Erosion passes - iterating rounds off blockier edges a single pass leaves. First-guess value, not yet tuned. */
@@ -49,123 +50,13 @@ const LAKE_CONFIG = {
     allowedBiomes: ["plains"] as readonly BiomeTag[],
 } as const;
 
-/**
- * Erodes ragged edge tiles from `component`: a tile survives iff at least
- * `LAKE_CONFIG.smoothingNeighbourThreshold` of its 8 neighbours are also in
- * `component`.
- *
- * @param component - The tile set to smooth, as {@link coordinateKey} strings.
- * @returns The smoothed tile set - a subset of `component`, possibly empty.
- */
-function smoothComponent(component: ReadonlySet<string>): Set<string> {
-    const smoothed = new Set<string>();
-    for (const key of component) {
-        const [x, y] = parseCoordinateKey(key);
-        let neighbourCount = 0;
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                if (dx === 0 && dy === 0) {
-                    continue;
-                }
-                if (component.has(coordinateKey(x + dx, y + dy))) {
-                    neighbourCount++;
-                }
-            }
-        }
-        if (neighbourCount >= LAKE_CONFIG.smoothingNeighbourThreshold) {
-            smoothed.add(key);
-        }
-    }
-    return smoothed;
-}
-
-/**
- * Whether every one of `(x, y)`'s 8 neighbours is also in `component`.
- *
- * @param component - The tile set to check against, as {@link coordinateKey} strings.
- * @param x - Tile's X position, in tiles from the world origin.
- * @param y - Tile's Y position, in tiles from the world origin.
- * @returns Whether `(x, y)` is fully interior to `component`.
- */
-function isFullySurrounded(component: ReadonlySet<string>, x: number, y: number): boolean {
-    for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) {
-                continue;
-            }
-            if (!component.has(coordinateKey(x + dx, y + dy))) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-/**
- * Tiles in `component` whose all 8 neighbours are also in `component` - the
- * set the biome vote treats as reliably interior.
- *
- * @param component - The final (smoothed) tile set, as {@link coordinateKey} strings.
- * @returns The core (interior) subset of `component`, possibly empty.
- */
-function findCoreTiles(component: ReadonlySet<string>): Set<string> {
-    const core = new Set<string>();
-    for (const key of component) {
-        const [x, y] = parseCoordinateKey(key);
-        if (isFullySurrounded(component, x, y)) {
-            core.add(key);
-        }
-    }
-    return core;
-}
-
-/**
- * Each tile's distance from the component's edge, in 8-connected rings:
- * edge tiles (at least one neighbour outside `component`) get distance 1,
- * increasing by 1 per ring moving inward.
- *
- * @param component - The final (smoothed) tile set, as {@link coordinateKey} strings.
- * @returns Every tile's shore distance, keyed by {@link coordinateKey}.
- */
-function computeShoreDistances(component: ReadonlySet<string>): Map<string, number> {
-    const distances = new Map<string, number>();
-    const queue: string[] = [];
-
-    for (const key of component) {
-        const [x, y] = parseCoordinateKey(key);
-        if (!isFullySurrounded(component, x, y)) {
-            distances.set(key, 1);
-            queue.push(key);
-        }
-    }
-
-    for (const currentKey of queue) {
-        const [x, y] = parseCoordinateKey(currentKey);
-        const distance = distances.get(currentKey) as number;
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                if (dx === 0 && dy === 0) {
-                    continue;
-                }
-                const key = coordinateKey(x + dx, y + dy);
-                if (!component.has(key) || distances.has(key)) {
-                    continue;
-                }
-                distances.set(key, distance + 1);
-                queue.push(key);
-            }
-        }
-    }
-
-    return distances;
-}
 
 /** One accepted lake, ready to paint. */
 interface LakeComponent {
     /** Every tile the lake covers, as {@link coordinateKey} strings. */
-    tiles: ReadonlySet<string>;
+    tiles: ReadonlySet<CoordinateKey>;
     /** The subset of {@link tiles} used for the biome vote - see {@link findCoreTiles}. */
-    coreTiles: ReadonlySet<string>;
+    coreTiles: ReadonlySet<CoordinateKey>;
 }
 
 /** Lakes: a region-style feature - flood-filled, smoothed, min-size and biome-vote gated. */
@@ -190,7 +81,7 @@ export class LakeFeature extends Feature {
     public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeTagAt: BiomeTagResolver): void {
         const components = this.discoverComponents(resolveBiomeTagAt, chunkX, chunkY);
         for (const component of components) {
-            const shoreDistances = computeShoreDistances(component.tiles);
+            const shoreDistances = computeEdgeDistances(component.tiles);
             for (const key of component.tiles) {
                 const [worldX, worldY] = parseCoordinateKey(key);
                 const localX = worldX - chunkX * CHUNK_SIZE;
@@ -247,7 +138,7 @@ export class LakeFeature extends Feature {
      * @param resolveBiomeTagAt - Resolves the biome tag at an absolute world position.
      * @returns Whether the majority biome is in `LAKE_CONFIG.allowedBiomes`.
      */
-    private coreTilesVoteAllowed(coreTiles: ReadonlySet<string>, resolveBiomeTagAt: BiomeTagResolver): boolean {
+    private coreTilesVoteAllowed(coreTiles: ReadonlySet<CoordinateKey>, resolveBiomeTagAt: BiomeTagResolver): boolean {
         const counts = new Map<BiomeTag, number>();
         for (const key of coreTiles) {
             const [x, y] = parseCoordinateKey(key);
@@ -267,51 +158,6 @@ export class LakeFeature extends Feature {
     }
 
     /**
-     * Flood-fills 8-connected from `(startWorldX, startWorldY)` via
-     * `isCandidateCached`, stopping and reporting `exceededCap: true` if the
-     * component would grow past `LAKE_CONFIG.maxTiles`.
-     *
-     * @param startWorldX - Seed tile's X position, in tiles from the world origin.
-     * @param startWorldY - Seed tile's Y position, in tiles from the world origin.
-     * @param isCandidateCached - Memoised lake-candidacy check.
-     * @returns The raw (unsmoothed) component, as {@link coordinateKey} strings, and whether it exceeded the cap.
-     */
-    private floodFill(
-        startWorldX: number,
-        startWorldY: number,
-        isCandidateCached: (worldX: number, worldY: number) => boolean,
-    ): {raw: Set<string>; exceededCap: boolean} {
-        const raw = new Set<string>([coordinateKey(startWorldX, startWorldY)]);
-        const queue: [number, number][] = [[startWorldX, startWorldY]];
-        let exceededCap = false;
-
-        while (queue.length > 0) {
-            if (raw.size > LAKE_CONFIG.maxTiles) {
-                exceededCap = true;
-                break;
-            }
-            const [x, y] = queue.shift() as [number, number];
-            for (let dy = -1; dy <= 1; dy++) {
-                for (let dx = -1; dx <= 1; dx++) {
-                    if (dx === 0 && dy === 0) {
-                        continue;
-                    }
-                    const nx = x + dx;
-                    const ny = y + dy;
-                    const key = coordinateKey(nx, ny);
-                    if (raw.has(key) || !isCandidateCached(nx, ny)) {
-                        continue;
-                    }
-                    raw.add(key);
-                    queue.push([nx, ny]);
-                }
-            }
-        }
-
-        return {raw, exceededCap};
-    }
-
-    /**
      * Discovers every lake touching the chunk at `(chunkX, chunkY)`: floods
      * out from each candidate tile local to the chunk (candidacy memoised
      * per call), then smooths, min-size checks, core-tiles, and
@@ -327,7 +173,7 @@ export class LakeFeature extends Feature {
         const isCandidateCached = (worldX: number, worldY: number): boolean =>
             candidacyCache.get([worldX, worldY], ([x, y]) => this.isCandidate(x, y));
 
-        const visited = new Set<string>();
+        const visited = new Set<CoordinateKey>();
         const components: LakeComponent[] = [];
 
         for (let localY = 0; localY < CHUNK_SIZE; localY++) {
@@ -339,7 +185,7 @@ export class LakeFeature extends Feature {
                     continue;
                 }
 
-                const {raw, exceededCap} = this.floodFill(worldX, worldY, isCandidateCached);
+                const {tiles: raw, exceededCap} = floodFill8(worldX, worldY, isCandidateCached, LAKE_CONFIG.maxTiles);
                 for (const key of raw) {
                     visited.add(key);
                 }
@@ -347,9 +193,9 @@ export class LakeFeature extends Feature {
                     continue;
                 }
 
-                let smoothed: Set<string> = raw;
+                let smoothed: Set<CoordinateKey> = raw;
                 for (let pass = 0; pass < LAKE_CONFIG.smoothingPasses; pass++) {
-                    smoothed = smoothComponent(smoothed);
+                    smoothed = erodeComponent(smoothed, LAKE_CONFIG.smoothingNeighbourThreshold);
                 }
                 if (smoothed.size < LAKE_CONFIG.minSize) {
                     continue;
