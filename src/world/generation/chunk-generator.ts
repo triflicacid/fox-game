@@ -2,6 +2,7 @@ import {CHUNK_SIZE} from "../chunk-size";
 import {TileData} from "../tile";
 import {NoiseFieldRegistry} from "./field-registry";
 import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "./biome";
+import {DesertBiome} from "./desert-biome";
 import {PlainsBiome} from "./plains-biome";
 import {Feature, FeatureProvider} from "./feature";
 import {PositionCache} from "./position-cache";
@@ -49,11 +50,12 @@ export class ChunkGenerator {
             this.fields.register(field);
         }
 
-        const plains = new PlainsBiome(worldSeed);
-        for (const field of plains.getFields()) {
-            this.fields.register(field);
+        this.biomes = [new DesertBiome(worldSeed), new PlainsBiome(worldSeed)];
+        for (const biome of this.biomes) {
+            for (const field of biome.getFields()) {
+                this.fields.register(field);
+            }
         }
-        this.biomes = [plains];
 
         const context = {worldSeed, climate: this.climate} as GenerationContext;
         this.features = this.featureProviders.map((provider) => provider(context));
