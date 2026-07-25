@@ -115,6 +115,36 @@ const WATER_DARK = {
     ],
 };
 
+const SAND_VARIANTS = [
+    {
+        seed: 5001,
+        palette: [
+            { color: [218, 190, 118, 255], weight: 68 }, // base
+            { color: [195, 163, 91, 255], weight: 18 },  // shaded grain
+            { color: [235, 211, 145, 255], weight: 10 }, // sunlit grain
+            { color: [166, 132, 72, 255], weight: 4 },   // dark fleck
+        ],
+    },
+    {
+        seed: 5002,
+        palette: [
+            { color: [225, 199, 128, 255], weight: 68 },
+            { color: [204, 174, 100, 255], weight: 18 },
+            { color: [241, 219, 154, 255], weight: 10 },
+            { color: [177, 142, 77, 255], weight: 4 },
+        ],
+    },
+    {
+        seed: 5003,
+        palette: [
+            { color: [210, 181, 108, 255], weight: 68 },
+            { color: [185, 151, 80, 255], weight: 18 },
+            { color: [229, 204, 135, 255], weight: 10 },
+            { color: [157, 123, 66, 255], weight: 4 },
+        ],
+    },
+];
+
 // one row of the sheet, in column order.
 const TILES = [
     { type: "grass1", ...GRASS_VARIANTS[0] },
@@ -124,6 +154,9 @@ const TILES = [
     { type: "gravel", ...GRAVEL },
     { type: "waterLight", ...WATER_LIGHT },
     { type: "waterDark", ...WATER_DARK },
+    { type: "sand1", ...SAND_VARIANTS[0] },
+    { type: "sand2", ...SAND_VARIANTS[1] },
+    { type: "sand3", ...SAND_VARIANTS[2] },
 ];
 
 /**

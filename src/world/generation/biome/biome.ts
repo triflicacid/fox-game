@@ -1,5 +1,12 @@
-import {BackgroundTileType} from "../../sprites/BackgroundTileSpriteSheet";
-import {NoiseField} from "./noise-field";
+import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
+import {ClimateSample} from "./climate-fields";
+import {NoiseField} from "../noise-field";
+
+/** Stable biome identity retained on generated tiles. */
+export type BiomeTag = "plains" | "desert";
+
+/** Non-authoritative debug summary of the biome tags within one chunk. */
+export type BiomeSummary = BiomeTag | "mixed";
 
 /**
  * One of the world's biomes . Each biome owns whatever
@@ -8,7 +15,7 @@ import {NoiseField} from "./noise-field";
  */
 export abstract class Biome {
     /** This biome's stable name. */
-    public abstract readonly name: string;
+    public abstract readonly name: BiomeTag;
 
     /**
      * Every `NoiseField` this biome samples from.
@@ -18,13 +25,13 @@ export abstract class Biome {
     public abstract getFields(): readonly NoiseField[];
 
     /**
-     * Whether this biome applies given the current field values, tried in
+     * Whether this biome applies given the current climate, tried in
      * order by {@link resolveBiome}.
      *
-     * @param fieldValues - Named field values sampled at the position being classified.
+     * @param climate - Climate values sampled at the position being classified.
      * @returns Whether this biome matches.
      */
-    public abstract matches(fieldValues: ReadonlyMap<string, number>): boolean;
+    public abstract matches(climate: ClimateSample): boolean;
 
     /**
      * Picks a tile's base ground sprite.
@@ -37,18 +44,19 @@ export abstract class Biome {
 }
 
 /**
- * Resolves which biome applies given `fieldValues`, trying `biomes` in order
+ * Resolves which biome applies given `climate`, trying `biomes` in order
  * and returning the first match.
  *
  * @param biomes - Ordered biomes; must end with one that always matches.
- * @param fieldValues - Named field values sampled at the position being classified.
+ * @param climate - Climate values sampled at the position being classified.
  * @returns The matching biome.
  * @throws {Error} If no biome in `biomes` matches.
  */
-export function resolveBiome(biomes: readonly Biome[], fieldValues: ReadonlyMap<string, number>): Biome {
-    const biome = biomes.find((candidate) => candidate.matches(fieldValues));
+export function resolveBiome(biomes: readonly Biome[], climate: ClimateSample): Biome {
+    const biome = biomes.find((candidate) => candidate.matches(climate));
     if (!biome) {
         throw new Error("No biome matched - the biome list must end with a catch-all biome.");
     }
     return biome;
 }
+

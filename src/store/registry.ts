@@ -15,11 +15,23 @@ export abstract class Registry<K, V> {
 
     /**
      * Registers `value` under its own key - see {@link keyOf}.
+     * Registering the same instance again is a no-op; registering a different
+     * value under an existing key is an error.
      *
      * @param value - The value to register.
      */
     public register(value: V): void {
-        this.items.set(this.keyOf(value), value);
+        const key = this.keyOf(value);
+        const existing = this.items.get(key);
+        if (this.items.has(key) && existing !== value) {
+            throw new Error(`A different value is already registered for key '${String(key)}'.`);
+        }
+        this.items.set(key, value);
+    }
+
+    /** Removes every registered value. */
+    public clear(): void {
+        this.items.clear();
     }
 
     /**
