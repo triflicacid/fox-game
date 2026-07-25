@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import {describe, expect, it, vi} from "vitest";
 import {coordinateKey, CoordinateKey} from "../coordinate-key";
-import {erodeComponent} from "./grid-algorithms";
+import {erodeComponent, floodFill8} from "./grid-algorithms";
 
 /** Builds a filled rectangular set of coordinateKey strings. */
 function filledRect(x0: number, y0: number, x1: number, y1: number): Set<CoordinateKey> {
@@ -69,3 +69,67 @@ describe("erodeComponent", () => {
         expect(component).toEqual(snapshot);
     });
 });
+
+describe("floodFill8", () => {
+    /** Returns a candidate predicate bounded to the rectangle [x0, x1] by [y0, y1]. */
+    function inRect(x0: number, y0: number, x1: number, y1: number): (x: number, y: number) => boolean {
+        return (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+    }
+
+    it("fills a finite all-candidate region and reports no cap exceeded", () => {
+        const {tiles, exceededCap} = floodFill8(0, 0, inRect(0, 0, 2, 2), 100);
+        expect(tiles).toEqual(filledRect(0, 0, 2, 2));
+        expect(exceededCap).toBe(false);
+    });
+
+    it("reaches diagonal neighbours, proving 8-connectivity", () => {
+        // Checkerboard: only tiles where (x+y) is even are candidates inside 3x3.
+        // (0,0) reaches (1,1) via diagonal, then (2,0), (0,2), (2,2) via diagonals of (1,1).
+        const isCandidate = (x: number, y: number) =>
+            x >= 0 && x <= 2 && y >= 0 && y <= 2 && (x + y) % 2 === 0;
+        const {tiles, exceededCap} = floodFill8(0, 0, isCandidate, 100);
+        expect(tiles).toEqual(new Set<CoordinateKey>([
+            coordinateKey(0, 0),
+            coordinateKey(1, 1),
+            coordinateKey(2, 0),
+            coordinateKey(0, 2),
+            coordinateKey(2, 2),
+        ]));
+        expect(exceededCap).toBe(false);
+    });
+
+    it("does not cross into a disconnected candidate blob", () => {
+        // Blob A: (0,0)-(1,1). Blob B: (10,0)-(11,1). Too far apart for 8-connectivity.
+        const blobA = inRect(0, 0, 1, 1);
+        const blobB = inRect(10, 0, 11, 1);
+        const isCandidate = (x: number, y: number) => blobA(x, y) || blobB(x, y);
+        const {tiles} = floodFill8(0, 0, isCandidate, 100);
+        expect(tiles).toEqual(filledRect(0, 0, 1, 1));
+    });
+
+    it("reports exceededCap false when the region fits within maxTiles", () => {
+        const {tiles, exceededCap} = floodFill8(0, 0, inRect(0, 0, 2, 2), 9);
+        expect(tiles.size).toBe(9);
+        expect(exceededCap).toBe(false);
+    });
+
+    it("reports exceededCap true when tiles grow past maxTiles", () => {
+        // Seed (0,0) is always added. Then (1,0) is added as a candidate.
+        // tiles.size becomes 2, which is > maxTiles of 1, so the next iteration aborts.
+        const {exceededCap} = floodFill8(0, 0, (x, y) => x === 1 && y === 0, 1);
+        expect(exceededCap).toBe(true);
+    });
+
+    it("always includes the seed even when its neighbours are non-candidates", () => {
+        const {tiles, exceededCap} = floodFill8(5, 5, () => false, 100);
+        expect(tiles).toEqual(new Set([coordinateKey(5, 5)]));
+        expect(exceededCap).toBe(false);
+    });
+
+    it("never calls isCandidate for the seed coordinate", () => {
+        const isCandidate = vi.fn(() => false);
+        floodFill8(3, 7, isCandidate, 100);
+        expect(isCandidate).not.toHaveBeenCalledWith(3, 7);
+    });
+});
+

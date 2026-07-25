@@ -5,7 +5,7 @@ import {BiomeTagResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
 import {PositionCache} from "../position-cache";
 import {coordinateKey, CoordinateKey, parseCoordinateKey} from "../../coordinate-key";
-import {erodeComponent} from "../grid-algorithms";
+import {erodeComponent, floodFill8} from "../grid-algorithms";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
@@ -239,51 +239,6 @@ export class LakeFeature extends Feature {
     }
 
     /**
-     * Flood-fills 8-connected from `(startWorldX, startWorldY)` via
-     * `isCandidateCached`, stopping and reporting `exceededCap: true` if the
-     * component would grow past `LAKE_CONFIG.maxTiles`.
-     *
-     * @param startWorldX - Seed tile's X position, in tiles from the world origin.
-     * @param startWorldY - Seed tile's Y position, in tiles from the world origin.
-     * @param isCandidateCached - Memoised lake-candidacy check.
-     * @returns The raw (unsmoothed) component, as {@link coordinateKey} strings, and whether it exceeded the cap.
-     */
-    private floodFill(
-        startWorldX: number,
-        startWorldY: number,
-        isCandidateCached: (worldX: number, worldY: number) => boolean,
-    ): {raw: Set<CoordinateKey>; exceededCap: boolean} {
-        const raw = new Set<CoordinateKey>([coordinateKey(startWorldX, startWorldY)]);
-        const queue: [number, number][] = [[startWorldX, startWorldY]];
-        let exceededCap = false;
-
-        while (queue.length > 0) {
-            if (raw.size > LAKE_CONFIG.maxTiles) {
-                exceededCap = true;
-                break;
-            }
-            const [x, y] = queue.shift() as [number, number];
-            for (let dy = -1; dy <= 1; dy++) {
-                for (let dx = -1; dx <= 1; dx++) {
-                    if (dx === 0 && dy === 0) {
-                        continue;
-                    }
-                    const nx = x + dx;
-                    const ny = y + dy;
-                    const key = coordinateKey(nx, ny);
-                    if (raw.has(key) || !isCandidateCached(nx, ny)) {
-                        continue;
-                    }
-                    raw.add(key);
-                    queue.push([nx, ny]);
-                }
-            }
-        }
-
-        return {raw, exceededCap};
-    }
-
-    /**
      * Discovers every lake touching the chunk at `(chunkX, chunkY)`: floods
      * out from each candidate tile local to the chunk (candidacy memoised
      * per call), then smooths, min-size checks, core-tiles, and
@@ -311,7 +266,7 @@ export class LakeFeature extends Feature {
                     continue;
                 }
 
-                const {raw, exceededCap} = this.floodFill(worldX, worldY, isCandidateCached);
+                const {tiles: raw, exceededCap} = floodFill8(worldX, worldY, isCandidateCached, LAKE_CONFIG.maxTiles);
                 for (const key of raw) {
                     visited.add(key);
                 }
