@@ -8,10 +8,10 @@ export interface ClimateSample {
 }
 
 const CLIMATE_CONFIG = {
-    /** Approximate broad climate scale in chunks; biome thresholds determine the final region sizes. */
-    averageBiomeSizeChunks: 6.25,
+    /** Base climate scale in chunks. */
+    averageBiomeSizeChunks: 25,
 
-    /** Preserved from the original lake-owned moisture field (0.5 * 100 tiles = 50 tiles). */
+    /** Moisture varies at half the base climate scale. */
     moistureSeedOffset: 2027,
     moistureRelativeScale: 0.5,
 
