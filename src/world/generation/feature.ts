@@ -1,12 +1,13 @@
 import {TileData} from "../tile";
 import {Biome} from "./biome";
+import {GenerationContext} from "./generation-context";
 import {NoiseField} from "./noise-field";
 
 /** Resolves which biome applies at an arbitrary world position. */
 export type BiomeResolver = (worldX: number, worldY: number) => Biome;
 
-/** Builds a `Feature` instance for a given world seed. */
-export type FeatureProvider = (worldSeed: number) => Feature;
+/** Builds a `Feature` from the shared world-generation context. */
+export type FeatureProvider = (context: GenerationContext) => Feature;
 
 /**
  * A discrete world feature (lakes, rivers, ...) applied on top of base
@@ -14,9 +15,10 @@ export type FeatureProvider = (worldSeed: number) => Feature;
  */
 export abstract class Feature {
     /**
-     * Every `NoiseField` this feature samples from.
+     * Every `NoiseField` owned by this feature. Shared climate fields are
+     * registered separately by `ChunkGenerator`.
      *
-     * @returns This feature's fields.
+     * @returns This feature's owned fields.
      */
     public abstract getFields(): readonly NoiseField[];
 
