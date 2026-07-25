@@ -46,6 +46,9 @@ export class MovementController {
     /** Speed a bound entity moves at, in world pixels per second. */
     private static readonly SPEED = 250;
 
+    /** Factor a movement speed is scaled by while running (double-tapped). */
+    private static readonly RUN_MULTIPLIER = 1.6;
+
     /** Speed the camera pans at in spectator mode, in world pixels per second. */
     private static readonly SPECTATOR_SPEED = 520;
 
@@ -65,6 +68,9 @@ export class MovementController {
     private readonly movementDebouncer: Debouncer;
     private spectating = false;
 
+    /** Arrow keys currently held that were double-tapped, so movement in their direction runs. */
+    private readonly runningKeys = new Set<string>();
+
     /**
      * @param keyboard - Shared keyboard state used for input queries and subscriptions.
      * @param entity - Entity to bind to initially. Defaults to unbound (`null`).
@@ -80,8 +86,8 @@ export class MovementController {
         this.movementDebouncer = new Debouncer(MovementController.DEBOUNCE_MS, () => {
             this.applyMovement();
         });
-        keyboard.onKeyDown((event) => this.handleKeyDown(event));
-        keyboard.onKeyUp((event) => this.handleKeyUp(event));
+        keyboard.onKeyDown(this.handleKeyDown);
+        keyboard.onKeyUp(this.handleKeyUp);
     }
 
     /**
@@ -201,7 +207,8 @@ export class MovementController {
 
     /**
      * Pans `camera` from the currently held arrow keys, at
-     * {@link SPECTATOR_SPEED}, scaled by the elapsed frame time.
+     * {@link SPECTATOR_SPEED} (or that scaled by {@link RUN_MULTIPLIER} if
+     * any held key was double-tapped), scaled by the elapsed frame time.
      *
      * @param camera - Camera to pan.
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
@@ -211,7 +218,7 @@ export class MovementController {
         if (!direction) {
             return;
         }
-        const distance = MovementController.SPECTATOR_SPEED * (deltaMs / 1000);
+        const distance = this.applyRunMultiplier(MovementController.SPECTATOR_SPEED) * (deltaMs / 1000);
         camera.pan(Vector2d.fromDirection(direction).scale(distance));
     }
 
@@ -225,6 +232,7 @@ export class MovementController {
     private toggleSpectatorMode(): void {
         this.spectating = !this.spectating;
         this.movementDebouncer.cancel();
+        this.runningKeys.clear();
         if (this.spectating) {
             this.entity?.setVelocity(Vector2d.ZERO);
         }
@@ -299,7 +307,7 @@ export class MovementController {
         }
     }
 
-    private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    private readonly handleKeyDown = (event: KeyboardEvent, key: string, doubleTap: boolean): void => {
         if (event.key === "s" || event.key === "S") {
             this.toggleSpectatorMode();
             return;
@@ -318,6 +326,9 @@ export class MovementController {
             this.entity?.handleKeyPress?.(event.key);
             return;
         }
+        if (doubleTap) {
+            this.runningKeys.add(key);
+        }
         if (!this.spectating) {
             this.scheduleApplyMovement();
         }
@@ -327,6 +338,7 @@ export class MovementController {
         if (!KEY_DIRECTIONS[event.key]) {
             return;
         }
+        this.runningKeys.delete(event.key);
         if (!this.spectating) {
             this.scheduleApplyMovement();
         }
@@ -344,7 +356,10 @@ export class MovementController {
 
     /**
      * Recomputes the bound entity's facing/velocity from the currently
-     * pressed arrow keys.
+     * pressed arrow keys. Moves at {@link SPEED} scaled by
+     * {@link RUN_MULTIPLIER} if any currently held arrow key was
+     * double-tapped, regardless of whether the resolved direction is
+     * cardinal or diagonal.
      */
     private applyMovement(): void {
         if (!this.entity) {
@@ -357,8 +372,20 @@ export class MovementController {
             return;
         }
 
+        const speed = this.applyRunMultiplier(MovementController.SPEED);
         this.entity.setFacing(direction);
-        this.entity.setVelocity(Vector2d.fromDirection(direction).scale(MovementController.SPEED));
+        this.entity.setVelocity(Vector2d.fromDirection(direction).scale(speed));
+    }
+
+    /**
+     * Scales `speed` by {@link RUN_MULTIPLIER} if any currently held arrow
+     * key was double-tapped, otherwise returns it unchanged.
+     *
+     * @param speed - Base speed, in world pixels per second.
+     * @returns `speed`, scaled up if currently running.
+     */
+    private applyRunMultiplier(speed: number): number {
+        return this.runningKeys.size > 0 ? speed * MovementController.RUN_MULTIPLIER : speed;
     }
 
     /**
