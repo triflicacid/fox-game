@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from "vitest";
 import {coordinateKey, CoordinateKey} from "../coordinate-key";
-import {erodeComponent, floodFill8} from "./grid-algorithms";
+import {erodeComponent, floodFill8, isFullySurrounded} from "./grid-algorithms";
 
 /** Builds a filled rectangular set of coordinateKey strings. */
 function filledRect(x0: number, y0: number, x1: number, y1: number): Set<CoordinateKey> {
@@ -12,6 +12,44 @@ function filledRect(x0: number, y0: number, x1: number, y1: number): Set<Coordin
     }
     return tiles;
 }
+
+describe("isFullySurrounded", () => {
+    it("returns true for the centre tile of a filled 3x3 square", () => {
+        // Centre (1,1) has all 8 neighbours inside the square.
+        expect(isFullySurrounded(filledRect(0, 0, 2, 2), 1, 1)).toBe(true);
+    });
+
+    it("returns false for a corner tile of a filled 3x3 square", () => {
+        // Corner (0,0) is missing neighbours at (-1,-1), (-1,0), (0,-1), etc.
+        expect(isFullySurrounded(filledRect(0, 0, 2, 2), 0, 0)).toBe(false);
+    });
+
+    it("returns false for an edge midpoint of a filled 3x3 square", () => {
+        // Edge midpoint (1,0) has 5 neighbours but (0,-1), (1,-1), (2,-1) are outside.
+        expect(isFullySurrounded(filledRect(0, 0, 2, 2), 1, 0)).toBe(false);
+    });
+
+    it("returns false for a single isolated tile", () => {
+        const single = new Set([coordinateKey(0, 0)]);
+        expect(isFullySurrounded(single, 0, 0)).toBe(false);
+    });
+
+    it("returns false when exactly one of the 8 neighbours is absent", () => {
+        // Full 3x3 minus the top-left corner - centre still has 7 neighbours.
+        const component = filledRect(0, 0, 2, 2);
+        component.delete(coordinateKey(0, 0));
+        expect(isFullySurrounded(component, 1, 1)).toBe(false);
+    });
+
+    it("returns true for every interior tile of a filled 5x5 square", () => {
+        const component = filledRect(0, 0, 4, 4);
+        for (let y = 1; y <= 3; y++) {
+            for (let x = 1; x <= 3; x++) {
+                expect(isFullySurrounded(component, x, y)).toBe(true);
+            }
+        }
+    });
+});
 
 describe("erodeComponent", () => {
     it("retains only the centre of a 3x3 square with threshold 6", () => {

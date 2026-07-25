@@ -5,7 +5,7 @@ import {BiomeTagResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
 import {PositionCache} from "../position-cache";
 import {coordinateKey, CoordinateKey, parseCoordinateKey} from "../../coordinate-key";
-import {erodeComponent, floodFill8} from "../grid-algorithms";
+import {erodeComponent, floodFill8, isFullySurrounded} from "../grid-algorithms";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
@@ -51,27 +51,6 @@ const LAKE_CONFIG = {
 } as const;
 
 
-/**
- * Whether every one of `(x, y)`'s 8 neighbours is also in `component`.
- *
- * @param component - The tile set to check against, as {@link coordinateKey} strings.
- * @param x - Tile's X position, in tiles from the world origin.
- * @param y - Tile's Y position, in tiles from the world origin.
- * @returns Whether `(x, y)` is fully interior to `component`.
- */
-function isFullySurrounded(component: ReadonlySet<CoordinateKey>, x: number, y: number): boolean {
-    for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) {
-                continue;
-            }
-            if (!component.has(coordinateKey(x + dx, y + dy))) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
 
 /**
  * Tiles in `component` whose all 8 neighbours are also in `component` - the
