@@ -14,7 +14,7 @@ import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {FeatureTag} from "./generation/feature/feature-tag";
 import {BiomeSummary} from "./generation/biome/biome";
 import {SpriteFrame} from "../sprites/sprite";
-import {coordinateKey} from "./coordinate-key";
+import {coordinateKey, CoordinateKey} from "./coordinate-key";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -54,7 +54,7 @@ export class World {
     /** Fill colour for the "void" - camera-visible area outside every loaded chunk. */
     private static readonly VOID_COLOR = "#000000";
 
-    private readonly chunks = new Map<string, Chunk>();
+    private readonly chunks = new Map<CoordinateKey, Chunk>();
     private readonly entities: Entity[] = [];
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
@@ -474,8 +474,8 @@ export class World {
         const NEIGHBORS: readonly {dx: number; dy: number}[] = [
             {dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1},
         ];
-        const visited = new Set<string>();
-        const matched = new Set<string>();
+        const visited = new Set<CoordinateKey>();
+        const matched = new Set<CoordinateKey>();
         const queue: {chunkX: number; chunkY: number}[] = [{chunkX, chunkY}];
         const startKey = coordinateKey(chunkX, chunkY);
         visited.add(startKey);
@@ -522,7 +522,7 @@ export class World {
      */
     private getDistanceToBiomeEdge(chunkX: number, chunkY: number, biome: BiomeSummary): {distance: number; direction: string} | undefined {
         const MAX_SEARCH_DISTANCE = 16;
-        const visited = new Set<string>([coordinateKey(chunkX, chunkY)]);
+        const visited = new Set<CoordinateKey>([coordinateKey(chunkX, chunkY)]);
         let currentRing = [{chunkX, chunkY}];
 
         for (let distance = 1; distance <= MAX_SEARCH_DISTANCE; distance++) {

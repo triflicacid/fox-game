@@ -1,6 +1,6 @@
 import ChunkGenerationWorker from "./chunk-worker?worker&inline";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
-import {coordinateKey} from "../../coordinate-key";
+import {coordinateKey, CoordinateKey} from "../../coordinate-key";
 
 /** One pending {@link ChunkWorkerClient.requestChunk} call awaiting its response. */
 interface PendingRequest {
@@ -16,7 +16,7 @@ interface PendingRequest {
  */
 export class ChunkWorkerClient {
     private readonly worker: Worker = new ChunkGenerationWorker();
-    private readonly pending = new Map<string, PendingRequest>();
+    private readonly pending = new Map<CoordinateKey, PendingRequest>();
 
     /**
      * @param worldSeed - The world's seed; every chunk this client requests is generated from it.
