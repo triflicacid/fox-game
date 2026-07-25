@@ -28,8 +28,6 @@ export class SettingsController extends KeyBindingPopupController {
      * @param getWorldSeed - Called on every {@link draw} to read the seed new chunks are generated from.
      * @param setWorldSeed - Invoked when the user commits a new value in the world-seed field.
      * @param refreshWorldSeed - Invoked when the user clicks the seed's Refresh button.
-     * @param getMinChunkGenerationDelayMs - Called on every {@link draw} to read the debug minimum-delay-between-chunks knob.
-     * @param setMinChunkGenerationDelayMs - Invoked when the user edits the minimum chunk generation delay field.
      * @param onOpenChange - Called whenever this popup opens or closes.
      * @param keyboard - The keyboard to use for this controller.
      */
