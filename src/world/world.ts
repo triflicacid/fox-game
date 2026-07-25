@@ -5,13 +5,14 @@ import {MovableEntity} from "../entities/movable-entity";
 import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
 import {Vector2d} from "../geometry/vector2d";
-import {DebugHud} from "../debug/debug-hud";
+import {DebugHud, ChunkState} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {FeatureTag} from "./generation/feature/feature-tag";
+import {BiomeSummary} from "./generation/biome/biome";
 import {SpriteFrame} from "../sprites/sprite";
 import {coordinateKey} from "./coordinate-key";
 
@@ -63,6 +64,18 @@ export class World {
     private latestChunkGenerationTimeMs = 0;
     /** Chunk count the last {@link draw} call rendered, for the debug HUD. */
     private lastVisibleChunkCount = 0;
+
+    /**
+     * Cached biome-region BFS results, keyed by biome. Each entry is valid as
+     * long as its anchor chunk (the player's chunk when the BFS ran) is still
+     * loaded. Cleared on seed change.
+     */
+    private readonly biomeRegionCache = new Map<BiomeSummary, {
+        count: number;
+        isPartial: boolean;
+        anchorChunkX: number;
+        anchorChunkY: number;
+    }>();
 
     /** Chunk {@link getChunkGenerationFocus} was in as of the last {@link reorderChunkGenerationQueueIfFocusMoved} call - `undefined` before the first call. */
     private lastChunkGenerationFocusChunk: ChunkCoordinate | undefined;
@@ -121,6 +134,7 @@ export class World {
         this.worldSeed = seed;
         this.chunkGenerator.setSeed(seed);
         this.chunkWorkerClient.setSeed(seed);
+        this.biomeRegionCache.clear();
     }
 
     /**
@@ -424,6 +438,107 @@ export class World {
             return undefined;
         }
         return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
+    }
+
+    /**
+     * BFS from `(chunkX, chunkY)` over loaded, ready chunks whose
+     * `biomeSummary` matches `biome`, returning the connected-region size.
+     * `isPartial` is `true` when the region reaches an unloaded or
+     * still-generating chunk - meaning the true size is at least `count`.
+     * Results are cached per biome and reused as long as the anchor chunk
+     * (the player's chunk when the BFS ran) remains loaded.
+     *
+     * @param chunkX - Player's current chunk X.
+     * @param chunkY - Player's current chunk Y.
+     * @param biome - The biome to measure.
+     * @returns Connected chunk count and whether the region extends further.
+     */
+    private getBiomeRegionSize(chunkX: number, chunkY: number, biome: BiomeSummary): {count: number; isPartial: boolean} {
+        const cached = this.biomeRegionCache.get(biome);
+        if (cached && this.chunks.has(coordinateKey(cached.anchorChunkX, cached.anchorChunkY))) {
+            return cached;
+        }
+
+        const NEIGHBORS: readonly {dx: number; dy: number}[] = [
+            {dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1},
+        ];
+        const visited = new Set<string>();
+        const matched = new Set<string>();
+        const queue: {chunkX: number; chunkY: number}[] = [{chunkX, chunkY}];
+        const startKey = coordinateKey(chunkX, chunkY);
+        visited.add(startKey);
+        matched.add(startKey);
+        let isPartial = false;
+
+        while (queue.length > 0) {
+            const {chunkX: cx, chunkY: cy} = queue.shift() as {chunkX: number; chunkY: number};
+            for (const {dx, dy} of NEIGHBORS) {
+                const nx = cx + dx;
+                const ny = cy + dy;
+                const key = coordinateKey(nx, ny);
+                if (visited.has(key)) {
+                    continue;
+                }
+                visited.add(key);
+                const neighbor = this.chunks.get(key);
+                if (!neighbor?.isReady()) {
+                    isPartial = true;
+                    continue;
+                }
+                if (neighbor.biomeSummary === biome) {
+                    matched.add(key);
+                    queue.push({chunkX: nx, chunkY: ny});
+                }
+            }
+        }
+
+        const result = {count: matched.size, isPartial, anchorChunkX: chunkX, anchorChunkY: chunkY};
+        this.biomeRegionCache.set(biome, result);
+        return result;
+    }
+
+    /**
+     * Finds the minimum chunk-grid distance to a chunk with a different biome
+     * summary, checking only loaded ready chunks. Returns `undefined` if all
+     * neighbors within the search radius match or are unloaded/generating.
+     *
+     * @param chunkX - Starting chunk X.
+     * @param chunkY - Starting chunk Y.
+     * @param biome - The biome to compare against.
+     * @returns Distance in chunks to the nearest different biome, or `undefined`.
+     */
+    private getDistanceToBiomeEdge(chunkX: number, chunkY: number, biome: BiomeSummary): number | undefined {
+        const MAX_SEARCH_DISTANCE = 16;
+        const visited = new Set<string>([coordinateKey(chunkX, chunkY)]);
+        let currentRing = [{chunkX, chunkY}];
+
+        for (let distance = 1; distance <= MAX_SEARCH_DISTANCE; distance++) {
+            const nextRing: {chunkX: number; chunkY: number}[] = [];
+            for (const {chunkX: cx, chunkY: cy} of currentRing) {
+                for (const {dx, dy} of [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}]) {
+                    const nx = cx + dx;
+                    const ny = cy + dy;
+                    const key = coordinateKey(nx, ny);
+                    if (visited.has(key)) {
+                        continue;
+                    }
+                    visited.add(key);
+                    const neighbor = this.chunks.get(key);
+                    if (!neighbor?.isReady()) {
+                        continue;
+                    }
+                    if (neighbor.biomeSummary !== biome && neighbor.biomeSummary !== "" && neighbor.biomeSummary !== "mixed") {
+                        return distance;
+                    }
+                    nextRing.push({chunkX: nx, chunkY: ny});
+                }
+            }
+            if (nextRing.length === 0) {
+                break;
+            }
+            currentRing = nextRing;
+        }
+        return undefined;
     }
 
     /**
@@ -894,9 +1009,28 @@ export class World {
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
         const chunk = this.getChunk(chunkX, chunkY);
         const chunkBiome = chunk.isReady() ? chunk.biomeSummary : "generating...";
+        const biomeRegion = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
+            ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
+            : undefined;
         const exactFeature = this.getFeatureTag(tileX, tileY);
         const frame = this.mainEntity.getCurrentFrame();
         const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);
+
+        const distanceToBiomeEdgeChunks = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
+            ? this.getDistanceToBiomeEdge(chunkX, chunkY, chunk.biomeSummary)
+            : undefined;
+
+        const toChunkState = (cx: number, cy: number): ChunkState => {
+            const c = this.chunks.get(coordinateKey(cx, cy));
+            if (!c) return "unloaded";
+            return c.isReady() ? "ready" : "generating";
+        };
+        const neighborStates = {
+            n: toChunkState(chunkX, chunkY - 1),
+            s: toChunkState(chunkX, chunkY + 1),
+            e: toChunkState(chunkX + 1, chunkY),
+            w: toChunkState(chunkX - 1, chunkY),
+        };
 
         this.debugHud.draw(ctx, {
             cameraCenterX: center.x,
@@ -906,9 +1040,15 @@ export class World {
             entityX: position.x,
             entityY: position.y,
             entityFacing: this.mainEntity.getFacing(),
+            tileX,
+            tileY,
             chunkX,
             chunkY,
             chunkBiome,
+            neighborStates,
+            distanceToBiomeEdgeChunks,
+            biomeRegionChunks: biomeRegion?.count,
+            biomeRegionIsPartial: biomeRegion?.isPartial ?? false,
             visibleChunkCount: this.lastVisibleChunkCount,
             loadedChunkCount: this.getLoadedChunkCount(),
             generatingChunkCount: this.getGeneratingChunkCount(),
