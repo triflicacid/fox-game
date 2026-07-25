@@ -23,6 +23,23 @@ export function isFullySurrounded(component: ReadonlySet<CoordinateKey>, x: numb
 }
 
 /**
+ * Tiles in `component` whose all 8 neighbours are also in `component`.
+ *
+ * @param component - The final (smoothed) tile set, as {@link coordinateKey} strings.
+ * @returns The core (interior) subset of `component`, possibly empty.
+ */
+export function findCoreTiles(component: ReadonlySet<CoordinateKey>): Set<CoordinateKey> {
+    const core = new Set<CoordinateKey>();
+    for (const key of component) {
+        const [x, y] = parseCoordinateKey(key);
+        if (isFullySurrounded(component, x, y)) {
+            core.add(key);
+        }
+    }
+    return core;
+}
+
+/**
  * 8-connected flood fill from `(startX, startY)`. The seed is always included
  * regardless of `isCandidate`. Fills until no more candidate neighbours exist
  * or `tiles.size` exceeds `maxTiles`, in which case `exceededCap` is `true`.

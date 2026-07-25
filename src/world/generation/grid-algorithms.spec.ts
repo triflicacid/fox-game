@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from "vitest";
 import {coordinateKey, CoordinateKey} from "../coordinate-key";
-import {erodeComponent, floodFill8, isFullySurrounded} from "./grid-algorithms";
+import {erodeComponent, findCoreTiles, floodFill8, isFullySurrounded} from "./grid-algorithms";
 
 /** Builds a filled rectangular set of coordinateKey strings. */
 function filledRect(x0: number, y0: number, x1: number, y1: number): Set<CoordinateKey> {
@@ -12,6 +12,42 @@ function filledRect(x0: number, y0: number, x1: number, y1: number): Set<Coordin
     }
     return tiles;
 }
+
+describe("findCoreTiles", () => {
+    it("returns only the centre of a filled 3x3 square", () => {
+        // Only (1,1) has all 8 neighbours inside the square.
+        const result = findCoreTiles(filledRect(0, 0, 2, 2));
+        expect(result).toEqual(new Set([coordinateKey(1, 1)]));
+    });
+
+    it("returns the four interior tiles of a filled 4x4 square", () => {
+        const result = findCoreTiles(filledRect(0, 0, 3, 3));
+        expect(result).toEqual(new Set([
+            coordinateKey(1, 1),
+            coordinateKey(2, 1),
+            coordinateKey(1, 2),
+            coordinateKey(2, 2),
+        ]));
+    });
+
+    it("returns an empty set for a single row", () => {
+        // No tile in a 1xN row has all 8 neighbours present.
+        const row = filledRect(0, 0, 4, 0);
+        expect(findCoreTiles(row)).toEqual(new Set());
+    });
+
+    it("returns an empty set for an empty component", () => {
+        expect(findCoreTiles(new Set())).toEqual(new Set());
+    });
+
+    it("returns a new set and does not mutate the input", () => {
+        const component = filledRect(0, 0, 2, 2);
+        const snapshot = new Set(component);
+        const result = findCoreTiles(component);
+        expect(component).toEqual(snapshot);
+        expect(result).not.toBe(component);
+    });
+});
 
 describe("isFullySurrounded", () => {
     it("returns true for the centre tile of a filled 3x3 square", () => {
@@ -170,4 +206,3 @@ describe("floodFill8", () => {
         expect(isCandidate).not.toHaveBeenCalledWith(3, 7);
     });
 });
-

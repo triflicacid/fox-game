@@ -5,7 +5,7 @@ import {BiomeTagResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
 import {PositionCache} from "../position-cache";
 import {coordinateKey, CoordinateKey, parseCoordinateKey} from "../../coordinate-key";
-import {erodeComponent, floodFill8, isFullySurrounded} from "../grid-algorithms";
+import {erodeComponent, findCoreTiles, floodFill8, isFullySurrounded} from "../grid-algorithms";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
@@ -49,26 +49,6 @@ const LAKE_CONFIG = {
     /** Biomes a lake is allowed to centre in (majority vote of its core tiles) - extensible for a future Desert oasis exception. */
     allowedBiomes: ["plains"] as readonly BiomeTag[],
 } as const;
-
-
-
-/**
- * Tiles in `component` whose all 8 neighbours are also in `component` - the
- * set the biome vote treats as reliably interior.
- *
- * @param component - The final (smoothed) tile set, as {@link coordinateKey} strings.
- * @returns The core (interior) subset of `component`, possibly empty.
- */
-function findCoreTiles(component: ReadonlySet<CoordinateKey>): Set<CoordinateKey> {
-    const core = new Set<CoordinateKey>();
-    for (const key of component) {
-        const [x, y] = parseCoordinateKey(key);
-        if (isFullySurrounded(component, x, y)) {
-            core.add(key);
-        }
-    }
-    return core;
-}
 
 /**
  * Each tile's distance from the component's edge, in 8-connected rings:
