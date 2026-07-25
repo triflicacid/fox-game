@@ -5,8 +5,18 @@ import type {KeyboardEventSource} from "./keyboard-event-source";
  *
  * @param event - original keyboard event
  * @param key - key value from `KeyboardEvent.key`
+ * @param doubleTap - whether this press followed the same key's own release
+ * within the double-tap window
  */
-export type KeyboardKeyDownListener = (event: KeyboardEvent, key: string) => void;
+export type KeyboardKeyDownListener = (event: KeyboardEvent, key: string, doubleTap: boolean) => void;
+
+/**
+ * callback notified on each keyup event observed by {@link Keyboard}
+ *
+ * @param event - original keyboard event
+ * @param key - key value from `KeyboardEvent.key`
+ */
+export type KeyboardKeyUpListener = (event: KeyboardEvent, key: string) => void;
 
 /**
  * Configures how key matching is performed for queries and subscriptions.
@@ -31,9 +41,16 @@ interface KeyDownSubscription {
  * case-insensitive single-character matching where needed.
  */
 export class Keyboard {
+    /**
+     * Maximum gap, in milliseconds, between a key's release and its next
+     * press for that press to count as a double-tap.
+     */
+    private static readonly DOUBLE_TAP_WINDOW_MS = 300;
+
     private readonly pressedKeys = new Set<string>();
+    private readonly lastKeyUpTime = new Map<string, number>();
     private readonly keyDownListeners = new Set<KeyboardKeyDownListener>();
-    private readonly keyUpListeners = new Set<KeyboardKeyDownListener>();
+    private readonly keyUpListeners = new Set<KeyboardKeyUpListener>();
     private readonly keyDownSubscriptions = new Set<KeyDownSubscription>();
     private readonly eventSource: KeyboardEventSource;
 
@@ -97,7 +114,7 @@ export class Keyboard {
      * @param listener - listener to notify
      * @returns cleanup callback that unregisters the listener
      */
-    public onKeyUp(listener: KeyboardKeyDownListener): () => void {
+    public onKeyUp(listener: KeyboardKeyUpListener): () => void {
         this.keyUpListeners.add(listener);
         return () => {
             this.keyUpListeners.delete(listener);
@@ -133,6 +150,7 @@ export class Keyboard {
         this.eventSource.removeEventListener("keyup", this.handleWindowKeyUp);
         this.eventSource.removeEventListener("blur", this.handleWindowBlur);
         this.pressedKeys.clear();
+        this.lastKeyUpTime.clear();
         this.keyDownListeners.clear();
         this.keyUpListeners.clear();
         this.keyDownSubscriptions.clear();
@@ -149,22 +167,25 @@ export class Keyboard {
 
     private readonly handleWindowKeyDown = (event: KeyboardEvent): void => {
         const key = event.key;
+        const lastUp = this.lastKeyUpTime.get(key);
+        const doubleTap = !event.repeat && lastUp !== undefined && performance.now() - lastUp < Keyboard.DOUBLE_TAP_WINDOW_MS;
         this.pressedKeys.add(key);
 
         for (const listener of this.keyDownListeners) {
-            listener(event, key);
+            listener(event, key, doubleTap);
         }
 
         for (const subscription of this.keyDownSubscriptions) {
             if (!Keyboard.matchesKey(key, subscription.key, subscription.caseInsensitive)) {
                 continue;
             }
-            subscription.listener(event, key);
+            subscription.listener(event, key, doubleTap);
         }
     };
 
     private readonly handleWindowKeyUp = (event: KeyboardEvent): void => {
         this.pressedKeys.delete(event.key);
+        this.lastKeyUpTime.set(event.key, performance.now());
         const key = event.key;
         for (const listener of this.keyUpListeners) {
             listener(event, key);

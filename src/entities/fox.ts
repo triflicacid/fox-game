@@ -81,6 +81,10 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
         ];
     }
 
+    public override getDisplayName(): string {
+        return "Fox";
+    }
+
     /**
      * While asleep (or resting), movement input
      * doesn't move the fox yet, but cached it.
