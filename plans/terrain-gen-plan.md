@@ -1,6 +1,6 @@
 # Terrain Generation Plan
 
-_Last aligned with the codebase on 2026-07-24._
+_Last aligned with the codebase on 2026-07-25._
 
 This document is the implementation plan for terrain generation. It supersedes
 the earlier branch-history analysis that used to live here. The design goals in
@@ -8,10 +8,10 @@ the earlier branch-history analysis that used to live here. The design goals in
 architecture that actually exists, deliberate deviations from that document,
 and the remaining milestones.
 
-The next milestone is **Desert**. Lakes already exist in the current code, but
-no further lake, river, shoreline, or decorative-feature work should happen
-until biome classification and Desert terrain are complete. Rare Desert oases
-are the task immediately after Desert generation.
+The next milestone is **biome-interior terrain depth**. Desert classification
+and terrain are complete. Before adding more water features, grass and sand
+colour variants should reflect distance from biome borders. Rare Desert oases
+follow that work.
 
 ---
 
@@ -305,7 +305,7 @@ changed.
 
 ### Phase 1: Climate fields and Desert
 
-**Status: next.** Complete this phase before implementing oases.
+**Status: complete.**
 
 #### 1.1 Promote moisture and add temperature
 
@@ -356,7 +356,7 @@ The existing lake vote allows only `plains`. Preserve that default: a lake may
 spill across a Desert border when the majority of its core is Plains, but a
 lake whose core majority is Desert is rejected.
 
-This phase does not add oases. Phase 2 adds them with separate fields and
+This phase does not add oases. Phase 3 adds them with separate fields and
 Desert-specific criteria rather than simply allowing every lake in Desert.
 
 #### Phase 1 acceptance criteria
@@ -373,12 +373,83 @@ Desert-specific criteria rather than simply allowing every lake in Desert.
   component.
 - Field names are unique and all expected fields are debug-visible.
 
-### Phase 2: Rare Desert oases
+### Phase 2: Biome-interior terrain depth
 
-Start after Desert classification, sand terrain, and per-tile biome tags are
-stable.
+**Status: next.** Complete this phase before implementing oases.
 
-#### 2.1 Extract reusable water-component utilities
+Grass and sand variants currently come from biome-owned world-space noise.
+Retain that variation, but make colour depth primarily reflect how far a tile
+is inside its biome. The darkest grass and sand variants must be reserved for
+biome interiors rather than appearing directly beside a biome border.
+
+#### 2.1 Add bounded padded biome classification
+
+- Add a configurable maximum terrain-depth radius in tiles. This radius is
+  both the visual depth cap and the generation-work bound.
+- For each generated chunk, classify a padded biome mask covering the output
+  chunk plus a halo of `maximumDepthTiles + 1`. The extra tile lets a border
+  cell at the outer measurable radius inspect its unlike neighbour.
+- Classify every padded position from absolute world coordinates using the
+  shared climate fields and normal ordered biome resolution.
+- Reuse operation-scoped classification results where positions overlap the
+  output chunk or feature checks. Do not add a world-lifetime position cache.
+- Never infer biome depth from loaded chunks or chunk biome summaries; those
+  are too coarse and would make output depend on runtime loading state.
+
+#### 2.2 Compute capped distance from biome borders
+
+- Mark every padded cell with an 8-connected neighbour of another biome as a
+  biome-border cell.
+- Run a multi-source breadth-first distance transform from all border cells,
+  propagating only through cells with the same biome tag.
+- Stop propagation at the configured maximum depth. A tile not reached before
+  the cap is treated as fully interior; the complete biome must never be flood
+  filled.
+- Read distances only for the central output chunk. The halo must make the
+  capped result identical when neighbouring chunks generate independently,
+  including at corners and negative coordinates.
+- Keep work proportional to the padded mask area:
+  `(CHUNK_SIZE + 2 * (maximumDepthTiles + 1))²`.
+
+#### 2.3 Select terrain variants from depth and noise
+
+- Pass the capped biome depth into the resolved biome's base-terrain sampler.
+  `ChunkGenerator` owns mask/distance orchestration; biome classes own the
+  mapping from depth and their variant field to sprites.
+- Audit the existing grass and sand sprites and define explicit light,
+  medium, and dark ordering rather than assuming numeric suffixes encode
+  brightness.
+- Near a biome border, allow only the light variant. At intermediate depth,
+  allow light and medium variants. At full interior depth, allow medium and
+  dark variants.
+- Continue sampling `grass_variant` and `sand_variant` in world space to choose
+  among the variants allowed at that depth. Noise may soften transitions, but
+  it must never select the darkest variant below its hard minimum depth.
+- Tune depth thresholds and a small bounded noise perturbation so colour
+  changes do not form obvious parallel contour bands.
+- Apply lakes and later features after biome base terrain has been selected, as
+  they are today.
+
+#### Phase 2 acceptance criteria
+
+- Dark grass and dark sand never occur within the configured border exclusion
+  depth.
+- Both biomes become progressively darker toward their interiors without
+  losing deterministic local texture variation.
+- No colour-depth seam appears at a chunk edge or corner, regardless of chunk
+  generation order.
+- Results agree at positive and negative world coordinates.
+- Runtime work and temporary memory are bounded by the padded mask dimensions,
+  not by total biome size.
+- Existing biome tags, climate matching, and lake acceptance behavior are
+  unchanged.
+
+### Phase 3: Rare Desert oases
+
+Start after Desert classification, biome-interior terrain depth, sand terrain,
+and per-tile biome tags are stable.
+
+#### 3.1 Extract reusable water-component utilities
 
 - Extract the bounded 8-connected component discovery, smoothing, core-tile
   detection, shore-distance calculation, and component-level biome vote from
@@ -390,7 +461,7 @@ stable.
 - Keep all searches explicitly capped and all temporary caches scoped to one
   generation operation.
 
-#### 2.2 Add oasis fields and acceptance rules
+#### 3.2 Add oasis fields and acceptance rules
 
 - Add named `oasis_region` and `oasis_shape` fields with independent seed
   offsets.
@@ -403,7 +474,7 @@ stable.
 - Do not require high shared `moisture`: the dedicated oasis fields represent
   rare groundwater inside an otherwise dry climate.
 
-#### 2.3 Add distinct oasis appearance
+#### 3.3 Add distinct oasis appearance
 
 - Extend `scripts/gen-background-tile-sprites.mjs` with
   `oasisWaterLight` and `oasisWaterDark` tiles using a distinct but compatible
@@ -419,7 +490,7 @@ stable.
   lake on Plains-majority components and the oasis on Desert-majority
   components. Never let feature application order decide accidentally.
 
-#### Phase 2 acceptance criteria
+#### Phase 3 acceptance criteria
 
 - Oases occur only as Desert-majority components, but may spill naturally over
   a Desert/Plains boundary.
@@ -437,9 +508,9 @@ stable.
 - Normal lake tile output remains unchanged by the shared-utility extraction.
 - All oasis fields are available in the debug field visualiser.
 
-### Phase 3: Stabilise the existing lake implementation
+### Phase 4: Stabilise the existing lake implementation
 
-Start only after the immediately preceding Desert and oasis phases are
+Start only after the preceding Desert, biome-depth, and oasis phases are
 complete.
 
 - Profile repeated discovery of one lake from neighboring chunks before adding
@@ -453,7 +524,7 @@ complete.
 - Record measured component-size distributions and ensure accepted lakes stay
   comfortably below the cap.
 
-#### Phase 3 acceptance criteria
+#### Phase 4 acceptance criteria
 
 - No accepted lake differs across chunks that independently discover it.
 - No lake is cut at a chunk boundary.
@@ -463,7 +534,7 @@ complete.
 - Generation time and allocation are measured before and after any
   optimization.
 
-### Phase 4: Field-based rivers
+### Phase 5: Field-based rivers
 
 Implement basic river shapes without explicit lake anchoring.
 
@@ -481,7 +552,7 @@ Implement basic river shapes without explicit lake anchoring.
   biome.
 - Inspect thin, thick, and branching cases without relying on path objects.
 
-#### Phase 4 acceptance criteria
+#### Phase 5 acceptance criteria
 
 - A river crossing a chunk boundary has no width, smoothing, color, or tag
   discontinuity.
@@ -490,7 +561,7 @@ Implement basic river shapes without explicit lake anchoring.
 - Lake/river overlap produces one coherent water body.
 - Smoothing work is bounded by the declared halo.
 
-### Phase 5: Shorelines and derived water appearance
+### Phase 6: Shorelines and derived water appearance
 
 Build shorelines only after the combined lake/river mask exists.
 
@@ -507,14 +578,14 @@ Build shorelines only after the combined lake/river mask exists.
 - Add transition assets and sprite types as part of this phase, not as hidden
   placeholders.
 
-#### Phase 5 acceptance criteria
+#### Phase 6 acceptance criteria
 
 - Shorelines agree across every chunk edge and corner.
 - Diagonal adjacency behavior is explicitly chosen and documented.
 - Shoreline terrain reflects the underlying biome.
 - No shoreline overwrites water or appears away from water.
 
-### Phase 6: River/lake relationship design spike
+### Phase 7: River/lake relationship design spike
 
 Only run this phase if field-based rivers do not connect to lakes often enough
 or do not look intentional.
@@ -540,7 +611,7 @@ An anchor proposal is not ready for implementation until it defines:
 Do not store mutable global river paths or make results depend on already
 loaded chunks.
 
-### Phase 7: Flora and terrain details
+### Phase 8: Flora and terrain details
 
 - Add field-based clusters such as reeds, flowers, rocks, and wet grass.
 - Add oasis-specific palms, reeds, or lush ground here; derive eligibility from
