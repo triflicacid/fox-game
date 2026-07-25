@@ -1,7 +1,7 @@
-import {BackgroundTileType} from "../../sprites/BackgroundTileSpriteSheet";
+import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {Biome} from "./biome";
 import {ClimateSample} from "./climate-fields";
-import {NoiseField, ValueNoiseField} from "./noise-field";
+import {NoiseField, ValueNoiseField} from "../noise-field";
 
 /** Per-channel seed offset for grass variety. */
 const GRASS_VARIANT_SEED_OFFSET = 1013;
@@ -48,3 +48,4 @@ export class PlainsBiome extends Biome {
         return GRASS_VARIANTS[index];
     }
 }
+

@@ -1,5 +1,5 @@
-import {CHUNK_SIZE} from "../chunk-size";
-import {FbmField, NoiseField} from "./noise-field";
+import {CHUNK_SIZE} from "../../chunk-size";
+import {FbmField, NoiseField} from "../noise-field";
 
 /** Climate values sampled at one absolute world-tile position. */
 export interface ClimateSample {
@@ -61,3 +61,4 @@ export class ClimateFields {
         return [this.moisture, this.temperature];
     }
 }
+

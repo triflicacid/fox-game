@@ -1,10 +1,10 @@
-import {CHUNK_SIZE} from "../chunk-size";
-import {TileData} from "../tile";
-import {BiomeTag} from "./biome";
+import {CHUNK_SIZE} from "../../chunk-size";
+import {TileData} from "../../tile";
+import {BiomeTag} from "../biome/biome";
 import {BiomeTagResolver, Feature} from "./feature";
-import {FbmField, NoiseField} from "./noise-field";
-import {PositionCache} from "./position-cache";
-import {coordinateKey, parseCoordinateKey} from "../coordinate-key";
+import {FbmField, NoiseField} from "../noise-field";
+import {PositionCache} from "../position-cache";
+import {coordinateKey, parseCoordinateKey} from "../../coordinate-key";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
@@ -371,3 +371,4 @@ export class LakeFeature extends Feature {
         return components;
     }
 }
+

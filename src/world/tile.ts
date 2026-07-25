@@ -1,7 +1,7 @@
 import {BackgroundTileType} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
-import {BiomeTag} from "./generation/biome";
-import {FeatureTag} from "./generation/feature-tag";
+import {BiomeTag} from "./generation/biome/biome";
+import {FeatureTag} from "./generation/feature/feature-tag";
 
 /** A drawing target a {@link Tile} can render itself into. */
 export type DrawContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;

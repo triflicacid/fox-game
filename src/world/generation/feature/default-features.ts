@@ -5,3 +5,4 @@ import {LakeFeature} from "./lakes";
 export const DEFAULT_FEATURE_PROVIDERS: readonly FeatureProvider[] = [
     ({worldSeed, climate}) => new LakeFeature(worldSeed, climate.moisture),
 ];
+

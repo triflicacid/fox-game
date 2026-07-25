@@ -1,5 +1,5 @@
-import {TileData} from "../tile";
-import {BiomeSummary} from "./biome";
+import {TileData} from "../../tile";
+import {BiomeSummary} from "../biome/biome";
 
 /** A message sent from the main thread to the chunk generation worker. */
 export type ChunkGenerationRequest =
@@ -16,3 +16,4 @@ export interface ChunkGenerationResult {
     tiles: TileData[][];
     generationTimeMs: number;
 }
+

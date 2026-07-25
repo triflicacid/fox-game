@@ -8,10 +8,10 @@ import {Vector2d} from "../geometry/vector2d";
 import {DebugHud} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
-import {ChunkGenerator} from "./generation/chunk-generator";
-import {DEFAULT_FEATURE_PROVIDERS} from "./generation/default-features";
-import {ChunkWorkerClient} from "./generation/chunk-worker-client";
-import {FeatureTag} from "./generation/feature-tag";
+import {ChunkGenerator} from "./generation/chunk/chunk-generator";
+import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
+import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
+import {FeatureTag} from "./generation/feature/feature-tag";
 import {SpriteFrame} from "../sprites/sprite";
 import {coordinateKey} from "./coordinate-key";
 

@@ -1,5 +1,5 @@
 import {WorldController} from "./world-controller";
-import {ChunkWorkerClient} from "./world/generation/chunk-worker-client";
+import {ChunkWorkerClient} from "./world/generation/chunk/chunk-worker-client";
 import {World} from "./world/world";
 
 declare global {
