@@ -7,6 +7,10 @@ import {DEBUG_CONFIG} from "./debug-config";
  * owns the world/camera/entities, so {@link DebugHud} itself stays
  * decoupled from `World`.
  */
+
+/** Readiness state of a single chunk, for the neighbour indicator. */
+export type ChunkState = "ready" | "generating" | "unloaded";
+
 export interface DebugHudData {
     cameraCenterX: number;
     cameraCenterY: number;
@@ -15,9 +19,19 @@ export interface DebugHudData {
     entityX: number;
     entityY: number;
     entityFacing: string;
+    tileX: number;
+    tileY: number;
     chunkX: number;
     chunkY: number;
     chunkBiome: string;
+    /** State of the four cardinal neighbours: north, south, east, west. */
+    neighborStates: {n: ChunkState; s: ChunkState; e: ChunkState; w: ChunkState};
+    /** Distance and compass direction to the nearest chunk with a different biome, or `undefined` when generating/mixed. */
+    distanceToBiomeEdge: {distance: number; direction: string} | undefined;
+    /** Connected loaded-chunk count for the current biome, or `undefined` when generating/mixed. */
+    biomeRegionChunks: number | undefined;
+    /** `true` when the region extends into unloaded chunks - the count is a lower bound. */
+    biomeRegionIsPartial: boolean;
     visibleChunkCount: number;
     loadedChunkCount: number;
     generatingChunkCount: number;
@@ -63,6 +77,17 @@ export class DebugHud {
         return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
     }
 
+    /** A coloured chunk-state symbol: ● ready, ○ generating, · unloaded. */
+    private chunkStateSegment(state: ChunkState): TextSegment {
+        if (state === "ready") {
+            return {content: "●", style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
+        }
+        if (state === "generating") {
+            return {content: "○", style: {foreground: DEBUG_CONFIG.hudChunkGeneratingColor}};
+        }
+        return {content: "·", style: {foreground: DEBUG_CONFIG.hudChunkUnloadedColor}};
+    }
+
     /** Percentage of loaded chunks that are ready (not still generating), `0` if none are loaded. */
     private readyPercent(data: DebugHudData): number {
         if (data.loadedChunkCount === 0) {
@@ -76,35 +101,61 @@ export class DebugHud {
      */
     private buildLines(data: DebugHudData): TextSegment[][] {
         const lines: TextSegment[][] = [
-            [this.text("camera: ("), this.numberValue(data.cameraCenterX.toFixed(1)), this.text(", "), this.numberValue(data.cameraCenterY.toFixed(1)), this.text(")")],
-            [this.text("viewport: "), this.numberValue(String(data.viewportWidth)), this.text(" x "), this.numberValue(String(data.viewportHeight))],
-            [
-                this.text("entity: ("), this.numberValue(data.entityX.toFixed(1)), this.text(", "), this.numberValue(data.entityY.toFixed(1)),
-                this.text("), facing: "), this.stringValue(data.entityFacing),
-            ],
-            [
-                this.text("chunk ("), this.numberValue(String(data.chunkX)), this.text(", "), this.numberValue(String(data.chunkY)),
-                this.text("), "), this.stringValue(data.chunkBiome),
-            ],
-            [
-                this.text("chunks: visible="), this.numberValue(String(data.visibleChunkCount)),
-                this.text(", loaded="), this.numberValue(String(data.loadedChunkCount)),
-                this.text(" ("), this.numberValue(this.readyPercent(data).toFixed(1)), this.text("%)"),
-                this.text(", generating="), this.numberValue(String(data.generatingChunkCount)),
-            ],
-            [
-                this.text("chunk gen: latest="), this.numberValue(data.latestChunkGenerationTimeMs.toFixed(6)), this.text(" ms"),
-                this.text(", avg="), this.numberValue(data.averageChunkGenerationTimeMs.toFixed(4)), this.text(" ms"),
-            ],
-            [this.text("feature: exact="), this.stringValue(data.exactFeature), this.text(", nearby="), this.stringValue(data.nearbyFeature)],
-            [
-                this.stringValue(`[${data.velocityLabel}]`), this.text(" velocity: ("),
-                this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
-                this.text("), speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s"),
-            ],
+            // FPS
             [
                 this.text("FPS: "), this.numberValue(data.actualFps.toFixed(2)), this.text("/"),
                 data.targetFps !== undefined ? this.numberValue(data.targetFps.toFixed(0)) : this.stringValue("uncapped"),
+            ],
+            // Camera + viewport on one line
+            [
+                this.text("cam: ("), this.numberValue(data.cameraCenterX.toFixed(1)), this.text(", "), this.numberValue(data.cameraCenterY.toFixed(1)),
+                this.text(")  view: "), this.numberValue(data.viewportWidth.toFixed(0)), this.text("x"), this.numberValue(data.viewportHeight.toFixed(0)),
+            ],
+            // Position: tile (grid-aligned), pixel (exact), facing
+            [
+                this.text("tile ("), this.numberValue(String(data.tileX)), this.text(", "), this.numberValue(String(data.tileY)),
+                this.text(")  pos ("), this.numberValue(data.entityX.toFixed(1)), this.text(", "), this.numberValue(data.entityY.toFixed(1)),
+                this.text(")  facing: "), this.stringValue(data.entityFacing),
+            ],
+            // Chunk + biome + edge distance + size
+            [
+                this.text("chunk ("), this.numberValue(String(data.chunkX)), this.text(", "), this.numberValue(String(data.chunkY)),
+                this.text(")  biome: "), this.stringValue(data.chunkBiome),
+                ...(data.distanceToBiomeEdge !== undefined
+                    ? [this.text("  edge: "), this.numberValue(String(data.distanceToBiomeEdge.distance)), this.text("ch "), this.stringValue(data.distanceToBiomeEdge.direction)]
+                    : []),
+                ...(data.biomeRegionChunks !== undefined
+                    ? [this.text("  size: "), this.numberValue(String(data.biomeRegionChunks) + (data.biomeRegionIsPartial ? "+" : "")), this.text("ch")]
+                    : []),
+            ],
+            // Neighbours + feature
+            [
+                this.text("neighbors: N"), this.chunkStateSegment(data.neighborStates.n),
+                this.text(" S"), this.chunkStateSegment(data.neighborStates.s),
+                this.text(" E"), this.chunkStateSegment(data.neighborStates.e),
+                this.text(" W"), this.chunkStateSegment(data.neighborStates.w),
+                this.text("  feature: "), this.stringValue(data.exactFeature),
+                ...(data.nearbyFeature !== "none" && data.nearbyFeature !== data.exactFeature
+                    ? [this.text(" (nearby: "), this.stringValue(data.nearbyFeature), this.text(")")]
+                    : []),
+            ],
+            // Chunk counts
+            [
+                this.text("chunks: "), this.numberValue(String(data.visibleChunkCount)), this.text(" vis  "),
+                this.numberValue(String(data.loadedChunkCount)), this.text(" loaded ("),
+                this.numberValue(this.readyPercent(data).toFixed(1)), this.text("%)  "),
+                this.numberValue(String(data.generatingChunkCount)), this.text(" gen"),
+            ],
+            // Generation timing
+            [
+                this.text("gen: "), this.numberValue(data.averageChunkGenerationTimeMs.toFixed(3)), this.text("ms avg  "),
+                this.numberValue(data.latestChunkGenerationTimeMs.toFixed(3)), this.text("ms last"),
+            ],
+            // Entity motion
+            [
+                this.stringValue(`[${data.velocityLabel}] `),
+                this.text("vel: ("), this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
+                this.text(")  speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s"),
             ],
         ];
         if (data.spectating) {

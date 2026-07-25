@@ -2,7 +2,8 @@ import {Tile} from "./tile";
 import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {CHUNK_SIZE} from "./chunk-size";
-import {ChunkGenerationResult} from "./generation/chunk-worker-protocol";
+import {ChunkGenerationResult} from "./generation/chunk/chunk-worker-protocol";
+import {BiomeSummary} from "./generation/biome/biome";
 import {requireNonNull} from "../util";
 
 export type {ChunkSpriteSheets};
@@ -24,8 +25,8 @@ export class Chunk {
     /** Rendered once every tile's sprite has loaded. `null` until then, during which {@link draw} falls back to a per-tile loop. */
     private cachedBitmap: ImageBitmap | null = null;
 
-    /** This chunk's biome name, sampled once for the whole chunk. Empty until {@link isReady}. */
-    public biomeName = "";
+    /** Dominant biome or `mixed`, for debugging only. Empty until {@link isReady}. */
+    public biomeSummary: BiomeSummary | "" = "";
 
     /** How long generation took for this chunk, in milliseconds. `0` until {@link isReady}. */
     public generationTimeMs = 0;
@@ -65,7 +66,7 @@ export class Chunk {
             return;
         }
 
-        this.biomeName = result.biomeName;
+        this.biomeSummary = result.biomeSummary;
         this.generationTimeMs = result.generationTimeMs;
         this.tiles = result.tiles.map((row) => row.map((data) => new Tile(data, spriteSheets)));
 
@@ -171,7 +172,7 @@ export class Chunk {
         ctx.font = DEBUG_CONFIG.chunkLabelFont;
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
-        ctx.fillText(`(${this.chunkX}, ${this.chunkY}), ${this.isReady() ? this.biomeName : "generating..."}`, originX + DEBUG_CONFIG.chunkLabelPadding, originY + DEBUG_CONFIG.chunkLabelPadding);
+        ctx.fillText(`(${this.chunkX}, ${this.chunkY}), ${this.isReady() ? this.biomeSummary : "generating..."}`, originX + DEBUG_CONFIG.chunkLabelPadding, originY + DEBUG_CONFIG.chunkLabelPadding);
 
         if (queuePosition !== undefined) {
             ctx.fillStyle = DEBUG_CONFIG.chunkPendingOutlineColor;

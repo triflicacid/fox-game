@@ -43,6 +43,24 @@
       "x": 192,
       "y": 0,
       "interactable": false
+    },
+    {
+      "type": "sand1",
+      "x": 224,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "sand2",
+      "x": 256,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "sand3",
+      "x": 288,
+      "y": 0,
+      "interactable": false
     }
   ]
 }

@@ -5,12 +5,14 @@ import {MovableEntity} from "../entities/movable-entity";
 import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
 import {Vector2d} from "../geometry/vector2d";
-import {DebugHud} from "../debug/debug-hud";
+import {DebugHud, ChunkState} from "../debug/debug-hud";
+import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
-import {ChunkGenerator} from "./generation/chunk-generator";
-import {DEFAULT_FEATURE_PROVIDERS} from "./generation/default-features";
-import {ChunkWorkerClient} from "./generation/chunk-worker-client";
-import {FeatureTag} from "./generation/feature-tag";
+import {ChunkGenerator} from "./generation/chunk/chunk-generator";
+import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
+import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
+import {FeatureTag} from "./generation/feature/feature-tag";
+import {BiomeSummary} from "./generation/biome/biome";
 import {SpriteFrame} from "../sprites/sprite";
 import {coordinateKey} from "./coordinate-key";
 
@@ -75,6 +77,18 @@ export class World {
     /** Chunk count the last {@link draw} call rendered, for the debug HUD. */
     private lastVisibleChunkCount = 0;
 
+    /**
+     * Cached biome-region BFS results, keyed by biome. Each entry is valid as
+     * long as its anchor chunk (the player's chunk when the BFS ran) is still
+     * loaded. Cleared on seed change.
+     */
+    private readonly biomeRegionCache = new Map<BiomeSummary, {
+        count: number;
+        isPartial: boolean;
+        anchorChunkX: number;
+        anchorChunkY: number;
+    }>();
+
     /** Chunk {@link getChunkGenerationFocus} was in as of the last {@link reorderChunkGenerationQueueIfFocusMoved} call - `undefined` before the first call. */
     private lastChunkGenerationFocusChunk: ChunkCoordinate | undefined;
 
@@ -132,6 +146,7 @@ export class World {
         this.worldSeed = seed;
         this.chunkGenerator.setSeed(seed);
         this.chunkWorkerClient.setSeed(seed);
+        this.biomeRegionCache.clear();
     }
 
     /**
@@ -425,6 +440,144 @@ export class World {
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
         const chunk = this.getChunk(chunkX, chunkY);
         return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
+    }
+
+    /** Returns a tile only when its containing chunk is already loaded and ready. */
+    private getReadyTile(tileX: number, tileY: number): Tile | undefined {
+        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
+        const chunk = this.chunks.get(coordinateKey(chunkX, chunkY));
+        if (!chunk?.isReady()) {
+            return undefined;
+        }
+        return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
+    }
+
+    /**
+     * BFS from `(chunkX, chunkY)` over loaded, ready chunks whose
+     * `biomeSummary` matches `biome`, returning the connected-region size.
+     * `isPartial` is `true` when the region reaches an unloaded or
+     * still-generating chunk - meaning the true size is at least `count`.
+     * Results are cached per biome and reused as long as the anchor chunk
+     * (the player's chunk when the BFS ran) remains loaded.
+     *
+     * @param chunkX - Player's current chunk X.
+     * @param chunkY - Player's current chunk Y.
+     * @param biome - The biome to measure.
+     * @returns Connected chunk count and whether the region extends further.
+     */
+    private getBiomeRegionSize(chunkX: number, chunkY: number, biome: BiomeSummary): {count: number; isPartial: boolean} {
+        const cached = this.biomeRegionCache.get(biome);
+        if (cached && this.chunks.has(coordinateKey(cached.anchorChunkX, cached.anchorChunkY))) {
+            return cached;
+        }
+
+        const NEIGHBORS: readonly {dx: number; dy: number}[] = [
+            {dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1},
+        ];
+        const visited = new Set<string>();
+        const matched = new Set<string>();
+        const queue: {chunkX: number; chunkY: number}[] = [{chunkX, chunkY}];
+        const startKey = coordinateKey(chunkX, chunkY);
+        visited.add(startKey);
+        matched.add(startKey);
+        let isPartial = false;
+
+        while (queue.length > 0) {
+            const {chunkX: cx, chunkY: cy} = queue.shift() as {chunkX: number; chunkY: number};
+            for (const {dx, dy} of NEIGHBORS) {
+                const nx = cx + dx;
+                const ny = cy + dy;
+                const key = coordinateKey(nx, ny);
+                if (visited.has(key)) {
+                    continue;
+                }
+                visited.add(key);
+                const neighbor = this.chunks.get(key);
+                if (!neighbor?.isReady()) {
+                    isPartial = true;
+                    continue;
+                }
+                if (neighbor.biomeSummary === biome) {
+                    matched.add(key);
+                    queue.push({chunkX: nx, chunkY: ny});
+                }
+            }
+        }
+
+        const result = {count: matched.size, isPartial, anchorChunkX: chunkX, anchorChunkY: chunkY};
+        this.biomeRegionCache.set(biome, result);
+        return result;
+    }
+
+    /**
+     * Finds the minimum chunk-grid distance to a chunk with a different biome
+     * summary, checking only loaded ready chunks. Also returns the approximate
+     * compass direction by averaging the displacement vectors of all different-
+     * biome chunks found at that minimum distance.
+     *
+     * @param chunkX - Starting chunk X.
+     * @param chunkY - Starting chunk Y.
+     * @param biome - The biome to compare against.
+     * @returns Distance and direction to the nearest different biome, or `undefined`.
+     */
+    private getDistanceToBiomeEdge(chunkX: number, chunkY: number, biome: BiomeSummary): {distance: number; direction: string} | undefined {
+        const MAX_SEARCH_DISTANCE = 16;
+        const visited = new Set<string>([coordinateKey(chunkX, chunkY)]);
+        let currentRing = [{chunkX, chunkY}];
+
+        for (let distance = 1; distance <= MAX_SEARCH_DISTANCE; distance++) {
+            const nextRing: {chunkX: number; chunkY: number}[] = [];
+            let sumDx = 0;
+            let sumDy = 0;
+            let foundCount = 0;
+
+            for (const {chunkX: cx, chunkY: cy} of currentRing) {
+                for (const {dx, dy} of [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}]) {
+                    const nx = cx + dx;
+                    const ny = cy + dy;
+                    const key = coordinateKey(nx, ny);
+                    if (visited.has(key)) {
+                        continue;
+                    }
+                    visited.add(key);
+                    const neighbor = this.chunks.get(key);
+                    if (!neighbor?.isReady()) {
+                        continue;
+                    }
+                    if (neighbor.biomeSummary !== biome && neighbor.biomeSummary !== "" && neighbor.biomeSummary !== "mixed") {
+                        sumDx += nx - chunkX;
+                        sumDy += ny - chunkY;
+                        foundCount++;
+                    } else {
+                        nextRing.push({chunkX: nx, chunkY: ny});
+                    }
+                }
+            }
+
+            if (foundCount > 0) {
+                return {distance, direction: World.toCompassDirection(sumDx / foundCount, sumDy / foundCount)};
+            }
+            if (nextRing.length === 0) {
+                break;
+            }
+            currentRing = nextRing;
+        }
+        return undefined;
+    }
+
+    /**
+     * Maps a displacement vector to one of the eight compass directions.
+     * Positive Y is down (screen space), so N is negative Y.
+     *
+     * @param dx - Horizontal displacement.
+     * @param dy - Vertical displacement (positive = south).
+     * @returns One of N, NE, E, SE, S, SW, W, NW.
+     */
+    private static toCompassDirection(dx: number, dy: number): string {
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        const normalized = (angle + 360) % 360;
+        const index = Math.round(normalized / 45) % 8;
+        return ["E", "SE", "S", "SW", "W", "NW", "N", "NE"][index];
     }
 
     /**
@@ -731,6 +884,10 @@ export class World {
             }
         }
 
+        if (debugEnabled) {
+            this.drawBiomeOutlines(ctx, camera);
+        }
+
         if (debugEnabled && noiseFieldName) {
             this.drawNoiseFieldOverlay(ctx, camera, noiseFieldName);
         }
@@ -739,6 +896,52 @@ export class World {
 
         if (debugEnabled) {
             this.drawDebugHud(ctx, camera, {spectating, spectatorVelocity, actualFps, targetFps});
+        }
+    }
+
+    /** Draws each visible edge whose neighbouring tiles have different biome tags. */
+    private drawBiomeOutlines(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
+        const startTileX = Math.floor(viewX / this.tileSize);
+        const startTileY = Math.floor(viewY / this.tileSize);
+        const endTileX = Math.floor((viewX + camera.getWidth() - 1) / this.tileSize);
+        const endTileY = Math.floor((viewY + camera.getHeight() - 1) / this.tileSize);
+
+        ctx.strokeStyle = DEBUG_CONFIG.biomeOutlineColor;
+        ctx.lineWidth = DEBUG_CONFIG.biomeOutlineWidth;
+        ctx.beginPath();
+        let hasBoundary = false;
+
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                const tile = this.getReadyTile(tileX, tileY);
+                if (!tile) {
+                    continue;
+                }
+
+                const left = tileX * this.tileSize - viewX;
+                const top = tileY * this.tileSize - viewY;
+                const right = left + this.tileSize;
+                const bottom = top + this.tileSize;
+                const rightTile = this.getReadyTile(tileX + 1, tileY);
+                if (rightTile && rightTile.biomeTag !== tile.biomeTag) {
+                    ctx.moveTo(right, top);
+                    ctx.lineTo(right, bottom);
+                    hasBoundary = true;
+                }
+
+                const bottomTile = this.getReadyTile(tileX, tileY + 1);
+                if (bottomTile && bottomTile.biomeTag !== tile.biomeTag) {
+                    ctx.moveTo(left, bottom);
+                    ctx.lineTo(right, bottom);
+                    hasBoundary = true;
+                }
+            }
+        }
+
+        if (hasBoundary) {
+            ctx.stroke();
         }
     }
 
@@ -846,10 +1049,29 @@ export class World {
         const tileY = Math.floor(position.y / this.tileSize);
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
         const chunk = this.getChunk(chunkX, chunkY);
-        const chunkBiome = chunk.isReady() ? chunk.biomeName : "generating...";
+        const chunkBiome = chunk.isReady() ? chunk.biomeSummary : "generating...";
+        const biomeRegion = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
+            ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
+            : undefined;
         const exactFeature = this.getFeatureTag(tileX, tileY);
         const frame = this.mainEntity.getCurrentFrame();
         const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);
+
+        const distanceToBiomeEdge = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
+            ? this.getDistanceToBiomeEdge(chunkX, chunkY, chunk.biomeSummary)
+            : undefined;
+
+        const toChunkState = (cx: number, cy: number): ChunkState => {
+            const c = this.chunks.get(coordinateKey(cx, cy));
+            if (!c) return "unloaded";
+            return c.isReady() ? "ready" : "generating";
+        };
+        const neighborStates = {
+            n: toChunkState(chunkX, chunkY - 1),
+            s: toChunkState(chunkX, chunkY + 1),
+            e: toChunkState(chunkX + 1, chunkY),
+            w: toChunkState(chunkX - 1, chunkY),
+        };
 
         this.debugHud.draw(ctx, {
             cameraCenterX: center.x,
@@ -859,9 +1081,15 @@ export class World {
             entityX: position.x,
             entityY: position.y,
             entityFacing: this.mainEntity.getFacing(),
+            tileX,
+            tileY,
             chunkX,
             chunkY,
             chunkBiome,
+            neighborStates,
+            distanceToBiomeEdge,
+            biomeRegionChunks: biomeRegion?.count,
+            biomeRegionIsPartial: biomeRegion?.isPartial ?? false,
             visibleChunkCount: this.lastVisibleChunkCount,
             loadedChunkCount: this.getLoadedChunkCount(),
             generatingChunkCount: this.getGeneratingChunkCount(),

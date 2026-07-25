@@ -1,6 +1,7 @@
 import {BackgroundTileType} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
-import {FeatureTag} from "./generation/feature-tag";
+import {BiomeTag} from "./generation/biome/biome";
+import {FeatureTag} from "./generation/feature/feature-tag";
 
 /** A drawing target a {@link Tile} can render itself into. */
 export type DrawContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -21,6 +22,8 @@ function drawNotReadyTile(ctx: DrawContext, x: number, y: number, size: number):
  * Every piece of generated data a {@link Tile} needs.
  */
 export interface TileData {
+    /** Which biome supplied this tile's base terrain. */
+    readonly biomeTag: BiomeTag;
     /** Which feature (if any) this tile belongs to. */
     featureTag: FeatureTag;
     /** Which sprite this tile renders. */
@@ -35,6 +38,7 @@ export class Tile {
     private bitmap: ImageBitmap | null = null;
     private readonly bitmapReady: Promise<void>;
 
+    public readonly biomeTag: BiomeTag;
     public readonly featureTag: FeatureTag;
     public readonly groundType: BackgroundTileType;
 
@@ -43,6 +47,7 @@ export class Tile {
      * @param spriteSheets - Shared sprite sheets to resolve bitmaps from.
      */
     public constructor(data: TileData, spriteSheets: ChunkSpriteSheets) {
+        this.biomeTag = data.biomeTag;
         this.featureTag = data.featureTag;
         this.groundType = data.groundType;
 

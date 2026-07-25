@@ -11,7 +11,7 @@ export const DEBUG_CONFIG = {
     /** Stroke colour for a chunk outline while that chunk hasn't finished generating yet. */
     chunkPendingOutlineColor: "#3399ff",
     /** Stroke width for chunk outlines, in canvas pixels. */
-    chunkOutlineWidth: 3,
+    chunkOutlineWidth: 2,
     /** Text colour for a chunk's coordinate label. */
     chunkLabelColor: "#ff0000",
     /** Font for a chunk's coordinate label. */
@@ -25,6 +25,11 @@ export const DEBUG_CONFIG = {
     featureOutlineColor: "#ff8800",
     /** Stroke width for feature-tag boundary outlines, in canvas pixels. */
     featureOutlineWidth: 1,
+
+    /** Stroke colour for biome-tag boundary outlines. */
+    biomeOutlineColor: "#d946ef",
+    /** Stroke width for biome-tag boundary outlines, in canvas pixels. */
+    biomeOutlineWidth: 2,
 
     /** Stroke colour for entity bounding boxes. */
     boundingBoxColor: "#3399ff",
@@ -42,6 +47,10 @@ export const DEBUG_CONFIG = {
     hudStringValueColor: COLORS.brightYellow,
     /** Text colour for the HUD's numeric-valued values. */
     hudNumberValueColor: COLORS.brightGreen,
+    /** Text colour for a still-generating neighbouring chunk indicator in the HUD. */
+    hudChunkGeneratingColor: "#3399ff",
+    /** Text colour for an unloaded neighbouring chunk indicator in the HUD. */
+    hudChunkUnloadedColor: "#666666",
     /** Text colour for the HUD's spectator-mode indicator. */
     hudSpectatorColor: "#ffff00",
     /** Background colour behind the HUD text. */

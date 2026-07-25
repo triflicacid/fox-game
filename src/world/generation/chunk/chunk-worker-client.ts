@@ -1,6 +1,6 @@
 import ChunkGenerationWorker from "./chunk-worker?worker&inline";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
-import {coordinateKey} from "../coordinate-key";
+import {coordinateKey} from "../../coordinate-key";
 
 /** One pending {@link ChunkWorkerClient.requestChunk} call awaiting its response. */
 interface PendingRequest {
@@ -165,3 +165,4 @@ export class ChunkWorkerClient {
         this.worker.terminate();
     }
 }
+
