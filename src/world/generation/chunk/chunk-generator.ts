@@ -1,13 +1,13 @@
-import {CHUNK_SIZE} from "../chunk-size";
-import {TileData} from "../tile";
-import {NoiseFieldRegistry} from "./field-registry";
-import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "./biome";
-import {DesertBiome} from "./desert-biome";
-import {PlainsBiome} from "./plains-biome";
-import {Feature, FeatureProvider} from "./feature";
-import {PositionCache} from "./position-cache";
-import {ClimateFields} from "./climate-fields";
-import {GenerationContext} from "./generation-context";
+import {CHUNK_SIZE} from "../../chunk-size";
+import {TileData} from "../../tile";
+import {NoiseFieldRegistry} from "../field-registry";
+import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "../biome/biome";
+import {DesertBiome} from "../biome/desert-biome";
+import {PlainsBiome} from "../biome/plains-biome";
+import {Feature, FeatureProvider} from "../feature/feature";
+import {PositionCache} from "../position-cache";
+import {ClimateFields} from "../biome/climate-fields";
+import {GenerationContext} from "../generation-context";
 
 /** Fraction of a chunk that one biome must occupy to be its debug summary. */
 const DOMINANT_BIOME_FRACTION = 0.9;
@@ -144,3 +144,4 @@ export class ChunkGenerator {
         return "mixed";
     }
 }
+

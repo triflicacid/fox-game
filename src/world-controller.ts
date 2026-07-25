@@ -1,5 +1,5 @@
 import {World} from "./world/world";
-import {ChunkWorkerClient} from "./world/generation/chunk-worker-client";
+import {ChunkWorkerClient} from "./world/generation/chunk/chunk-worker-client";
 import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";

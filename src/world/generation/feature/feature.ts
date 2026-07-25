@@ -1,7 +1,7 @@
-import {TileData} from "../tile";
-import {BiomeTag} from "./biome";
-import {GenerationContext} from "./generation-context";
-import {NoiseField} from "./noise-field";
+import {TileData} from "../../tile";
+import {BiomeTag} from "../biome/biome";
+import {GenerationContext} from "../generation-context";
+import {NoiseField} from "../noise-field";
 
 /** Resolves the retained or sampled biome tag at an arbitrary world position. */
 export type BiomeTagResolver = (worldX: number, worldY: number) => BiomeTag;
@@ -33,3 +33,4 @@ export abstract class Feature {
      */
     public abstract apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeTagAt: BiomeTagResolver): void;
 }
+

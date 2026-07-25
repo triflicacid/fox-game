@@ -2,8 +2,8 @@ import {Tile} from "./tile";
 import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {CHUNK_SIZE} from "./chunk-size";
-import {ChunkGenerationResult} from "./generation/chunk-worker-protocol";
-import {BiomeSummary} from "./generation/biome";
+import {ChunkGenerationResult} from "./generation/chunk/chunk-worker-protocol";
+import {BiomeSummary} from "./generation/biome/biome";
 import {requireNonNull} from "../util";
 
 export type {ChunkSpriteSheets};

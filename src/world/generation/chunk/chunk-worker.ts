@@ -1,7 +1,7 @@
 import {ChunkGenerator} from "./chunk-generator";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
-import {DEFAULT_FEATURE_PROVIDERS} from "./default-features";
-import {coordinateKey} from "../coordinate-key";
+import {DEFAULT_FEATURE_PROVIDERS} from "../feature/default-features";
+import {coordinateKey} from "../../coordinate-key";
 
 /**
  * Narrow view of the worker global scope this file needs. Avoids adding the
@@ -117,3 +117,4 @@ ctx.onmessage = (event) => {
     queue.push({chunkX: request.chunkX, chunkY: request.chunkY});
     void processQueue();
 };
+

@@ -1,6 +1,6 @@
-import {BackgroundTileType} from "../../sprites/BackgroundTileSpriteSheet";
+import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {ClimateSample} from "./climate-fields";
-import {NoiseField} from "./noise-field";
+import {NoiseField} from "../noise-field";
 
 /** Stable biome identity retained on generated tiles. */
 export type BiomeTag = "plains" | "desert";
@@ -59,3 +59,4 @@ export function resolveBiome(biomes: readonly Biome[], climate: ClimateSample): 
     }
     return biome;
 }
+

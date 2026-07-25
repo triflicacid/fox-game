@@ -1,7 +1,7 @@
-import {BackgroundTileType} from "../../sprites/BackgroundTileSpriteSheet";
+import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {Biome} from "./biome";
 import {ClimateSample} from "./climate-fields";
-import {NoiseField, ValueNoiseField} from "./noise-field";
+import {NoiseField, ValueNoiseField} from "../noise-field";
 
 /** Desert climate and terrain-variation tuning. */
 const DESERT_CONFIG = {
@@ -52,3 +52,4 @@ export class DesertBiome extends Biome {
         return SAND_VARIANTS[index];
     }
 }
+

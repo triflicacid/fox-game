@@ -1,4 +1,4 @@
-import {ClimateFields} from "./climate-fields";
+import {ClimateFields} from "./biome/climate-fields";
 
 /** Shared, immutable dependencies available while constructing world generators. */
 export interface GenerationContext {
