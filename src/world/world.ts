@@ -6,6 +6,7 @@ import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
 import {Vector2d} from "../geometry/vector2d";
 import {DebugHud} from "../debug/debug-hud";
+import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk-generator";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/default-features";
@@ -415,6 +416,16 @@ export class World {
         return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
     }
 
+    /** Returns a tile only when its containing chunk is already loaded and ready. */
+    private getReadyTile(tileX: number, tileY: number): Tile | undefined {
+        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
+        const chunk = this.chunks.get(coordinateKey(chunkX, chunkY));
+        if (!chunk?.isReady()) {
+            return undefined;
+        }
+        return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
+    }
+
     /**
      * Looks up the feature tag at the given world tile position, generating
      * its containing chunk first if necessary. Unlike {@link getTile}, safe
@@ -718,6 +729,10 @@ export class World {
             }
         }
 
+        if (debugEnabled) {
+            this.drawBiomeOutlines(ctx, camera);
+        }
+
         if (debugEnabled && noiseFieldName) {
             this.drawNoiseFieldOverlay(ctx, camera, noiseFieldName);
         }
@@ -726,6 +741,52 @@ export class World {
 
         if (debugEnabled) {
             this.drawDebugHud(ctx, camera, spectating, actualFps, targetFps);
+        }
+    }
+
+    /** Draws each visible edge whose neighbouring tiles have different biome tags. */
+    private drawBiomeOutlines(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
+        const startTileX = Math.floor(viewX / this.tileSize);
+        const startTileY = Math.floor(viewY / this.tileSize);
+        const endTileX = Math.floor((viewX + camera.getWidth() - 1) / this.tileSize);
+        const endTileY = Math.floor((viewY + camera.getHeight() - 1) / this.tileSize);
+
+        ctx.strokeStyle = DEBUG_CONFIG.biomeOutlineColor;
+        ctx.lineWidth = DEBUG_CONFIG.biomeOutlineWidth;
+        ctx.beginPath();
+        let hasBoundary = false;
+
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                const tile = this.getReadyTile(tileX, tileY);
+                if (!tile) {
+                    continue;
+                }
+
+                const left = tileX * this.tileSize - viewX;
+                const top = tileY * this.tileSize - viewY;
+                const right = left + this.tileSize;
+                const bottom = top + this.tileSize;
+                const rightTile = this.getReadyTile(tileX + 1, tileY);
+                if (rightTile && rightTile.biomeTag !== tile.biomeTag) {
+                    ctx.moveTo(right, top);
+                    ctx.lineTo(right, bottom);
+                    hasBoundary = true;
+                }
+
+                const bottomTile = this.getReadyTile(tileX, tileY + 1);
+                if (bottomTile && bottomTile.biomeTag !== tile.biomeTag) {
+                    ctx.moveTo(left, bottom);
+                    ctx.lineTo(right, bottom);
+                    hasBoundary = true;
+                }
+            }
+        }
+
+        if (hasBoundary) {
+            ctx.stroke();
         }
     }
 
