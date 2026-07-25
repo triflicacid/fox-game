@@ -7,13 +7,11 @@ import {coordinateKey, parseCoordinateKey} from "../coordinate-key";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
-    /** Per-channel seed offsets so the three lake fields don't correlate. */
-    moistureSeedOffset: 2027,
+    /** Per-channel seed offsets so the two lake-owned fields don't correlate. */
     wetnessSeedOffset: 3037,
     lakeShapeSeedOffset: 4049,
 
-    /** Noise cycles per tile: moisture/wetness are broad wetness gates, lake_shape carves the blob. */
-    moistureFrequency: 1 / 50,
+    /** Noise cycles per tile: wetness is a broad gate, lake_shape carves the blob. */
     wetnessFrequency: 1 / 45,
     lakeShapeFrequency: 1 / 20,
 
@@ -171,22 +169,21 @@ interface LakeComponent {
 
 /** Lakes: a region-style feature - flood-filled, smoothed, min-size and biome-vote gated. */
 export class LakeFeature extends Feature {
-    private readonly moisture: NoiseField;
     private readonly wetness: NoiseField;
     private readonly lakeShape: NoiseField;
 
     /**
      * @param worldSeed - The world's seed, so this feature's fields sample deterministically.
+     * @param moisture - The shared world moisture field.
      */
-    public constructor(worldSeed: number) {
+    public constructor(worldSeed: number, private readonly moisture: NoiseField) {
         super();
-        this.moisture = new FbmField("moisture", worldSeed, LAKE_CONFIG.moistureSeedOffset, LAKE_CONFIG.moistureFrequency, LAKE_CONFIG.fieldOctaves);
         this.wetness = new FbmField("wetness", worldSeed, LAKE_CONFIG.wetnessSeedOffset, LAKE_CONFIG.wetnessFrequency, LAKE_CONFIG.fieldOctaves);
         this.lakeShape = new FbmField("lake_shape", worldSeed, LAKE_CONFIG.lakeShapeSeedOffset, LAKE_CONFIG.lakeShapeFrequency, LAKE_CONFIG.fieldOctaves);
     }
 
     public override getFields(): readonly NoiseField[] {
-        return [this.moisture, this.wetness, this.lakeShape];
+        return [this.wetness, this.lakeShape];
     }
 
     public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeAt: BiomeResolver): void {

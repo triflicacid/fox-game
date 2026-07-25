@@ -5,6 +5,8 @@ import {Biome, resolveBiome} from "./biome";
 import {PlainsBiome} from "./plains-biome";
 import {Feature, FeatureProvider} from "./feature";
 import {PositionCache} from "./position-cache";
+import {createClimateFields} from "./climate-fields";
+import {GenerationContext} from "./generation-context";
 
 /** One chunk's generated tile grid, plus the biome it was generated for. */
 export interface GeneratedChunk {
@@ -36,6 +38,11 @@ export class ChunkGenerator {
      */
     public setSeed(worldSeed: number): void {
         this.biomeCache.clear();
+        this.fields.clear();
+
+        const climate = createClimateFields(worldSeed);
+        this.fields.register(climate.moisture);
+        this.fields.register(climate.temperature);
 
         const plains = new PlainsBiome(worldSeed);
         for (const field of plains.getFields()) {
@@ -43,7 +50,8 @@ export class ChunkGenerator {
         }
         this.biomes = [plains];
 
-        this.features = this.featureProviders.map((provider) => provider(worldSeed));
+        const context = {worldSeed, climate} as GenerationContext;
+        this.features = this.featureProviders.map((provider) => provider(context));
         for (const feature of this.features) {
             for (const field of feature.getFields()) {
                 this.fields.register(field);
