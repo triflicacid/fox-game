@@ -108,14 +108,14 @@ export class DebugHud {
             ],
             // Camera + viewport on one line
             [
-                this.text("cam: ("), this.numberValue(data.cameraCenterX.toFixed(1)), this.text(", "), this.numberValue(data.cameraCenterY.toFixed(1)),
-                this.text(")  view: "), this.numberValue(String(data.viewportWidth)), this.text("×"), this.numberValue(String(data.viewportHeight)),
+                this.text("vel: ("), this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
+                this.text(")  speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s"),
             ],
             // Position — tile (grid-aligned), pixel (exact), facing
             [
                 this.text("tile ("), this.numberValue(String(data.tileX)), this.text(", "), this.numberValue(String(data.tileY)),
                 this.text(")  pos ("), this.numberValue(data.entityX.toFixed(1)), this.text(", "), this.numberValue(data.entityY.toFixed(1)),
-                this.text(")"),
+                this.text(")  facing: "), this.stringValue(data.entityFacing),
             ],
             // Chunk + biome + edge distance + size on one line
             [
