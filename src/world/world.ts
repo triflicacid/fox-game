@@ -832,7 +832,7 @@ export class World {
         const tileY = Math.floor(position.y / this.tileSize);
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
         const chunk = this.getChunk(chunkX, chunkY);
-        const chunkBiome = chunk.isReady() ? chunk.biomeName : "generating...";
+        const chunkBiome = chunk.isReady() ? chunk.biomeSummary : "generating...";
         const exactFeature = this.getFeatureTag(tileX, tileY);
         const frame = this.mainEntity.getCurrentFrame();
         const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);

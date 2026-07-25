@@ -49,7 +49,7 @@ function generateChunk(chunkX: number, chunkY: number): void {
     ctx.postMessage({
         chunkX,
         chunkY,
-        biomeName: generated.biome.name,
+        biomeSummary: generated.biomeSummary,
         tiles: generated.tiles,
         generationTimeMs,
     });

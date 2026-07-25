@@ -1,6 +1,7 @@
 import {CHUNK_SIZE} from "../chunk-size";
 import {TileData} from "../tile";
-import {BiomeResolver, Feature} from "./feature";
+import {BiomeTag} from "./biome";
+import {BiomeTagResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "./noise-field";
 import {PositionCache} from "./position-cache";
 import {coordinateKey, parseCoordinateKey} from "../coordinate-key";
@@ -45,7 +46,7 @@ const LAKE_CONFIG = {
     maxTiles: 9 * CHUNK_SIZE * CHUNK_SIZE,
 
     /** Biomes a lake is allowed to centre in (majority vote of its core tiles) - extensible for a future Desert oasis exception. */
-    allowedBiomes: ["plains"] as readonly string[],
+    allowedBiomes: ["plains"] as readonly BiomeTag[],
 } as const;
 
 /**
@@ -186,8 +187,8 @@ export class LakeFeature extends Feature {
         return [this.wetness, this.lakeShape];
     }
 
-    public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeAt: BiomeResolver): void {
-        const components = this.discoverComponents(resolveBiomeAt, chunkX, chunkY);
+    public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeTagAt: BiomeTagResolver): void {
+        const components = this.discoverComponents(resolveBiomeTagAt, chunkX, chunkY);
         for (const component of components) {
             const shoreDistances = computeShoreDistances(component.tiles);
             for (const key of component.tiles) {
@@ -243,26 +244,26 @@ export class LakeFeature extends Feature {
      * position, against `LAKE_CONFIG.allowedBiomes`.
      *
      * @param coreTiles - A lake's core tiles, as {@link coordinateKey} strings.
-     * @param resolveBiomeAt - Resolves the biome at an absolute world position.
+     * @param resolveBiomeTagAt - Resolves the biome tag at an absolute world position.
      * @returns Whether the majority biome is in `LAKE_CONFIG.allowedBiomes`.
      */
-    private coreTilesVoteAllowed(coreTiles: ReadonlySet<string>, resolveBiomeAt: BiomeResolver): boolean {
-        const counts = new Map<string, number>();
+    private coreTilesVoteAllowed(coreTiles: ReadonlySet<string>, resolveBiomeTagAt: BiomeTagResolver): boolean {
+        const counts = new Map<BiomeTag, number>();
         for (const key of coreTiles) {
             const [x, y] = parseCoordinateKey(key);
-            const name = resolveBiomeAt(x, y).name;
-            counts.set(name, (counts.get(name) ?? 0) + 1);
+            const tag = resolveBiomeTagAt(x, y);
+            counts.set(tag, (counts.get(tag) ?? 0) + 1);
         }
 
-        let majorityName = "";
+        let majorityTag: BiomeTag | undefined;
         let majorityCount = -1;
-        for (const [name, count] of counts) {
+        for (const [tag, count] of counts) {
             if (count > majorityCount) {
-                majorityName = name;
+                majorityTag = tag;
                 majorityCount = count;
             }
         }
-        return LAKE_CONFIG.allowedBiomes.includes(majorityName);
+        return majorityTag !== undefined && LAKE_CONFIG.allowedBiomes.includes(majorityTag);
     }
 
     /**
@@ -316,12 +317,12 @@ export class LakeFeature extends Feature {
      * per call), then smooths, min-size checks, core-tiles, and
      * biome-votes each surviving component.
      *
-     * @param resolveBiomeAt - Resolves the biome at an absolute world position.
+     * @param resolveBiomeTagAt - Resolves the biome tag at an absolute world position.
      * @param chunkX - Chunk's X coordinate, in chunk units.
      * @param chunkY - Chunk's Y coordinate, in chunk units.
      * @returns Every accepted lake touching this chunk (usually 0 or 1).
      */
-    private discoverComponents(resolveBiomeAt: BiomeResolver, chunkX: number, chunkY: number): LakeComponent[] {
+    private discoverComponents(resolveBiomeTagAt: BiomeTagResolver, chunkX: number, chunkY: number): LakeComponent[] {
         const candidacyCache = new PositionCache<boolean>();
         const isCandidateCached = (worldX: number, worldY: number): boolean =>
             candidacyCache.get([worldX, worldY], ([x, y]) => this.isCandidate(x, y));
@@ -359,7 +360,7 @@ export class LakeFeature extends Feature {
                     continue;
                 }
 
-                if (!this.coreTilesVoteAllowed(coreTiles, resolveBiomeAt)) {
+                if (!this.coreTilesVoteAllowed(coreTiles, resolveBiomeTagAt)) {
                     continue;
                 }
 
