@@ -118,6 +118,24 @@ const WATER_DARK = {
     ],
 };
 
+// Oasis water is warmer and more turquoise than normal lake water so the rare
+// Desert feature remains recognizable without needing decorative overlays.
+const OASIS_WATER_LIGHT = {
+    seed: 6001,
+    palette: [
+        { color: [36, 159, 164, 255], weight: 88 }, // base
+        { color: [79, 196, 190, 255], weight: 12 }, // shimmer
+    ],
+};
+
+const OASIS_WATER_DARK = {
+    seed: 6002,
+    palette: [
+        { color: [13, 89, 108, 255], weight: 88 }, // base
+        { color: [20, 121, 128, 255], weight: 12 }, // shimmer
+    ],
+};
+
 const SAND_VARIANTS = [
     {
         seed: 5001,
@@ -148,18 +166,25 @@ const SAND_VARIANTS = [
     },
 ];
 
-// one row of the sheet, in column order.
-const TILES = [
-    { type: "grass1", ...GRASS_VARIANTS[0] },
-    { type: "grass2", ...GRASS_VARIANTS[1] },
-    { type: "grass3", ...GRASS_VARIANTS[2] },
-    { type: "dirt", ...DIRT },
-    { type: "gravel", ...GRAVEL },
-    { type: "waterLight", ...WATER_LIGHT },
-    { type: "waterDark", ...WATER_DARK },
-    { type: "sand1", ...SAND_VARIANTS[0] },
-    { type: "sand2", ...SAND_VARIANTS[1] },
-    { type: "sand3", ...SAND_VARIANTS[2] },
+// Group biome assets by sheet row. Normal lakes currently belong to the
+// Plains-majority feature set; oasis water belongs with Desert terrain.
+const TILE_ROWS = [
+    [
+        { type: "grass1", ...GRASS_VARIANTS[0] },
+        { type: "grass2", ...GRASS_VARIANTS[1] },
+        { type: "grass3", ...GRASS_VARIANTS[2] },
+        { type: "dirt", ...DIRT },
+        { type: "gravel", ...GRAVEL },
+        { type: "waterLight", ...WATER_LIGHT },
+        { type: "waterDark", ...WATER_DARK },
+    ],
+    [
+        { type: "sand1", ...SAND_VARIANTS[0] },
+        { type: "sand2", ...SAND_VARIANTS[1] },
+        { type: "sand3", ...SAND_VARIANTS[2] },
+        { type: "oasisWaterLight", ...OASIS_WATER_LIGHT },
+        { type: "oasisWaterDark", ...OASIS_WATER_DARK },
+    ],
 ];
 
 /**
@@ -181,21 +206,23 @@ function buildTileGrid(tile) {
     return grid;
 }
 
-const sheetW = CELL_PX * TILES.length;
-const sheetH = CELL_PX;
+const sheetW = CELL_PX * Math.max(...TILE_ROWS.map((row) => row.length));
+const sheetH = CELL_PX * TILE_ROWS.length;
 const sheet = Buffer.alloc(sheetW * sheetH * 4, 0);
 
-// build sheet columns and descriptors
-const rowDescriptors = TILES.map((tile, column) => {
-    blitGrid(sheet, sheetW, buildTileGrid(tile), GRID, BLOCK, column * CELL_PX, 0);
+// Build each visual row while keeping the descriptor's flat tile-entry format.
+const rowDescriptors = TILE_ROWS.flatMap((tiles, row) => tiles.map((tile, column) => {
+    const x = column * CELL_PX;
+    const y = row * CELL_PX;
+    blitGrid(sheet, sheetW, buildTileGrid(tile), GRID, BLOCK, x, y);
 
     return {
         type: tile.type,
-        x: column * CELL_PX,
-        y: 0,
+        x,
+        y,
         interactable: false, // background tiles
     };
-});
+}));
 
 const descriptor = {
     cellWidth: CELL_PX,
@@ -205,4 +232,4 @@ const descriptor = {
 
 const { outPath, descriptorOutPath } = parseCliArgs("gen-background-tile-sprites.mjs", "static/background-tile-sprites.json");
 writeSpriteSheet(outPath, descriptorOutPath, sheetW, sheetH, sheet, descriptor);
-console.log("tile order:", TILES.map((tile) => tile.type).join(", "));
+console.log("tile rows:", TILE_ROWS.map((row) => row.map((tile) => tile.type).join(", ")).join(" | "));
