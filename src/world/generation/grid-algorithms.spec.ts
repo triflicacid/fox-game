@@ -3,6 +3,7 @@ import {CoordSet} from "../coord-set";
 import {
     computeCappedRegionDepths,
     computeEdgeDistances,
+    computeOutwardDistances,
     erodeComponent,
     findCoreTiles,
     floodFill8,
@@ -345,5 +346,80 @@ describe("floodFill8", () => {
         const isCandidate = vi.fn(() => false);
         floodFill8(3, 7, isCandidate, 100);
         expect(isCandidate).not.toHaveBeenCalledWith(3, 7);
+    });
+});
+
+describe("computeOutwardDistances", () => {
+    it("returns an empty map for an empty component", () => {
+        const empty = new CoordSet();
+        expect(computeOutwardDistances(empty, empty, 4).size).toBe(0);
+    });
+
+    it("seeds all 8 neighbours of a single-tile component at distance 1", () => {
+        const component = new CoordSet();
+        component.add(5, 5);
+        const result = computeOutwardDistances(component, new CoordSet(), 1);
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                expect(result.get(5 + dx, 5 + dy)).toBe(1);
+            }
+        }
+        expect(result.size).toBe(8);
+    });
+
+    it("propagates correct distances outward from a 3x3 component", () => {
+        const component = filledRect(0, 0, 2, 2);
+        const result = computeOutwardDistances(component, new CoordSet(), 2);
+        expect(result.get(-1, -1)).toBe(1);
+        expect(result.get(-2, -2)).toBe(2);
+        expect(result.get(3, 3)).toBe(1);
+        expect(result.get(4, 4)).toBe(2);
+    });
+
+    it("component tiles never appear in the result", () => {
+        const component = filledRect(0, 0, 2, 2);
+        const result = computeOutwardDistances(component, new CoordSet(), 3);
+        for (const [x, y] of component) {
+            expect(result.has(x, y)).toBe(false);
+        }
+    });
+
+    it("barrier tiles never appear in the result", () => {
+        const component = new CoordSet();
+        component.add(0, 0);
+        const barrier = new CoordSet();
+        barrier.add(1, 0);
+        const result = computeOutwardDistances(component, barrier, 4);
+        expect(result.has(1, 0)).toBe(false);
+    });
+
+    it("caps at maxDistance and does not include farther tiles", () => {
+        const component = new CoordSet();
+        component.add(0, 0);
+        const result = computeOutwardDistances(component, new CoordSet(), 2);
+        for (const [x, y] of result.keys()) {
+            expect(result.get(x, y)).toBeLessThanOrEqual(2);
+        }
+        expect(result.has(3, 0)).toBe(false);
+    });
+
+    it("uses minimum distance when multiple component tiles seed the same outer tile", () => {
+        const component = new CoordSet();
+        component.add(0, 0);
+        component.add(2, 0);
+        const result = computeOutwardDistances(component, new CoordSet(), 3);
+        expect(result.get(1, 0)).toBe(1);
+    });
+
+    it("does not mutate either input", () => {
+        const component = filledRect(0, 0, 2, 2);
+        const barrier = new CoordSet();
+        barrier.add(10, 10);
+        const sizeBefore = component.size;
+        computeOutwardDistances(component, barrier, 3);
+        expect(component.size).toBe(sizeBefore);
+        expect(barrier.has(10, 10)).toBe(true);
+        expect(barrier.size).toBe(1);
     });
 });

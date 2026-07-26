@@ -1,5 +1,6 @@
 import {CHUNK_SIZE} from "../../chunk-size";
 import {TileData} from "../../tile";
+import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {NoiseFieldRegistry} from "../field-registry";
 import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "../biome/biome";
 import {DesertBiome} from "../biome/desert-biome";
@@ -74,7 +75,7 @@ export class ChunkGenerator {
             }
         }
 
-        const context = {worldSeed, climate: this.climate} as GenerationContext;
+        const context: GenerationContext = {worldSeed, climate: this.climate, terrainDepth: this.terrainDepthConfig};
         this.features = this.featureProviders.map((provider) => provider(context));
         for (const feature of this.features) {
             for (const field of feature.getFields()) {
@@ -141,7 +142,7 @@ export class ChunkGenerator {
                 const groundType = biome.sampleBaseTerrain(worldX, worldY, biomeDepth);
                 const biomeTag = biome.name;
                 biomeCounts.set(biomeTag, (biomeCounts.get(biomeTag) ?? 0) + 1);
-                row.push({biomeTag, groundType, featureTag: "none"});
+                row.push({biomeTag, biomeDepth, groundType, featureTag: "none"});
             }
             tiles.push(row);
         }
@@ -156,8 +157,15 @@ export class ChunkGenerator {
             return this.resolveBiomeAt(worldX, worldY).name;
         };
 
+        const resampleTerrainAt = (worldX: number, worldY: number, depth: number): BackgroundTileType => {
+            const paddedX = worldX - chunkOriginX + halo;
+            const paddedY = worldY - chunkOriginY + halo;
+            const biome = paddedBiomes[paddedY][paddedX];
+            return biome.sampleBaseTerrain(worldX, worldY, depth);
+        };
+
         for (const feature of this.features) {
-            feature.apply(tiles, chunkX, chunkY, resolveBiomeTagAt);
+            feature.apply(tiles, chunkX, chunkY, resolveBiomeTagAt, resampleTerrainAt);
         }
 
         return {biomeSummary: this.summariseBiomes(biomeCounts), tiles};
@@ -191,4 +199,3 @@ export class ChunkGenerator {
         return "mixed";
     }
 }
-
