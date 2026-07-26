@@ -215,11 +215,11 @@ export class MovementController {
      * @param entity - Entity to follow.
      */
     private followEntity(cameraFollow: CameraFollowOptions, entity: MovableEntity): void {
-        const entityCenter = this.getEntityCenter(entity);
+        const entityPosition = entity.getPosition();
         if (cameraFollow.mode === "center") {
-            cameraFollow.camera.setCenter(entityCenter);
+            cameraFollow.camera.setCenter(entityPosition);
         } else {
-            this.dragCameraToEdge(cameraFollow.camera, entityCenter);
+            this.dragCameraToEdge(cameraFollow.camera, entityPosition);
         }
     }
 
@@ -279,7 +279,7 @@ export class MovementController {
         if (!this.cameraFollow || !this.entity) {
             return;
         }
-        this.cameraFollow.camera.setCenter(this.getEntityCenter(this.entity));
+        this.cameraFollow.camera.setCenter(this.entity.getPosition());
     }
 
     /**
@@ -295,30 +295,17 @@ export class MovementController {
     }
 
     /**
-     * The world-space midpoint of an entity's current sprite, used as the
-     * point the camera tracks (rather than the entity's top-left {@link
-     * MovableEntity.getPosition}).
-     *
-     * @param entity - Entity to find the centre point of.
-     * @returns The entity's centre point, in world pixels.
-     */
-    private getEntityCenter(entity: MovableEntity): Vector2d {
-        const frame = entity.getCurrentFrame();
-        return entity.getPosition().add(new Vector2d(frame.w / 2, frame.h / 2));
-    }
-
-    /**
-     * Pans `camera` by the minimum amount needed to keep `entityCenter`
+     * Pans `camera` by the minimum amount needed to keep `entityPosition`
      * within {@link CameraFollowOptions.edgeMargin} of the viewport's edge,
      * leaving the camera untouched if the entity is already within margin.
      *
      * @param camera - Camera to drag.
-     * @param entityCenter - World-space point being tracked.
+     * @param entityPosition - World-space point being tracked.
      */
-    private dragCameraToEdge(camera: Camera, entityCenter: Vector2d): void {
+    private dragCameraToEdge(camera: Camera, entityPosition: Vector2d): void {
         const margin = this.cameraFollow?.edgeMargin ?? MovementController.DEFAULT_EDGE_MARGIN;
-        const screenX = entityCenter.x - camera.getViewX();
-        const screenY = entityCenter.y - camera.getViewY();
+        const screenX = entityPosition.x - camera.getViewX();
+        const screenY = entityPosition.y - camera.getViewY();
 
         let dx = 0;
         if (screenX < margin) {

@@ -2,6 +2,7 @@ import {AnimatedSpriteSheet} from "../sprites/AnimatedSpriteSheet";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
+import {Rect} from "../geometry/rect";
 
 /**
  * Base class for a rendered thing in the world: something with an attached
@@ -22,7 +23,7 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
      * @param status - Initial behavioural status.
      * @param initialFrame - Initial sprite frame to render, typically obtained from `spriteSheet.locateSprite(...)`.
      * @param frameIntervalMs - How long, in milliseconds, each animation frame is shown before advancing to the next.
-     * @param position - Initial position. Defaults to {@link Vector2d.ZERO}.
+     * @param position - Initial position (the sprite's centre point). Defaults to {@link Vector2d.ZERO}.
      */
     protected constructor(
         protected readonly spriteSheet: AnimatedSpriteSheet<TSpriteType>,
@@ -46,7 +47,7 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
     }
 
     /**
-     * This entity's current position.
+     * This entity's current position (its sprite's centre point).
      *
      * @returns The current position.
      */
@@ -58,10 +59,24 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
      * Sets this entity's position. Intended for subclasses (e.g.
      * {@link MovableEntity}) that need to move themselves.
      *
-     * @param position - New position.
+     * @param position - New position (the sprite's centre point).
      */
     protected setPosition(position: Vector2d): void {
         this.position = position;
+    }
+
+    /**
+     * This entity's current drawn rectangle, in world pixels.
+     *
+     * @returns The current frame's world-space bounding rectangle.
+     */
+    public getBoundingRect(): Rect {
+        return {
+            x: this.position.x - this.currentFrame.w / 2,
+            y: this.position.y - this.currentFrame.h / 2,
+            w: this.currentFrame.w,
+            h: this.currentFrame.h,
+        };
     }
 
     /**
@@ -155,8 +170,8 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
      */
     public drawDebugOverlay(ctx: CanvasRenderingContext2D, viewX: number, viewY: number): void {
         const {bounds} = this.currentFrame;
-        const centerX = this.position.x - viewX + this.currentFrame.w / 2;
-        const centerY = this.position.y - viewY + this.currentFrame.h / 2;
+        const centerX = this.position.x - viewX;
+        const centerY = this.position.y - viewY;
 
         ctx.strokeStyle = DEBUG_CONFIG.boundingBoxColor;
         ctx.lineWidth = DEBUG_CONFIG.boundingBoxWidth;
