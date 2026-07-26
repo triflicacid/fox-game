@@ -1,6 +1,14 @@
 import {describe, expect, it, vi} from "vitest";
 import {CoordSet} from "../coord-set";
-import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8, isFullySurrounded} from "./grid-algorithms";
+import {
+    computeCappedRegionDepths,
+    computeEdgeDistances,
+    computeOutwardDistances,
+    erodeComponent,
+    findCoreTiles,
+    floodFill8,
+    isFullySurrounded,
+} from "./grid-algorithms";
 
 /** Builds a filled rectangular CoordSet. */
 function filledRect(x0: number, y0: number, x1: number, y1: number): CoordSet {
@@ -13,6 +21,70 @@ function filledRect(x0: number, y0: number, x1: number, y1: number): CoordSet {
     return tiles;
 }
 
+
+describe("computeCappedRegionDepths", () => {
+    it("returns an empty grid for an empty mask", () => {
+        expect(computeCappedRegionDepths([], 4)).toEqual([]);
+    });
+
+    it("treats a homogeneous mask as fully interior", () => {
+        expect(computeCappedRegionDepths([
+            ["plains", "plains"],
+            ["plains", "plains"],
+        ], 4)).toEqual([
+            [4, 4],
+            [4, 4],
+        ]);
+    });
+
+    it("computes successive 8-connected rings on both sides of a straight border", () => {
+        expect(computeCappedRegionDepths([
+            ["plains", "plains", "plains", "desert", "desert", "desert"],
+            ["plains", "plains", "plains", "desert", "desert", "desert"],
+            ["plains", "plains", "plains", "desert", "desert", "desert"],
+        ], 4)).toEqual([
+            [3, 2, 1, 1, 2, 3],
+            [3, 2, 1, 1, 2, 3],
+            [3, 2, 1, 1, 2, 3],
+        ]);
+    });
+
+    it("caps propagation without traversing a complete region", () => {
+        expect(computeCappedRegionDepths([
+            ["a", "a", "a", "a", "a", "b"],
+        ], 3)).toEqual([[3, 3, 3, 2, 1, 1]]);
+    });
+
+    it("marks diagonal unlike neighbours as border cells", () => {
+        const depths = computeCappedRegionDepths([
+            ["desert", "plains", "plains"],
+            ["plains", "plains", "plains"],
+            ["plains", "plains", "plains"],
+        ], 3);
+        expect(depths).toEqual([
+            [1, 1, 2],
+            [1, 1, 2],
+            [2, 2, 2],
+        ]);
+    });
+
+    it("supports zero as a depth cap", () => {
+        expect(computeCappedRegionDepths([["a", "b"]], 0)).toEqual([[0, 0]]);
+    });
+
+    it("rejects invalid caps and ragged masks", () => {
+        expect(() => computeCappedRegionDepths([["a"]], -1)).toThrow(RangeError);
+        expect(() => computeCappedRegionDepths([["a"]], 1.5)).toThrow(RangeError);
+        expect(() => computeCappedRegionDepths([["a"], ["a", "b"]], 2)).toThrow(/rectangular/);
+    });
+
+    it("does not mutate the region mask", () => {
+        const regions = [["a", "b"], ["a", "a"]] as const;
+        const snapshot = regions.map((row) => [...row]);
+        computeCappedRegionDepths(regions, 3);
+        expect(regions).toEqual(snapshot);
+    });
+});
 
 describe("computeEdgeDistances", () => {
     it("returns an empty map for an empty component", () => {
@@ -274,5 +346,80 @@ describe("floodFill8", () => {
         const isCandidate = vi.fn(() => false);
         floodFill8(3, 7, isCandidate, 100);
         expect(isCandidate).not.toHaveBeenCalledWith(3, 7);
+    });
+});
+
+describe("computeOutwardDistances", () => {
+    it("returns an empty map for an empty component", () => {
+        const empty = new CoordSet();
+        expect(computeOutwardDistances(empty, empty, 4).size).toBe(0);
+    });
+
+    it("seeds all 8 neighbours of a single-tile component at distance 1", () => {
+        const component = new CoordSet();
+        component.add(5, 5);
+        const result = computeOutwardDistances(component, new CoordSet(), 1);
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                expect(result.get(5 + dx, 5 + dy)).toBe(1);
+            }
+        }
+        expect(result.size).toBe(8);
+    });
+
+    it("propagates correct distances outward from a 3x3 component", () => {
+        const component = filledRect(0, 0, 2, 2);
+        const result = computeOutwardDistances(component, new CoordSet(), 2);
+        expect(result.get(-1, -1)).toBe(1);
+        expect(result.get(-2, -2)).toBe(2);
+        expect(result.get(3, 3)).toBe(1);
+        expect(result.get(4, 4)).toBe(2);
+    });
+
+    it("component tiles never appear in the result", () => {
+        const component = filledRect(0, 0, 2, 2);
+        const result = computeOutwardDistances(component, new CoordSet(), 3);
+        for (const [x, y] of component) {
+            expect(result.has(x, y)).toBe(false);
+        }
+    });
+
+    it("barrier tiles never appear in the result", () => {
+        const component = new CoordSet();
+        component.add(0, 0);
+        const barrier = new CoordSet();
+        barrier.add(1, 0);
+        const result = computeOutwardDistances(component, barrier, 4);
+        expect(result.has(1, 0)).toBe(false);
+    });
+
+    it("caps at maxDistance and does not include farther tiles", () => {
+        const component = new CoordSet();
+        component.add(0, 0);
+        const result = computeOutwardDistances(component, new CoordSet(), 2);
+        for (const [x, y] of result.keys()) {
+            expect(result.get(x, y)).toBeLessThanOrEqual(2);
+        }
+        expect(result.has(3, 0)).toBe(false);
+    });
+
+    it("uses minimum distance when multiple component tiles seed the same outer tile", () => {
+        const component = new CoordSet();
+        component.add(0, 0);
+        component.add(2, 0);
+        const result = computeOutwardDistances(component, new CoordSet(), 3);
+        expect(result.get(1, 0)).toBe(1);
+    });
+
+    it("does not mutate either input", () => {
+        const component = filledRect(0, 0, 2, 2);
+        const barrier = new CoordSet();
+        barrier.add(10, 10);
+        const sizeBefore = component.size;
+        computeOutwardDistances(component, barrier, 3);
+        expect(component.size).toBe(sizeBefore);
+        expect(barrier.has(10, 10)).toBe(true);
+        expect(barrier.size).toBe(1);
     });
 });
