@@ -267,8 +267,8 @@ climate fields.
 
 Oases instead use dedicated deterministic world-space fields:
 
-- `oasis_region`: a very low-frequency, high-threshold groundwater/suitability
-  gate that makes eligible regions rare;
+- `oasis_region`: deterministic jittered groundwater/suitability peaks that
+  make eligible regions uncommon without broad seed-scale gaps;
 - `oasis_shape`: a somewhat higher-frequency field that shapes water inside an
   eligible region.
 
@@ -278,8 +278,9 @@ an oasis can cross a biome border naturally instead of being cut off at it.
 
 Oases reuse extracted bounded-component, smoothing, core, biome-vote, and
 shore-distance utilities from lakes, but have their own configuration. They
-should generally be smaller than lakes and use a lower component cap. Do not
-copy the complete lake implementation into a second feature.
+should generally be larger than lakes and use a correspondingly larger bounded
+component cap. Do not copy the complete lake implementation into a second
+feature.
 
 Oases should also be visually recognizable as oases rather than ordinary lake
 water. Add dedicated `oasisWaterLight` and `oasisWaterDark` ground sprites with
@@ -287,16 +288,12 @@ a warmer/turquoise palette, plus `oasis:shallow` and `oasis:deep` feature tags.
 The first oasis phase does not require palms, reeds, or a special shoreline;
 those belong to the later shoreline/flora phases and can key off the oasis tag.
 
-Rarity must be measured over Desert area, not guessed from a threshold. The
-initial tuning target is:
-
-- fewer than 1% of sampled Desert chunks touched by an oasis; and
-- at least 20 times fewer accepted oasis components than accepted normal lake
-  components over a sufficiently large fixed-seed sample.
-
-These are initial visual-tuning targets, not permanent gameplay constants.
-Record the seed set, sampled area, and measured rates whenever thresholds are
-changed.
+Rarity must be measured by connected components and Desert coverage, not
+guessed from a threshold or touched-chunk count. Oases are intentionally large,
+so one component may touch many chunks. Large connected Deserts should normally
+contain at least one oasis, while small Desert patches may have none. Record the
+seed set, sampled area, component sizes, and large-Desert misses whenever
+thresholds are changed.
 
 ---
 
@@ -464,6 +461,19 @@ biome interiors rather than appearing directly beside a biome border.
 Start after Desert classification, biome-interior terrain depth, sand terrain,
 and per-tile biome tags are stable.
 
+**Status: in progress.** Oasis generation, tags, fields, and sprites are
+implemented. Shared water-component extraction and final visual tuning remain.
+
+Current tuning uses one jittered `oasis_region` peak per 96x96-tile cell with a
+0.90 threshold and a 40-tile `oasis_shape` scale with a 0.50 threshold. A
+2026-07-26 survey generated
+21x21 chunks for seeds `1`, `7`, `42`, `1234`, `9001`, `65537`, `424242`,
+`8675309`, `123456789`, and `429496729`. Oasis water covered 1.1% to 4.3% of
+sampled Desert tiles. Every connected Desert of at least 24,121 sampled tiles
+contained oasis water; a 10,397-tile Desert patch had none. Seed `424242` had
+no Desert in the sampled area and was excluded from Desert coverage
+conclusions.
+
 #### 3.1 Extract reusable water-component utilities
 
 - Extract the bounded 8-connected component discovery, smoothing, core-tile
@@ -484,8 +494,8 @@ and per-tile biome tags are stable.
   candidate.
 - Smooth and size-check the discovered component using oasis-specific values.
 - Reject components without a core or whose core-tile majority is not Desert.
-- Give oases a smaller safety cap and expected size range than normal lakes;
-  tune the fields so accepted components remain comfortably below that cap.
+- Give oases a larger expected size and correspondingly larger bounded safety
+  cap than normal lakes.
 - Do not require high shared `moisture`: the dedicated oasis fields represent
   rare groundwater inside an otherwise dry climate.
 
@@ -494,7 +504,7 @@ and per-tile biome tags are stable.
 Asset preparation is complete: the background sheet now groups Plains terrain
 and normal lake water on its first row, Desert terrain and oasis water on its
 second row, and exposes the two oasis water types to runtime code. Oasis feature
-generation and tags remain to be implemented.
+generation and tags are implemented; final visual tuning remains.
 
 - Extend `scripts/gen-background-tile-sprites.mjs` with
   `oasisWaterLight` and `oasisWaterDark` tiles using a distinct but compatible
@@ -516,12 +526,12 @@ generation and tags remain to be implemented.
   a Desert/Plains boundary.
 - Oases are deterministic, order-independent, and seamless across chunk edges
   and corners, including at negative coordinates.
-- Fewer than 1% of Desert chunks in the documented tuning sample touch an
-  oasis.
-- Accepted oasis components are at least 20 times rarer than accepted normal
-  lake components in the same fixed-seed survey.
-- The survey still finds at least 10 accepted oases, proving the rarity target
-  was not met by making oasis generation effectively impossible.
+- Every connected Desert region of at least 24,121 tiles in the documented
+  tuning sample contains oasis water.
+- The survey finds oases across multiple seeds and both positive and negative
+  coordinates, rather than concentrating eligibility into one broad region.
+- Component counts and sizes remain uncommon relative to the Desert area even
+  though each large component may touch many chunks.
 - No accepted oasis approaches its safety cap under the tuned field settings.
 - Oasis water is visually distinct from normal water without being confused
   with sand or shallow normal lake water.
