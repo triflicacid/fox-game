@@ -9,7 +9,8 @@ For more info on comments, read [this](comment-guidelines.md).
 ## Punctuation
 
 - No em dashes ("—"), anywhere: code comments, docs, chat responses. Use a
-  plain hyphen (`-`) or, preferably, a colon (`:`) instead.
+  plain hyphen (`-`) or, preferably, a colon (`:`) instead. In markdown
+  specifically, use a double dash (`--`), which renders as an em dash.
 
 ## Scripts
 
