@@ -1,20 +1,20 @@
-import {coordinateKey, CoordinateKey, parseCoordinateKey} from "../coordinate-key";
+import {ReadonlyCoordSet, CoordMap, CoordSet} from "../coord-set";
 
 /**
  * Whether every one of `(x, y)`'s 8 neighbours is also in `component`.
  *
- * @param component - The tile set to check against, as {@link coordinateKey} strings.
+ * @param component - The tile set to check against.
  * @param x - Tile's X position, in tiles from the world origin.
  * @param y - Tile's Y position, in tiles from the world origin.
  * @returns Whether `(x, y)` is fully interior to `component`.
  */
-export function isFullySurrounded(component: ReadonlySet<CoordinateKey>, x: number, y: number): boolean {
+export function isFullySurrounded(component: ReadonlyCoordSet, x: number, y: number): boolean {
     for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
             if (dx === 0 && dy === 0) {
                 continue;
             }
-            if (!component.has(coordinateKey(x + dx, y + dy))) {
+            if (!component.has(x + dx, y + dy)) {
                 return false;
             }
         }
@@ -25,15 +25,14 @@ export function isFullySurrounded(component: ReadonlySet<CoordinateKey>, x: numb
 /**
  * Tiles in `component` whose all 8 neighbours are also in `component`.
  *
- * @param component - The final (smoothed) tile set, as {@link coordinateKey} strings.
+ * @param component - The final (smoothed) tile set.
  * @returns The core (interior) subset of `component`, possibly empty.
  */
-export function findCoreTiles(component: ReadonlySet<CoordinateKey>): Set<CoordinateKey> {
-    const core = new Set<CoordinateKey>();
-    for (const key of component) {
-        const [x, y] = parseCoordinateKey(key);
+export function findCoreTiles(component: ReadonlyCoordSet): CoordSet {
+    const core = new CoordSet();
+    for (const [x, y] of component) {
         if (isFullySurrounded(component, x, y)) {
-            core.add(key);
+            core.add(x, y);
         }
     }
     return core;
@@ -44,35 +43,34 @@ export function findCoreTiles(component: ReadonlySet<CoordinateKey>): Set<Coordi
  * edge tiles (at least one neighbour outside `component`) get distance 1,
  * increasing by 1 per ring moving inward.
  *
- * @param component - The tile set, as {@link coordinateKey} strings.
- * @returns Every tile's edge distance, keyed by {@link coordinateKey}.
+ * @param component - The tile set.
+ * @returns Every tile's edge distance.
  */
-export function computeEdgeDistances(component: ReadonlySet<CoordinateKey>): Map<CoordinateKey, number> {
-    const distances = new Map<CoordinateKey, number>();
-    const queue: CoordinateKey[] = [];
+export function computeEdgeDistances(component: ReadonlyCoordSet): CoordMap<number> {
+    const distances = new CoordMap<number>();
+    const queue: [number, number][] = [];
 
-    for (const key of component) {
-        const [x, y] = parseCoordinateKey(key);
+    for (const [x, y] of component) {
         if (!isFullySurrounded(component, x, y)) {
-            distances.set(key, 1);
-            queue.push(key);
+            distances.set(x, y, 1);
+            queue.push([x, y]);
         }
     }
 
-    for (const currentKey of queue) {
-        const [x, y] = parseCoordinateKey(currentKey);
-        const distance = distances.get(currentKey) as number;
+    for (const [x, y] of queue) {
+        const distance = distances.get(x, y) as number;
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
                 if (dx === 0 && dy === 0) {
                     continue;
                 }
-                const key = coordinateKey(x + dx, y + dy);
-                if (!component.has(key) || distances.has(key)) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (!component.has(nx, ny) || distances.has(nx, ny)) {
                     continue;
                 }
-                distances.set(key, distance + 1);
-                queue.push(key);
+                distances.set(nx, ny, distance + 1);
+                queue.push([nx, ny]);
             }
         }
     }
@@ -96,8 +94,9 @@ export function floodFill8(
     startY: number,
     isCandidate: (x: number, y: number) => boolean,
     maxTiles: number,
-): {tiles: Set<CoordinateKey>; exceededCap: boolean} {
-    const tiles = new Set<CoordinateKey>([coordinateKey(startX, startY)]);
+): {tiles: CoordSet; exceededCap: boolean} {
+    const tiles = new CoordSet();
+    tiles.add(startX, startY);
     const queue: [number, number][] = [[startX, startY]];
     let exceededCap = false;
 
@@ -114,11 +113,10 @@ export function floodFill8(
                 }
                 const nx = x + dx;
                 const ny = y + dy;
-                const key = coordinateKey(nx, ny);
-                if (tiles.has(key) || !isCandidate(nx, ny)) {
+                if (tiles.has(nx, ny) || !isCandidate(nx, ny)) {
                     continue;
                 }
-                tiles.add(key);
+                tiles.add(nx, ny);
                 queue.push([nx, ny]);
             }
         }
@@ -131,30 +129,26 @@ export function floodFill8(
  * Erodes ragged edge tiles from `component`: a tile survives iff at least
  * `neighbourThreshold` of its 8 neighbours are also in `component`.
  *
- * @param component - Tile set, as {@link coordinateKey} strings.
+ * @param component - The tile set to erode.
  * @param neighbourThreshold - Minimum neighbour count a tile must have to survive.
  * @returns The eroded tile set - a subset of `component`, possibly empty.
  */
-export function erodeComponent(
-    component: ReadonlySet<CoordinateKey>,
-    neighbourThreshold: number,
-): Set<CoordinateKey> {
-    const eroded = new Set<CoordinateKey>();
-    for (const key of component) {
-        const [x, y] = parseCoordinateKey(key);
+export function erodeComponent(component: ReadonlyCoordSet, neighbourThreshold: number): CoordSet {
+    const eroded = new CoordSet();
+    for (const [x, y] of component) {
         let neighbourCount = 0;
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
                 if (dx === 0 && dy === 0) {
                     continue;
                 }
-                if (component.has(coordinateKey(x + dx, y + dy))) {
+                if (component.has(x + dx, y + dy)) {
                     neighbourCount++;
                 }
             }
         }
         if (neighbourCount >= neighbourThreshold) {
-            eroded.add(key);
+            eroded.add(x, y);
         }
     }
     return eroded;
