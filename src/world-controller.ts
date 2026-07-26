@@ -70,7 +70,10 @@ export class WorldController {
         this.debugController = new DebugController(
             keyboard,
             () => this.world.reloadAllChunks(),
-            () => this.world.teleportMainEntityTo(this.camera.getCenter()),
+            () => {
+                this.movementController.cancelDash();
+                this.world.teleportMainEntityTo(this.camera.getCenter());
+            },
             () => this.movementController.isSpectating(),
         );
         this.helpController = new HelpController(keyboard, this.handlePopupOpenChange, () => this.getKeyBindings());

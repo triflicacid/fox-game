@@ -163,6 +163,40 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     public getKeyBindings?(): KeyBinding[];
 
     /**
+     * Optional hook: implementing it marks an entity as dashable and offers
+     * the `X` key for it. Called by a bound {@link MovementController} on a
+     * fresh `X` keydown. Implementations that can dash immediately should
+     * call `launch` synchronously; ones that need to defer (e.g. waking up
+     * first) should hold onto `launch` and call it once ready.
+     *
+     * @param direction - Direction the dash was requested in.
+     * @param launch - Callback that actually starts the dash; the controller
+     * owns dash timing/velocity from the moment this is called.
+     */
+    public requestDash?(direction: CompassDirection, launch: () => void): void;
+
+    /**
+     * Optional hook: called by {@link MovementController} the moment a
+     * requested dash actually launches (i.e. when `launch` from
+     * {@link requestDash} is invoked).
+     *
+     * @param direction - Direction the dash launched in.
+     */
+    public onDashStart?(direction: CompassDirection): void;
+
+    /**
+     * Optional hook: called by {@link MovementController} once an active
+     * dash's duration has fully elapsed.
+     */
+    public onDashComplete?(): void;
+
+    /**
+     * Optional hook: called by {@link MovementController} when an active or
+     * queued dash is cancelled (e.g. entering spectator mode, rebinding).
+     */
+    public onDashCancel?(): void;
+
+    /**
      * Draws this entity's bounding box (via the base {@link Entity}
      * implementation), plus an arrow anchored to its centre pointing in
      * {@link facing}'s direction, for debug rendering mode.
