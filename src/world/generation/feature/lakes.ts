@@ -1,10 +1,11 @@
 import {CHUNK_SIZE} from "../../chunk-size";
 import {TileData} from "../../tile";
 import {BiomeTag} from "../biome/biome";
-import {BiomeTagResolver, Feature} from "./feature";
+import {BiomeTagResolver, Feature, TerrainResampler} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
 import {ReadonlyCoordSet, CoordMap, CoordSet} from "../../coord-set";
-import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8} from "../grid-algorithms";
+import {computeEdgeDistances, computeOutwardDistances, erodeComponent, findCoreTiles, floodFill8} from "../grid-algorithms";
+import {TerrainDepthConfig} from "../biome/terrain-depth";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
 const LAKE_CONFIG = {
@@ -42,6 +43,14 @@ const LAKE_CONFIG = {
     /** Shore distance (8-connected rings) at which `deepWaterThresholdAtCenter` fully applies; the threshold interpolates linearly between the shore and this depth. */
     centerRingDepth: 4,
 
+    /**
+     * Half-range of the per-tile noise jitter applied to the outward shore distance before
+     * it is used as an effective depth. Breaks up the geometric BFS contour so the light-grass
+     * ring dissolves organically rather than forming a visible rounded rectangle.
+     * Uses the `lake_shape` field so no extra noise sampling is needed.
+     */
+    shoreGrassPerturbationTiles: 3,
+
     /** Hard cap on one lake's tile count, sized in chunk units so it tracks `CHUNK_SIZE`. */
     maxTiles: 9 * CHUNK_SIZE * CHUNK_SIZE,
 
@@ -66,8 +75,15 @@ export class LakeFeature extends Feature {
     /**
      * @param worldSeed - The world's seed, so this feature's fields sample deterministically.
      * @param moisture - The shared world moisture field.
+     * @param terrainDepth - Shared terrain-depth tuning; its `maximumDepthTiles` is used as
+     *   the shore-grass BFS radius so the banding dissolves naturally into the surrounding
+     *   biome-depth pattern rather than stopping at a hard geometric ring.
      */
-    public constructor(worldSeed: number, private readonly moisture: NoiseField) {
+    public constructor(
+        worldSeed: number,
+        private readonly moisture: NoiseField,
+        private readonly terrainDepth: TerrainDepthConfig,
+    ) {
         super();
         this.wetness = new FbmField("wetness", worldSeed, LAKE_CONFIG.wetnessSeedOffset, LAKE_CONFIG.wetnessFrequency, LAKE_CONFIG.fieldOctaves);
         this.lakeShape = new FbmField("lake_shape", worldSeed, LAKE_CONFIG.lakeShapeSeedOffset, LAKE_CONFIG.lakeShapeFrequency, LAKE_CONFIG.fieldOctaves);
@@ -77,10 +93,26 @@ export class LakeFeature extends Feature {
         return [this.wetness, this.lakeShape];
     }
 
-    public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeTagAt: BiomeTagResolver): void {
+    public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeTagAt: BiomeTagResolver, resampleTerrainAt: TerrainResampler): void {
         const components = this.discoverComponents(resolveBiomeTagAt, chunkX, chunkY);
+
+        // Union of all lake tiles across all components; used as the barrier for outward BFS.
+        const allLakeTiles = new CoordSet();
+        for (const component of components) {
+            for (const [x, y] of component.tiles) {
+                allLakeTiles.add(x, y);
+            }
+        }
+
         for (const component of components) {
             const edgeDistances = computeEdgeDistances(component.tiles);
+            const outwardDistances = computeOutwardDistances(
+                component.tiles,
+                allLakeTiles,
+                this.terrainDepth.maximumDepthTiles,
+            );
+
+            // Paint water tiles.
             for (const [worldX, worldY] of component.tiles) {
                 const localX = worldX - chunkX * CHUNK_SIZE;
                 const localY = worldY - chunkY * CHUNK_SIZE;
@@ -94,6 +126,27 @@ export class LakeFeature extends Feature {
                 const isDeep = !isEdge && this.lakeShape.sample(worldX, worldY) >= threshold;
                 tiles[localY][localX].groundType = isDeep ? "waterDark" : "waterLight";
                 tiles[localY][localX].featureTag = isDeep ? "lake:deep" : "lake:shallow";
+            }
+
+            // Apply shore-grass banding: lighten surrounding land tiles proportional to shore proximity.
+            for (const [worldX, worldY] of outwardDistances.keys()) {
+                const outwardDist = outwardDistances.get(worldX, worldY) as number;
+                const localX = worldX - chunkX * CHUNK_SIZE;
+                const localY = worldY - chunkY * CHUNK_SIZE;
+                if (localX < 0 || localX >= CHUNK_SIZE || localY < 0 || localY >= CHUNK_SIZE) {
+                    continue;
+                }
+                const tile = tiles[localY][localX];
+                if (tile.featureTag !== "none") {
+                    continue;
+                }
+                // Perturb the outward distance with world-space noise so the BFS's
+                // geometric contour dissolves into an organic edge instead of a rectangle.
+                const shoreNoise = this.lakeShape.sample(worldX, worldY);
+                const jitter = (shoreNoise - 0.5) * 2 * LAKE_CONFIG.shoreGrassPerturbationTiles;
+                const perturbedDist = Math.max(1, outwardDist + jitter);
+                const effectiveDepth = Math.min(tile.biomeDepth, perturbedDist);
+                tile.groundType = resampleTerrainAt(worldX, worldY, effectiveDepth);
             }
         }
     }
