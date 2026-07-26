@@ -491,6 +491,11 @@ and per-tile biome tags are stable.
 
 #### 3.3 Add distinct oasis appearance
 
+Asset preparation is complete: the background sheet now groups Plains terrain
+and normal lake water on its first row, Desert terrain and oasis water on its
+second row, and exposes the two oasis water types to runtime code. Oasis feature
+generation and tags remain to be implemented.
+
 - Extend `scripts/gen-background-tile-sprites.mjs` with
   `oasisWaterLight` and `oasisWaterDark` tiles using a distinct but compatible
   water palette.

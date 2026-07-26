@@ -6,7 +6,9 @@ Sprite sheet generators. Each writes a PNG plus a matching JSON descriptor, no i
 
 `scripts/gen-background-tile-sprites.mjs`
 
-Procedurally generates a row of tile textures (grass, dirt, gravel, water) from small weighted color palettes.
+Procedurally generates tile textures from small weighted color palettes. Plains
+terrain and normal lake water occupy the first sheet row; Desert terrain and
+oasis water occupy the second.
 
 ```
 node scripts/gen-background-tile-sprites.mjs static/background-tile-sprites.png static/background-tile-sprites.json
