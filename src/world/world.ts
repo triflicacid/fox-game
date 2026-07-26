@@ -368,17 +368,17 @@ export class World {
      * Whether every chunk overlapped by a `frame`-sized rectangle at
      * `position` is both loaded and satisfies `predicate`.
      *
-     * @param position - Rectangle's top-left corner, in world pixels.
+     * @param position - Rectangle's centre point, in world pixels.
      * @param frame - Sprite frame whose width/height define the rectangle.
      * @param predicate - Only chunks this returns `true` for count as valid ground.
      * @returns `true` if every overlapped chunk is loaded and satisfies `predicate`.
      */
     private isPositionOnValidGround(position: Vector2d, frame: SpriteFrame, predicate: (chunk: Chunk) => boolean): boolean {
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const startChunkX = Math.floor(position.x / chunkPixelSize);
-        const startChunkY = Math.floor(position.y / chunkPixelSize);
-        const endChunkX = Math.floor((position.x + frame.w - 1) / chunkPixelSize);
-        const endChunkY = Math.floor((position.y + frame.h - 1) / chunkPixelSize);
+        const startChunkX = Math.floor((position.x - frame.w / 2) / chunkPixelSize);
+        const startChunkY = Math.floor((position.y - frame.h / 2) / chunkPixelSize);
+        const endChunkX = Math.floor((position.x + frame.w / 2 - 1) / chunkPixelSize);
+        const endChunkY = Math.floor((position.y + frame.h / 2 - 1) / chunkPixelSize);
 
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
@@ -676,8 +676,7 @@ export class World {
      * @param target - World-pixel point to centre the main entity on.
      */
     public teleportMainEntityTo(target: Vector2d): void {
-        const frame = this.mainEntity.getCurrentFrame();
-        this.mainEntity.teleportTo(new Vector2d(target.x - frame.w / 2, target.y - frame.h / 2));
+        this.mainEntity.teleportTo(target);
     }
 
     /**
@@ -998,25 +997,24 @@ export class World {
                 continue;
             }
 
-            const frame = entity.getCurrentFrame();
-            const position = entity.getPosition();
-            if (!camera.isRectVisible(position.x, position.y, frame.w, frame.h)) {
+            const rect = entity.getBoundingRect();
+            if (!camera.isRectVisible(rect)) {
                 continue;
             }
 
-            const x = position.x - viewX;
-            const y = position.y - viewY;
+            const frame = entity.getCurrentFrame();
             if (frame.rotation) {
+                const position = entity.getPosition();
                 ctx.save();
-                ctx.translate(x + frame.w / 2, y + frame.h / 2);
+                ctx.translate(position.x - viewX, position.y - viewY);
                 ctx.rotate(frame.rotation);
-                ctx.drawImage(bitmap, -frame.w / 2, -frame.h / 2, frame.w, frame.h);
+                ctx.drawImage(bitmap, -rect.w / 2, -rect.h / 2, rect.w, rect.h);
                 if (debugEnabled) {
                     entity.drawDebugOverlay(ctx, viewX, viewY);
                 }
                 ctx.restore();
             } else {
-                ctx.drawImage(bitmap, x, y, frame.w, frame.h);
+                ctx.drawImage(bitmap, rect.x - viewX, rect.y - viewY, rect.w, rect.h);
                 if (debugEnabled) {
                     entity.drawDebugOverlay(ctx, viewX, viewY);
                 }
@@ -1050,8 +1048,8 @@ export class World {
             ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
             : undefined;
         const exactFeature = this.getFeatureTag(tileX, tileY);
-        const frame = this.mainEntity.getCurrentFrame();
-        const nearbyFeature = this.getDominantFeatureLabel(position.x, position.y, frame.w, frame.h);
+        const rect = this.mainEntity.getBoundingRect();
+        const nearbyFeature = this.getDominantFeatureLabel(rect.x, rect.y, rect.w, rect.h);
 
         const distanceToBiomeEdge = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
             ? this.getDistanceToBiomeEdge(chunkX, chunkY, chunk.biomeSummary)

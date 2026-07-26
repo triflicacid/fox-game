@@ -1,4 +1,5 @@
 import {Vector2d} from "../geometry/vector2d";
+import {Rect} from "../geometry/rect";
 
 /**
  * A rectangular view onto the world: a centre point plus a viewport size.
@@ -92,14 +93,11 @@ export class Camera {
      * Whether a rectangle in world space is at least partially visible
      * within this camera's view.
      *
-     * @param x - Left edge of the rectangle, in world pixels.
-     * @param y - Top edge of the rectangle, in world pixels.
-     * @param width - Width of the rectangle, in world pixels.
-     * @param height - Height of the rectangle, in world pixels.
+     * @param rect - Rectangle to test, in world pixels.
      * @returns `true` if any part of the rectangle overlaps the view.
      */
-    public isRectVisible(x: number, y: number, width: number, height: number): boolean {
-        return x + width > this.getViewX() && x < this.getViewX() + this.width
-            && y + height > this.getViewY() && y < this.getViewY() + this.height;
+    public isRectVisible(rect: Rect): boolean {
+        return rect.x + rect.w > this.getViewX() && rect.x < this.getViewX() + this.width
+            && rect.y + rect.h > this.getViewY() && rect.y < this.getViewY() + this.height;
     }
 }

@@ -24,7 +24,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * @param facing - Initial facing direction.
      * @param initialFrame - Initial sprite frame to render.
      * @param frameIntervalMs - How long, in milliseconds, each animation frame is shown before advancing to the next.
-     * @param position - Initial position. Defaults to {@link Vector2d.ZERO}.
+     * @param position - Initial position (the sprite's centre point). Defaults to {@link Vector2d.ZERO}.
      * @param velocity - Initial velocity. Defaults to {@link Vector2d.ZERO}.
      */
     protected constructor(
@@ -140,7 +140,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * Moves this entity straight to `position`, bypassing normal
      * movement/collision.
      *
-     * @param position - New position.
+     * @param position - New position (the sprite's centre point).
      */
     public teleportTo(position: Vector2d): void {
         this.setPosition(position);
@@ -209,10 +209,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
         super.drawDebugOverlay(ctx, viewX, viewY);
 
         const frame = this.getCurrentFrame();
-        const center = new Vector2d(
-            this.getPosition().x - viewX + frame.w / 2,
-            this.getPosition().y - viewY + frame.h / 2,
-        );
+        const center = new Vector2d(this.getPosition().x - viewX, this.getPosition().y - viewY);
         const facing = this.getFacingVector();
         const tip = new Vector2d(center.x + facing.x * (frame.w / 2), center.y + facing.y * (frame.h / 2));
 
