@@ -1,10 +1,11 @@
-import { constants, ADD_COLOUR_FADE } from "./constants.mjs";
+import { constants } from "./constants.mjs";
 import { lerp, projectOnSegment } from "./geometry.mjs";
 
-const { black: BLACK, cream: CREAM, orange: ORANGE, dashCyan: DASH_CYAN } = constants.colors;
+const { black: BLACK, cream: CREAM, orange: ORANGE } = constants.colors;
 const { vectors: DIRS, order: DIR_ORDER } = constants.dirs;
 const STAND = constants.stand;
 const LEAP = constants.leap;
+const DASH = constants.dash;
 
 // generous square canvas used only to measure the pose's local (u, v) reach
 // (see measureLocalExtents); comfortably larger than anything the pose draws
@@ -90,15 +91,15 @@ function drawLeapPose(fx, fy, rx, ry, phase, gridW, gridH) {
             } else if (legs.some(l => l.r > 0 && Math.hypot(u - l.u, v - l.v) <= l.r)) {
                 color = BLACK;
             } else if (Math.hypot(u - tailTip.u, v - tailTip.v) <= tailTipR) {
-                color = DASH_CYAN;
+                color = DASH.accentColor;
             } else {
                 const { t: alongTail, dist } = projectOnSegment(u, v, tailBase.u, tailBase.v, tailTip.u, tailTip.v);
                 if (dist <= tailR) {
-                    if (!ADD_COLOUR_FADE) {
+                    if (!DASH.addColourFade) {
                         color = ORANGE;
                     } else {
-                        const fadeT = Math.max(0, (alongTail - LEAP.tailFadeStart) / (1 - LEAP.tailFadeStart));
-                        color = fadeT > 0 ? lerpColor(ORANGE, DASH_CYAN, fadeT) : ORANGE;
+                        const fadeT = Math.max(0, (alongTail - DASH.tailFadeStart) / (1 - DASH.tailFadeStart));
+                        color = fadeT > 0 ? lerpColor(ORANGE, DASH.accentColor, fadeT) : ORANGE;
                     }
                 }
             }
