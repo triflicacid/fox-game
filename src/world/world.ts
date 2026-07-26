@@ -14,7 +14,7 @@ import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {FeatureTag} from "./generation/feature/feature-tag";
 import {BiomeSummary} from "./generation/biome/biome";
 import {SpriteFrame} from "../sprites/sprite";
-import {coordinateKey, CoordinateKey} from "./coordinate-key";
+import {CoordMap, CoordSet} from "./coord-set";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -54,7 +54,7 @@ export class World {
     /** Fill colour for the "void" - camera-visible area outside every loaded chunk. */
     private static readonly VOID_COLOR = "#000000";
 
-    private readonly chunks = new Map<CoordinateKey, Chunk>();
+    private readonly chunks = new CoordMap<Chunk>();
     private readonly entities: Entity[] = [];
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
@@ -203,12 +203,11 @@ export class World {
      * @returns The loaded chunk.
      */
     public getChunk(chunkX: number, chunkY: number): Chunk {
-        const key = coordinateKey(chunkX, chunkY);
-        let chunk = this.chunks.get(key);
+        let chunk = this.chunks.get(chunkX, chunkY);
         if (!chunk) {
             const generation = this.chunkWorkerClient.requestChunk(chunkX, chunkY);
             chunk = new Chunk(chunkX, chunkY, generation, this.chunkSpriteSheets, this.tileSize);
-            this.chunks.set(key, chunk);
+            this.chunks.set(chunkX, chunkY, chunk);
             generation
                 .then((result) => {
                     this.latestChunkGenerationTimeMs = result.generationTimeMs;
@@ -287,7 +286,7 @@ export class World {
      * @returns `true` if the chunk is loaded.
      */
     public isChunkLoaded(chunkX: number, chunkY: number): boolean {
-        return this.chunks.has(coordinateKey(chunkX, chunkY));
+        return this.chunks.has(chunkX, chunkY);
     }
 
     /**
@@ -300,7 +299,7 @@ export class World {
      * @param chunkY - Chunk's Y coordinate, in chunk units.
      */
     public unloadChunk(chunkX: number, chunkY: number): void {
-        this.chunks.delete(coordinateKey(chunkX, chunkY));
+        this.chunks.delete(chunkX, chunkY);
     }
 
     /**
@@ -341,10 +340,9 @@ export class World {
      */
     private cancelPendingChunkGeneration(): void {
         this.chunkWorkerClient.cancelPending();
-        for (const chunk of this.chunks.values()) {
-            if (!chunk.isReady()) {
-                this.chunks.delete(coordinateKey(chunk.chunkX, chunk.chunkY));
-            }
+        const toDelete = [...this.chunks.values()].filter(c => !c.isReady());
+        for (const chunk of toDelete) {
+            this.chunks.delete(chunk.chunkX, chunk.chunkY);
         }
     }
 
@@ -384,7 +382,7 @@ export class World {
 
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                const chunk = this.chunks.get(coordinateKey(chunkX, chunkY));
+                const chunk = this.chunks.get(chunkX, chunkY);
                 if (!chunk || !predicate(chunk)) {
                     return false;
                 }
@@ -445,7 +443,7 @@ export class World {
     /** Returns a tile only when its containing chunk is already loaded and ready. */
     private getReadyTile(tileX: number, tileY: number): Tile | undefined {
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunk = this.chunks.get(coordinateKey(chunkX, chunkY));
+        const chunk = this.chunks.get(chunkX, chunkY);
         if (!chunk?.isReady()) {
             return undefined;
         }
@@ -467,19 +465,18 @@ export class World {
      */
     private getBiomeRegionSize(chunkX: number, chunkY: number, biome: BiomeSummary): {count: number; isPartial: boolean} {
         const cached = this.biomeRegionCache.get(biome);
-        if (cached && this.chunks.has(coordinateKey(cached.anchorChunkX, cached.anchorChunkY))) {
+        if (cached && this.chunks.has(cached.anchorChunkX, cached.anchorChunkY)) {
             return cached;
         }
 
         const NEIGHBORS: readonly {dx: number; dy: number}[] = [
             {dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1},
         ];
-        const visited = new Set<CoordinateKey>();
-        const matched = new Set<CoordinateKey>();
+        const visited = new CoordSet();
+        const matched = new CoordSet();
         const queue: {chunkX: number; chunkY: number}[] = [{chunkX, chunkY}];
-        const startKey = coordinateKey(chunkX, chunkY);
-        visited.add(startKey);
-        matched.add(startKey);
+        visited.add(chunkX, chunkY);
+        matched.add(chunkX, chunkY);
         let isPartial = false;
 
         while (queue.length > 0) {
@@ -487,18 +484,17 @@ export class World {
             for (const {dx, dy} of NEIGHBORS) {
                 const nx = cx + dx;
                 const ny = cy + dy;
-                const key = coordinateKey(nx, ny);
-                if (visited.has(key)) {
+                if (visited.has(nx, ny)) {
                     continue;
                 }
-                visited.add(key);
-                const neighbor = this.chunks.get(key);
+                visited.add(nx, ny);
+                const neighbor = this.chunks.get(nx, ny);
                 if (!neighbor?.isReady()) {
                     isPartial = true;
                     continue;
                 }
                 if (neighbor.biomeSummary === biome) {
-                    matched.add(key);
+                    matched.add(nx, ny);
                     queue.push({chunkX: nx, chunkY: ny});
                 }
             }
@@ -522,7 +518,8 @@ export class World {
      */
     private getDistanceToBiomeEdge(chunkX: number, chunkY: number, biome: BiomeSummary): {distance: number; direction: string} | undefined {
         const MAX_SEARCH_DISTANCE = 16;
-        const visited = new Set<CoordinateKey>([coordinateKey(chunkX, chunkY)]);
+        const visited = new CoordSet();
+        visited.add(chunkX, chunkY);
         let currentRing = [{chunkX, chunkY}];
 
         for (let distance = 1; distance <= MAX_SEARCH_DISTANCE; distance++) {
@@ -535,12 +532,11 @@ export class World {
                 for (const {dx, dy} of [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}]) {
                     const nx = cx + dx;
                     const ny = cy + dy;
-                    const key = coordinateKey(nx, ny);
-                    if (visited.has(key)) {
+                    if (visited.has(nx, ny)) {
                         continue;
                     }
-                    visited.add(key);
-                    const neighbor = this.chunks.get(key);
+                    visited.add(nx, ny);
+                    const neighbor = this.chunks.get(nx, ny);
                     if (!neighbor?.isReady()) {
                         continue;
                     }
@@ -1062,7 +1058,7 @@ export class World {
             : undefined;
 
         const toChunkState = (cx: number, cy: number): ChunkState => {
-            const c = this.chunks.get(coordinateKey(cx, cy));
+            const c = this.chunks.get(cx, cy);
             if (!c) return "unloaded";
             return c.isReady() ? "ready" : "generating";
         };
