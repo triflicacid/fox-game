@@ -13,7 +13,6 @@ import {
 } from "../grid-algorithms";
 import {TerrainDepthConfig} from "../biome/terrain-depth";
 
-// first-guess values; tune with the debug visualiser and a documented fixed-seed sample
 const OASIS_CONFIG = {
     oasisRegionSeedOffset: 7013,
     oasisRegionCellSizeTiles: 96,
@@ -235,8 +234,3 @@ export class OasisFeature extends Feature {
         return components;
     }
 }
-
-
-
-
-
