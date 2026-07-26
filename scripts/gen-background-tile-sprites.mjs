@@ -118,8 +118,7 @@ const WATER_DARK = {
     ],
 };
 
-// Oasis water is warmer and more turquoise than normal lake water so the rare
-// Desert feature remains recognizable without needing decorative overlays.
+// distinct turquoise palette makes oasis water recognizable against normal lake water
 const OASIS_WATER_LIGHT = {
     seed: 6001,
     palette: [
@@ -166,8 +165,7 @@ const SAND_VARIANTS = [
     },
 ];
 
-// Group biome assets by sheet row. Normal lakes currently belong to the
-// Plains-majority feature set; oasis water belongs with Desert terrain.
+// row 0: plains terrain and lake water; row 1: desert terrain and oasis water
 const TILE_ROWS = [
     [
         { type: "grass1", ...GRASS_VARIANTS[0] },
