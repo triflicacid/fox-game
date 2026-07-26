@@ -28,7 +28,7 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
         protected readonly spriteSheet: AnimatedSpriteSheet<TSpriteType>,
         protected status: TStatus,
         initialFrame: SpriteFrame,
-        private readonly frameIntervalMs: number,
+        private frameIntervalMs: number,
         position: Vector2d = Vector2d.ZERO,
     ) {
         this.currentFrame = initialFrame;
@@ -86,6 +86,18 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
         this.currentFrame = frame;
         this.animationElapsedMs = 0;
         this.refreshBitmap();
+    }
+
+    /**
+     * Changes how long each animation frame is shown before advancing,
+     * e.g. for an animation whose phases don't fit the entity's usual
+     * frame rate (like a dash burst that must finish within a fixed
+     * duration).
+     *
+     * @param frameIntervalMs - New interval, in milliseconds.
+     */
+    protected setFrameIntervalMs(frameIntervalMs: number): void {
+        this.frameIntervalMs = frameIntervalMs;
     }
 
     /**

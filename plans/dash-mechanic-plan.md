@@ -49,7 +49,12 @@ copy of Celeste's presentation.
 Start with these named tuning values, then adjust them during playtesting:
 
 - dash duration: **160 ms**;
-- dash speed: **800 world pixels per second**;
+- dash speed: **800 world pixels per second**, expressed as a `DASH_SPEED_MULTIPLIER`
+  (**3.2**) applied to the base movement speed rather than a standalone
+  constant, so it stays adjustable relative to `SPEED` the same way
+  `RUN_MULTIPLIER` already is. It's deliberately not affected by
+  `RUN_MULTIPLIER` itself: sprinting into a dash must not stack with it (see
+  "Running does not multiply dash velocity" below);
 - cooldown after dash end: **450 ms**.
 
 At those defaults a complete unobstructed dash travels 128 world pixels,
@@ -127,7 +132,7 @@ should imply height through foreshortening, tucked legs, and a small detached
 shadow/effect; do not move the entity sprite upward in screen coordinates,
 because “up” is also a world direction in the top-down view.
 
-### 3.2 Sprite generation
+### 3.2 Sprite generation ✅
 
 - Add `scripts/fox-sprites/leap.mjs` with `buildLeapFrame(phase)`.
 - Add leap-specific pose constants to
@@ -252,24 +257,49 @@ Avoid separate controller and fox timers that can drift apart.
 
 ## 6. Implementation phases
 
-### Phase 1: Dash state and tests
+### Phase 1: Dash state and tests ✅
 
-- Extract/reuse direction resolution for both normal movement and dash launch.
+- Extract/reuse direction resolution for both normal movement and dash launch
+  (`MovementController.resolveDirection`, shared by ordinary movement and
+  `handleDashKeyDown`).
 - Add `X` input, active timing, normalized velocity override, cooldown, and
   post-dash movement restoration.
-- Add the dash capability and fox `dashing` state with a temporary existing
-  frame if necessary.
-- Update help bindings.
-- Test behavior with fake keyboard events and controlled `deltaMs` values.
+  - Dash movement is applied directly via `teleportTo` rather than through
+    the entity's normal velocity, so a long frame can be clamped to exactly
+    the remaining dash duration instead of overshooting; the entity's
+    velocity is held at zero for the dash's duration so `MovableEntity`'s own
+    velocity-based movement doesn't also move it.
+- Add the dash capability: optional `requestDash`/`onDashStart`/
+  `onDashComplete`/`onDashCancel` hooks on `MovableEntity` (same pattern as
+  `handleKeyPress`), not a separate `DashableEntity` type - keeps
+  `MovementController` free of `instanceof Fox` checks. Since the sprite sheet
+  already bakes one frame set per direction (see 3.2), `Fox` doesn't need the
+  rotation step this section originally assumed - `onDashStart` just selects
+  `` `dash${direction}` `` directly.
+  - Since the same sleep/wake queuing already existed for ordinary movement
+    (`pendingWakeVelocity`/`pendingWakeFacing`), `requestDash` reuses
+    `beginWaking`/`finishWaking` rather than duplicating that state machine;
+    `finishWaking` now checks a queued dash first.
+  - Dash tuning values (`DASH_DURATION_MS`, `DASH_SPEED_MULTIPLIER`,
+    `DASH_COOLDOWN_MS`) live in `src/entities/dash-constants.ts`, imported by
+    both `MovementController` and `Fox`.
+- Update help bindings (`X: Dash`, hidden while spectating or for a
+  non-dashable entity).
+- Test behavior with fake keyboard events and controlled `deltaMs` values
+  (`movement-controller.spec.ts`, `fox.spec.ts`).
+  - This required adding `resolve.alias` entries to the root `vitest.config.ts`
+    (matching `vite.config.ts`'s) - nothing under `src/entities` was
+    previously testable at all, since importing `MovableEntity` pulls in
+    `@display/colors` via `debug-config.ts`.
 
 ### Phase 2: Leap sprite
 
-- Implement and visually inspect all eight leap phases at the logical-grid
-  level.
-- Add the non-looping descriptor row and regenerate both sprite artifacts.
-- Wire rotation and dash-duration animation timing into `Fox`.
-- Check every compass direction for centring, clipping, rotation, and clean
-  transition back to idle/walk.
+Mostly folded into Phase 1 above, since the sprite artifacts already existed
+(3.2) and Phase 1 wired dash-duration animation timing directly. Remaining:
+
+- Visually inspect all eight leap phases at the logical-grid level.
+- Check every compass direction for centring, clipping, and clean transition
+  back to idle/walk in the running game (not just via unit tests).
 
 ### Phase 3: Cyan effect and tuning
 
