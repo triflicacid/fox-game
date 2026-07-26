@@ -48,32 +48,35 @@ function pickColor(palette, seed, x, y) {
     return palette[palette.length - 1].color;
 }
 
+// Keep texture categories in the same cells across depth variants so a colour
+// transition does not also rearrange every blade and fleck.
+const GRASS_TEXTURE_SEED = 1001;
 const GRASS_VARIANTS = [
     {
-        seed: 1001,
+        seed: GRASS_TEXTURE_SEED,
         palette: [
-            { color: [86, 148, 58, 255], weight: 60 },  // base
-            { color: [70, 128, 46, 255], weight: 22 },  // shaded blade
-            { color: [112, 172, 74, 255], weight: 12 }, // sunlit blade
-            { color: [156, 196, 88, 255], weight: 6 },  // fleck
+            { color: [84, 146, 58, 255], weight: 78 },  // base
+            { color: [71, 129, 49, 255], weight: 12 },  // shaded blade
+            { color: [103, 164, 73, 255], weight: 8 },  // sunlit blade
+            { color: [124, 174, 84, 255], weight: 2 },  // subdued fleck
         ],
     },
     {
-        seed: 1002,
+        seed: GRASS_TEXTURE_SEED,
         palette: [
-            { color: [93, 152, 64, 255], weight: 60 },
-            { color: [76, 132, 50, 255], weight: 22 },
-            { color: [118, 176, 80, 255], weight: 12 },
-            { color: [160, 198, 92, 255], weight: 6 },
+            { color: [94, 155, 70, 255], weight: 78 },
+            { color: [80, 137, 59, 255], weight: 12 },
+            { color: [113, 173, 84, 255], weight: 8 },
+            { color: [132, 183, 96, 255], weight: 2 },
         ],
     },
     {
-        seed: 1003,
+        seed: GRASS_TEXTURE_SEED,
         palette: [
-            { color: [78, 140, 54, 255], weight: 60 },
-            { color: [62, 118, 42, 255], weight: 22 },
-            { color: [104, 164, 70, 255], weight: 12 },
-            { color: [148, 190, 82, 255], weight: 6 },
+            { color: [74, 136, 52, 255], weight: 78 },
+            { color: [61, 119, 44, 255], weight: 12 },
+            { color: [92, 154, 66, 255], weight: 8 },
+            { color: [111, 164, 77, 255], weight: 2 },
         ],
     },
 ];
