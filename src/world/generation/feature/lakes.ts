@@ -3,8 +3,7 @@ import {TileData} from "../../tile";
 import {BiomeTag} from "../biome/biome";
 import {BiomeTagResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
-import {PositionCache} from "../position-cache";
-import {ReadonlyCoordSet, CoordSet} from "../../coord-set";
+import {ReadonlyCoordSet, CoordMap, CoordSet} from "../../coord-set";
 import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8} from "../grid-algorithms";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
@@ -167,9 +166,16 @@ export class LakeFeature extends Feature {
      * @returns Every accepted lake touching this chunk (usually 0 or 1).
      */
     private discoverComponents(resolveBiomeTagAt: BiomeTagResolver, chunkX: number, chunkY: number): LakeComponent[] {
-        const candidacyCache = new PositionCache<boolean>();
-        const isCandidateCached = (worldX: number, worldY: number): boolean =>
-            candidacyCache.get([worldX, worldY], ([x, y]) => this.isCandidate(x, y));
+        // cache results
+        const candidacyCache = new CoordMap<boolean>();
+        const isCandidateCached = (worldX: number, worldY: number): boolean => {
+            let cached = candidacyCache.get(worldX, worldY);
+            if (cached === undefined) {
+                cached = this.isCandidate(worldX, worldY);
+                candidacyCache.set(worldX, worldY, cached);
+            }
+            return cached;
+        };
 
         const visited = new CoordSet();
         const components: LakeComponent[] = [];
