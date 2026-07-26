@@ -2,6 +2,7 @@ import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {Biome} from "./biome";
 import {ClimateSample} from "./climate-fields";
 import {NoiseField, ValueNoiseField} from "../noise-field";
+import {selectTerrainVariant, TERRAIN_DEPTH_CONFIG, TerrainDepthConfig, TerrainDepthVariants} from "./terrain-depth";
 
 /** Desert climate and terrain-variation tuning. */
 const DESERT_CONFIG = {
@@ -14,8 +15,12 @@ const DESERT_CONFIG = {
     sandVariantFrequency: 1 / 10,
 } as const;
 
-/** Sand variants, in ascending order of the noise band that selects them. */
-const SAND_VARIANTS: readonly BackgroundTileType[] = ["sand1", "sand2", "sand3"];
+/** Explicit visual ordering audited from the generated sprite palettes. */
+const SAND_VARIANTS: TerrainDepthVariants = {
+    light: "sand2",
+    medium: "sand1",
+    dark: "sand3",
+};
 
 /** Hot, dry terrain selected before the catch-all Plains biome. */
 export class DesertBiome extends Biome {
@@ -25,8 +30,9 @@ export class DesertBiome extends Biome {
 
     /**
      * @param worldSeed - The world's seed, so this biome's terrain samples deterministically.
+     * @param terrainDepthConfig - Shared biome-interior depth tuning.
      */
-    public constructor(worldSeed: number) {
+    public constructor(worldSeed: number, private readonly terrainDepthConfig: TerrainDepthConfig = TERRAIN_DEPTH_CONFIG) {
         super();
         this.sandVariantField = new ValueNoiseField(
             "sand_variant",
@@ -45,11 +51,10 @@ export class DesertBiome extends Biome {
             && climate.moisture <= DESERT_CONFIG.maximumMoisture;
     }
 
-    /** Bands the world-space variant field into the three sand sprites. */
-    public override sampleBaseTerrain(worldX: number, worldY: number): BackgroundTileType {
+    /** Selects progressively darker sand bands while retaining world-space variation. */
+    public override sampleBaseTerrain(worldX: number, worldY: number, biomeDepth: number): BackgroundTileType {
         const value = this.sandVariantField.sample(worldX, worldY);
-        const index = Math.min(SAND_VARIANTS.length - 1, Math.floor(value * SAND_VARIANTS.length));
-        return SAND_VARIANTS[index];
+        return selectTerrainVariant(value, biomeDepth, SAND_VARIANTS, this.terrainDepthConfig);
     }
 }
 

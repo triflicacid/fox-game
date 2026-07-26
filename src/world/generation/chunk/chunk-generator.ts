@@ -8,6 +8,12 @@ import {Feature, FeatureProvider} from "../feature/feature";
 import {PositionCache} from "../position-cache";
 import {ClimateFields} from "../biome/climate-fields";
 import {GenerationContext} from "../generation-context";
+import {computeCappedRegionDepths} from "../grid-algorithms";
+import {
+    TERRAIN_DEPTH_CONFIG,
+    TerrainDepthConfig,
+    validateTerrainDepthConfig,
+} from "../biome/terrain-depth";
 
 /** Fraction of a chunk that one biome must occupy to be its debug summary. */
 const DOMINANT_BIOME_FRACTION = 2 / 3;
@@ -27,12 +33,20 @@ export class ChunkGenerator {
     private biomes: readonly Biome[] = [];
     private features: readonly Feature[] = [];
     private readonly biomeCache = new PositionCache<Biome>();
+    private readonly terrainDepthConfig: TerrainDepthConfig;
 
     /**
      * @param worldSeed - The world's seed.
      * @param featureProviders - Builds this generator's features - see {@link setSeed}.
+     * @param terrainDepthConfig - Bounded biome-interior terrain-depth tuning.
      */
-    public constructor(worldSeed: number, private readonly featureProviders: readonly FeatureProvider[]) {
+    public constructor(
+        worldSeed: number,
+        private readonly featureProviders: readonly FeatureProvider[],
+        terrainDepthConfig: TerrainDepthConfig = TERRAIN_DEPTH_CONFIG,
+    ) {
+        validateTerrainDepthConfig(terrainDepthConfig);
+        this.terrainDepthConfig = {...terrainDepthConfig};
         this.setSeed(worldSeed);
     }
 
@@ -50,7 +64,10 @@ export class ChunkGenerator {
             this.fields.register(field);
         }
 
-        this.biomes = [new DesertBiome(worldSeed), new PlainsBiome(worldSeed)];
+        this.biomes = [
+            new DesertBiome(worldSeed, this.terrainDepthConfig),
+            new PlainsBiome(worldSeed, this.terrainDepthConfig),
+        ];
         for (const biome of this.biomes) {
             for (const field of biome.getFields()) {
                 this.fields.register(field);
@@ -85,15 +102,43 @@ export class ChunkGenerator {
     public generate(chunkX: number, chunkY: number): GeneratedChunk {
         this.biomeCache.clear();
 
+        const chunkOriginX = chunkX * CHUNK_SIZE;
+        const chunkOriginY = chunkY * CHUNK_SIZE;
+        const halo = this.terrainDepthConfig.maximumDepthTiles + 1;
+        const paddedSize = CHUNK_SIZE + 2 * halo;
+        const paddedBiomes: Biome[][] = [];
+        const paddedBiomeTags: BiomeTag[][] = [];
+        for (let paddedY = 0; paddedY < paddedSize; paddedY++) {
+            const biomeRow: Biome[] = [];
+            const tagRow: BiomeTag[] = [];
+            for (let paddedX = 0; paddedX < paddedSize; paddedX++) {
+                const biome = this.resolveBiomeAt(
+                    chunkOriginX + paddedX - halo,
+                    chunkOriginY + paddedY - halo,
+                );
+                biomeRow.push(biome);
+                tagRow.push(biome.name);
+            }
+            paddedBiomes.push(biomeRow);
+            paddedBiomeTags.push(tagRow);
+        }
+        const paddedBiomeDepths = computeCappedRegionDepths(
+            paddedBiomeTags,
+            this.terrainDepthConfig.maximumDepthTiles,
+        );
+
         const tiles: TileData[][] = [];
         const biomeCounts = new Map<BiomeTag, number>();
         for (let localY = 0; localY < CHUNK_SIZE; localY++) {
             const row: TileData[] = [];
             for (let localX = 0; localX < CHUNK_SIZE; localX++) {
-                const worldX = chunkX * CHUNK_SIZE + localX;
-                const worldY = chunkY * CHUNK_SIZE + localY;
-                const biome = this.resolveBiomeAt(worldX, worldY);
-                const groundType = biome.sampleBaseTerrain(worldX, worldY);
+                const worldX = chunkOriginX + localX;
+                const worldY = chunkOriginY + localY;
+                const paddedX = localX + halo;
+                const paddedY = localY + halo;
+                const biome = paddedBiomes[paddedY][paddedX];
+                const biomeDepth = paddedBiomeDepths[paddedY][paddedX];
+                const groundType = biome.sampleBaseTerrain(worldX, worldY, biomeDepth);
                 const biomeTag = biome.name;
                 biomeCounts.set(biomeTag, (biomeCounts.get(biomeTag) ?? 0) + 1);
                 row.push({biomeTag, groundType, featureTag: "none"});
@@ -101,8 +146,6 @@ export class ChunkGenerator {
             tiles.push(row);
         }
 
-        const chunkOriginX = chunkX * CHUNK_SIZE;
-        const chunkOriginY = chunkY * CHUNK_SIZE;
         const resolveBiomeTagAt = (worldX: number, worldY: number): BiomeTag => {
             const localX = worldX - chunkOriginX;
             const localY = worldY - chunkOriginY;

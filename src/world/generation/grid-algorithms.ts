@@ -1,5 +1,84 @@
 import {coordinateKey, CoordinateKey, parseCoordinateKey} from "../coordinate-key";
 
+/** The eight offsets around one grid cell. */
+const NEIGHBOUR_OFFSETS_8: readonly (readonly [dx: number, dy: number])[] = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0], [1, 0],
+    [-1, 1], [0, 1], [1, 1],
+];
+
+/**
+ * Computes capped 8-connected distance from unlike-region borders in a
+ * rectangular mask. Border cells have depth 1; cells farther than
+ * `maximumDepth` (or in a uniform mask) retain the cap.
+ *
+ * Only neighbours inside `regions` are inspected. Callers that read a central
+ * sub-area must therefore provide a halo of `maximumDepth + 1` cells.
+ *
+ * @param regions - Rectangular row-major region identities.
+ * @param maximumDepth - Non-negative integer depth cap.
+ * @returns A new rectangular row-major depth grid.
+ */
+export function computeCappedRegionDepths<T>(
+    regions: readonly (readonly T[])[],
+    maximumDepth: number,
+): number[][] {
+    if (!Number.isInteger(maximumDepth) || maximumDepth < 0) {
+        throw new RangeError("maximumDepth must be a non-negative integer.");
+    }
+    if (regions.length === 0) {
+        return [];
+    }
+
+    const width = regions[0].length;
+    if (regions.some((row) => row.length !== width)) {
+        throw new Error("regions must be rectangular.");
+    }
+
+    const height = regions.length;
+    const depths = Array.from({length: height}, () => Array<number>(width).fill(maximumDepth));
+    if (width === 0 || maximumDepth === 0) {
+        return depths;
+    }
+
+    const queue: number[] = [];
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const region = regions[y][x];
+            const isBorder = NEIGHBOUR_OFFSETS_8.some(([dx, dy]) => {
+                const nx = x + dx;
+                const ny = y + dy;
+                return nx >= 0 && nx < width && ny >= 0 && ny < height && regions[ny][nx] !== region;
+            });
+            if (isBorder) {
+                depths[y][x] = 1;
+                queue.push(y * width + x);
+            }
+        }
+    }
+
+    for (const index of queue) {
+        const x = index % width;
+        const y = Math.floor(index / width);
+        const nextDepth = depths[y][x] + 1;
+        if (nextDepth >= maximumDepth) {
+            continue;
+        }
+        for (const [dx, dy] of NEIGHBOUR_OFFSETS_8) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height
+                || regions[ny][nx] !== regions[y][x] || depths[ny][nx] <= nextDepth) {
+                continue;
+            }
+            depths[ny][nx] = nextDepth;
+            queue.push(ny * width + nx);
+        }
+    }
+
+    return depths;
+}
+
 /**
  * Whether every one of `(x, y)`'s 8 neighbours is also in `component`.
  *

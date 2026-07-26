@@ -38,9 +38,10 @@ export abstract class Biome {
      *
      * @param worldX - Tile's X position, in tiles from the world origin.
      * @param worldY - Tile's Y position, in tiles from the world origin.
+     * @param biomeDepth - Capped 8-connected distance from this biome's border.
      * @returns The tile's base ground sprite.
      */
-    public abstract sampleBaseTerrain(worldX: number, worldY: number): BackgroundTileType;
+    public abstract sampleBaseTerrain(worldX: number, worldY: number, biomeDepth: number): BackgroundTileType;
 }
 
 /**
