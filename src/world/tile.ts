@@ -24,6 +24,8 @@ function drawNotReadyTile(ctx: DrawContext, x: number, y: number, size: number):
 export interface TileData {
     /** Which biome supplied this tile's base terrain. */
     readonly biomeTag: BiomeTag;
+    /** Capped 8-connected distance from this tile's biome border; features may read this to soften transitions. */
+    readonly biomeDepth: number;
     /** Which feature (if any) this tile belongs to. */
     featureTag: FeatureTag;
     /** Which sprite this tile renders. */
@@ -39,6 +41,7 @@ export class Tile {
     private readonly bitmapReady: Promise<void>;
 
     public readonly biomeTag: BiomeTag;
+    public readonly biomeDepth: number;
     public readonly featureTag: FeatureTag;
     public readonly groundType: BackgroundTileType;
 
@@ -48,6 +51,7 @@ export class Tile {
      */
     public constructor(data: TileData, spriteSheets: ChunkSpriteSheets) {
         this.biomeTag = data.biomeTag;
+        this.biomeDepth = data.biomeDepth;
         this.featureTag = data.featureTag;
         this.groundType = data.groundType;
 

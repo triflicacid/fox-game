@@ -232,3 +232,66 @@ export function erodeComponent(component: ReadonlyCoordSet, neighbourThreshold: 
     }
     return eroded;
 }
+
+/**
+ * 8-connected outward distance transform from `component` into surrounding
+ * tiles. Seeds are the direct non-barrier neighbours of every tile in
+ * `component`; BFS then propagates outward through tiles that are in neither
+ * `component` nor `barrier`, stopping once the running distance would exceed
+ * `maxDistance`.
+ *
+ * Useful for computing how far land tiles are from a feature boundary (e.g. a
+ * lake shore), letting a feature apply depth banding to surrounding terrain.
+ *
+ * @param component - The source tile set; these tiles never appear in the output.
+ * @param barrier - Additional impassable tiles (e.g., other lake components).
+ * @param maxDistance - Positive integer cap; tiles farther than this are not returned.
+ * @returns Tiles reachable within `maxDistance` steps mapped to their minimum distance,
+ *   iterable via {@link CoordMap.keys} and {@link CoordMap.values}.
+ */
+export function computeOutwardDistances(
+    component: ReadonlyCoordSet,
+    barrier: ReadonlyCoordSet,
+    maxDistance: number,
+): CoordMap<number> {
+    const distances = new CoordMap<number>();
+    const queue: [number, number][] = [];
+
+    for (const [x, y] of component) {
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) {
+                    continue;
+                }
+                const nx = x + dx;
+                const ny = y + dy;
+                if (!component.has(nx, ny) && !barrier.has(nx, ny) && !distances.has(nx, ny)) {
+                    distances.set(nx, ny, 1);
+                    queue.push([nx, ny]);
+                }
+            }
+        }
+    }
+
+    for (const [x, y] of queue) {
+        const nextDist = (distances.get(x, y) as number) + 1;
+        if (nextDist > maxDistance) {
+            continue;
+        }
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) {
+                    continue;
+                }
+                const nx = x + dx;
+                const ny = y + dy;
+                if (!component.has(nx, ny) && !barrier.has(nx, ny) && !distances.has(nx, ny)) {
+                    distances.set(nx, ny, nextDist);
+                    queue.push([nx, ny]);
+                }
+            }
+        }
+    }
+
+    return distances;
+}
