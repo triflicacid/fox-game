@@ -1,4 +1,4 @@
-import {ReadonlyTileSet, TileMap, TileSet} from "../tile-set";
+import {ReadonlyCoordSet, CoordMap, CoordSet} from "../coord-set";
 
 /**
  * Whether every one of `(x, y)`'s 8 neighbours is also in `component`.
@@ -8,7 +8,7 @@ import {ReadonlyTileSet, TileMap, TileSet} from "../tile-set";
  * @param y - Tile's Y position, in tiles from the world origin.
  * @returns Whether `(x, y)` is fully interior to `component`.
  */
-export function isFullySurrounded(component: ReadonlyTileSet, x: number, y: number): boolean {
+export function isFullySurrounded(component: ReadonlyCoordSet, x: number, y: number): boolean {
     for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
             if (dx === 0 && dy === 0) {
@@ -28,8 +28,8 @@ export function isFullySurrounded(component: ReadonlyTileSet, x: number, y: numb
  * @param component - The final (smoothed) tile set.
  * @returns The core (interior) subset of `component`, possibly empty.
  */
-export function findCoreTiles(component: ReadonlyTileSet): TileSet {
-    const core = new TileSet();
+export function findCoreTiles(component: ReadonlyCoordSet): CoordSet {
+    const core = new CoordSet();
     for (const [x, y] of component) {
         if (isFullySurrounded(component, x, y)) {
             core.add(x, y);
@@ -46,8 +46,8 @@ export function findCoreTiles(component: ReadonlyTileSet): TileSet {
  * @param component - The tile set.
  * @returns Every tile's edge distance.
  */
-export function computeEdgeDistances(component: ReadonlyTileSet): TileMap<number> {
-    const distances = new TileMap<number>();
+export function computeEdgeDistances(component: ReadonlyCoordSet): CoordMap<number> {
+    const distances = new CoordMap<number>();
     const queue: [number, number][] = [];
 
     for (const [x, y] of component) {
@@ -94,8 +94,8 @@ export function floodFill8(
     startY: number,
     isCandidate: (x: number, y: number) => boolean,
     maxTiles: number,
-): {tiles: TileSet; exceededCap: boolean} {
-    const tiles = new TileSet();
+): {tiles: CoordSet; exceededCap: boolean} {
+    const tiles = new CoordSet();
     tiles.add(startX, startY);
     const queue: [number, number][] = [[startX, startY]];
     let exceededCap = false;
@@ -133,8 +133,8 @@ export function floodFill8(
  * @param neighbourThreshold - Minimum neighbour count a tile must have to survive.
  * @returns The eroded tile set - a subset of `component`, possibly empty.
  */
-export function erodeComponent(component: ReadonlyTileSet, neighbourThreshold: number): TileSet {
-    const eroded = new TileSet();
+export function erodeComponent(component: ReadonlyCoordSet, neighbourThreshold: number): CoordSet {
+    const eroded = new CoordSet();
     for (const [x, y] of component) {
         let neighbourCount = 0;
         for (let dy = -1; dy <= 1; dy++) {
