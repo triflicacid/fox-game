@@ -2,7 +2,7 @@ import {CHUNK_SIZE} from "../../chunk-size";
 import {TileData} from "../../tile";
 import {BiomeTag} from "../biome/biome";
 import {BiomeTagResolver, Feature, TerrainResampler} from "./feature";
-import {FbmField, NoiseField} from "../noise-field";
+import {CellularPeakField, FbmField, NoiseField} from "../noise-field";
 import {CoordMap, CoordSet, ReadonlyCoordSet} from "../../coord-set";
 import {
     computeEdgeDistances,
@@ -16,12 +16,12 @@ import {TerrainDepthConfig} from "../biome/terrain-depth";
 // first-guess values; tune with the debug visualiser and a documented fixed-seed sample
 const OASIS_CONFIG = {
     oasisRegionSeedOffset: 7013,
-    oasisRegionFrequency: 1 / 300, // broad: eligible zones are uncommon globally
-    oasisRegionThreshold: 0.64, // upper portion of broad FBM hills pass
+    oasisRegionCellSizeTiles: 96,
+    oasisRegionThreshold: 0.9,
 
     oasisShapeSeedOffset: 8059,
     oasisShapeFrequency: 1 / 40, // broader than lakes; accepted bodies are larger
-    oasisShapeThreshold: 0.45,
+    oasisShapeThreshold: 0.5,
 
     fieldOctaves: 2,
 
@@ -58,12 +58,11 @@ export class OasisFeature extends Feature {
      */
     public constructor(worldSeed: number, private readonly terrainDepth: TerrainDepthConfig) {
         super();
-        this.oasisRegion = new FbmField(
+        this.oasisRegion = new CellularPeakField(
             "oasis_region",
             worldSeed,
             OASIS_CONFIG.oasisRegionSeedOffset,
-            OASIS_CONFIG.oasisRegionFrequency,
-            OASIS_CONFIG.fieldOctaves,
+            OASIS_CONFIG.oasisRegionCellSizeTiles,
         );
         this.oasisShape = new FbmField(
             "oasis_shape",
@@ -148,10 +147,6 @@ export class OasisFeature extends Feature {
         }
     }
 
-    /**
-     * @param shoreDistance - distance from the oasis shore in 8-connected rings (1 at the shore)
-     * @returns oasis_shape threshold interpolated from shore to center
-     */
     /**
      * @param shoreDistance - distance from the oasis shore in 8-connected rings (1 at the shore)
      * @returns oasis_shape threshold interpolated from shore to center

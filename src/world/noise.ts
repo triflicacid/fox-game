@@ -13,7 +13,7 @@
  * @param y - Lattice point Y coordinate (integer, may be negative).
  * @returns A value in `[0, 1)`.
  */
-function hashLatticePoint(seed: number, x: number, y: number): number {
+export function hashLatticePoint(seed: number, x: number, y: number): number {
     let h = (seed ^ Math.imul(x, 374761393) ^ Math.imul(y, 668265263)) >>> 0;
     h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
     h = (h ^ (h >>> 16)) >>> 0;

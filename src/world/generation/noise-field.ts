@@ -1,4 +1,4 @@
-import {sampleFbm2d, sampleGradientNoise2d, sampleNoise2d} from "../noise";
+import {hashLatticePoint, sampleFbm2d, sampleGradientNoise2d, sampleNoise2d} from "../noise";
 
 /**
  * A named, world-space noise channel. Every implementation normalizes its
@@ -17,7 +17,6 @@ export interface NoiseField {
      */
     sample(worldX: number, worldY: number): number;
 }
-
 /** A field that samples to the same fixed value everywhere. */
 export class ConstantField implements NoiseField {
     /**
@@ -93,5 +92,49 @@ export class FbmField implements NoiseField {
 
     public sample(worldX: number, worldY: number): number {
         return sampleFbm2d(this.seed, worldX, worldY, this.frequency, this.octaves);
+    }
+}
+
+/** A field with one jittered radial peak per world-space grid cell. */
+export class CellularPeakField implements NoiseField {
+    private readonly seed: number;
+
+    /**
+     * @param name - field name
+     * @param worldSeed - world seed
+     * @param seedOffset - field seed offset
+     * @param cellSize - width and height of each peak cell in tiles
+     */
+    public constructor(
+        public readonly name: string,
+        worldSeed: number,
+        seedOffset: number,
+        private readonly cellSize: number,
+    ) {
+        this.seed = worldSeed + seedOffset;
+    }
+
+    /**
+     * @param worldX - tile X in world space
+     * @param worldY - tile Y in world space
+     * @returns proximity to the nearest jittered cell peak
+     */
+    public sample(worldX: number, worldY: number): number {
+        const cellX = Math.floor(worldX / this.cellSize);
+        const cellY = Math.floor(worldY / this.cellSize);
+        let nearestSquared = Infinity;
+        for (let offsetY = -1; offsetY <= 1; offsetY++) {
+            for (let offsetX = -1; offsetX <= 1; offsetX++) {
+                const candidateX = cellX + offsetX;
+                const candidateY = cellY + offsetY;
+                const peakX = (candidateX + hashLatticePoint(this.seed, candidateX, candidateY)) * this.cellSize;
+                const peakY = (candidateY + hashLatticePoint(this.seed + 7919, candidateX, candidateY)) * this.cellSize;
+                const dx = worldX - peakX;
+                const dy = worldY - peakY;
+                nearestSquared = Math.min(nearestSquared, dx * dx + dy * dy);
+            }
+        }
+        const maximumDistance = this.cellSize * Math.SQRT2;
+        return Math.max(0, 1 - Math.sqrt(nearestSquared) / maximumDistance);
     }
 }
