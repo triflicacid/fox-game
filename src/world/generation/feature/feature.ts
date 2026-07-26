@@ -3,6 +3,7 @@ import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {BiomeTag} from "../biome/biome";
 import {GenerationContext} from "../generation-context";
 import {NoiseField} from "../noise-field";
+import {ReadonlyCoordSet} from "../../coord-set";
 
 /** Resolves the retained or sampled biome tag at an arbitrary world position. */
 export type BiomeTagResolver = (worldX: number, worldY: number) => BiomeTag;
@@ -30,6 +31,13 @@ export abstract class Feature {
     public abstract getFields(): readonly NoiseField[];
 
     /**
+     * biome tags a component's core-tile majority vote must match to be accepted
+     *
+     * @returns permitted biome tags for this feature's components
+     */
+    public abstract getPermittedBiomes(): readonly BiomeTag[];
+
+    /**
      * Applies this feature onto `tiles`, mutating whichever local tiles it
      * covers within the chunk at `(chunkX, chunkY)`.
      *
@@ -46,4 +54,32 @@ export abstract class Feature {
         resolveBiomeTagAt: BiomeTagResolver,
         resampleTerrainAt: TerrainResampler,
     ): void;
+
+    /**
+     * majority-votes the biome of coreTiles against this feature's permitted biomes
+     *
+     * @param coreTiles - interior tiles of a candidate component
+     * @param resolveBiomeTagAt - resolves the biome tag at an absolute world position
+     * @returns whether the majority biome of coreTiles is in getPermittedBiomes()
+     */
+    protected coreTilesBiomeAllowed(
+        coreTiles: ReadonlyCoordSet,
+        resolveBiomeTagAt: BiomeTagResolver,
+    ): boolean {
+        const permitted = this.getPermittedBiomes();
+        const counts = new Map<BiomeTag, number>();
+        for (const [x, y] of coreTiles) {
+            const tag = resolveBiomeTagAt(x, y);
+            counts.set(tag, (counts.get(tag) ?? 0) + 1);
+        }
+        let majorityTag: BiomeTag | undefined;
+        let majorityCount = -1;
+        for (const [tag, count] of counts) {
+            if (count > majorityCount) {
+                majorityTag = tag;
+                majorityCount = count;
+            }
+        }
+        return majorityTag !== undefined && permitted.includes(majorityTag);
+    }
 }

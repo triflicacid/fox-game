@@ -4,7 +4,7 @@ import {StaticSpriteSheet} from "./StaticSpriteSheet";
 
 /** Every ground tile type in `static/background-tile-sprites.png`/`.json`. */
 export type BackgroundTileType = "grass1" | "grass2" | "grass3" | "dirt" | "gravel" | "waterLight" | "waterDark"
-    | "sand1" | "sand2" | "sand3";
+    | "sand1" | "sand2" | "sand3" | "oasisWaterLight" | "oasisWaterDark";
 
 const descriptor = descriptorJson as SpriteSheetDescriptor<BackgroundTileType, SpriteTileDescriptor<BackgroundTileType>>;
 

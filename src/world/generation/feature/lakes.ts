@@ -93,6 +93,10 @@ export class LakeFeature extends Feature {
         return [this.wetness, this.lakeShape];
     }
 
+    public override getPermittedBiomes(): readonly BiomeTag[] {
+        return LAKE_CONFIG.allowedBiomes;
+    }
+
     public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeTagAt: BiomeTagResolver, resampleTerrainAt: TerrainResampler): void {
         const components = this.discoverComponents(resolveBiomeTagAt, chunkX, chunkY);
 
@@ -181,31 +185,6 @@ export class LakeFeature extends Feature {
             && this.lakeShape.sample(worldX, worldY) >= LAKE_CONFIG.lakeShapeThreshold;
     }
 
-    /**
-     * Majority-votes `coreTiles`' biome, each resolved at its own world
-     * position, against `LAKE_CONFIG.allowedBiomes`.
-     *
-     * @param coreTiles - A lake's core tiles.
-     * @param resolveBiomeTagAt - Resolves the biome tag at an absolute world position.
-     * @returns Whether the majority biome is in `LAKE_CONFIG.allowedBiomes`.
-     */
-    private coreTilesVoteAllowed(coreTiles: ReadonlyCoordSet, resolveBiomeTagAt: BiomeTagResolver): boolean {
-        const counts = new Map<BiomeTag, number>();
-        for (const [x, y] of coreTiles) {
-            const tag = resolveBiomeTagAt(x, y);
-            counts.set(tag, (counts.get(tag) ?? 0) + 1);
-        }
-
-        let majorityTag: BiomeTag | undefined;
-        let majorityCount = -1;
-        for (const [tag, count] of counts) {
-            if (count > majorityCount) {
-                majorityTag = tag;
-                majorityCount = count;
-            }
-        }
-        return majorityTag !== undefined && LAKE_CONFIG.allowedBiomes.includes(majorityTag);
-    }
 
     /**
      * Discovers every lake touching the chunk at `(chunkX, chunkY)`: floods
@@ -262,7 +241,7 @@ export class LakeFeature extends Feature {
                     continue;
                 }
 
-                if (!this.coreTilesVoteAllowed(coreTiles, resolveBiomeTagAt)) {
+                if (!this.coreTilesBiomeAllowed(coreTiles, resolveBiomeTagAt)) {
                     continue;
                 }
 
