@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vitest";
-import {coordinateKey, CoordinateKey} from "../coordinate-key";
+import {CoordSet} from "../coord-set";
 import {
     computeCappedRegionDepths,
     computeEdgeDistances,
@@ -9,16 +9,17 @@ import {
     isFullySurrounded,
 } from "./grid-algorithms";
 
-/** Builds a filled rectangular set of coordinateKey strings. */
-function filledRect(x0: number, y0: number, x1: number, y1: number): Set<CoordinateKey> {
-    const tiles = new Set<CoordinateKey>();
+/** Builds a filled rectangular CoordSet. */
+function filledRect(x0: number, y0: number, x1: number, y1: number): CoordSet {
+    const tiles = new CoordSet();
     for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
-            tiles.add(coordinateKey(x, y));
+            tiles.add(x, y);
         }
     }
     return tiles;
 }
+
 
 describe("computeCappedRegionDepths", () => {
     it("returns an empty grid for an empty mask", () => {
@@ -86,13 +87,14 @@ describe("computeCappedRegionDepths", () => {
 
 describe("computeEdgeDistances", () => {
     it("returns an empty map for an empty component", () => {
-        expect(computeEdgeDistances(new Set())).toEqual(new Map());
+        expect(computeEdgeDistances(new CoordSet()).size).toBe(0);
     });
 
     it("gives a single tile distance 1", () => {
-        const component = new Set([coordinateKey(0, 0)]);
+        const component = new CoordSet();
+        component.add(0, 0);
         const distances = computeEdgeDistances(component);
-        expect(distances.get(coordinateKey(0, 0))).toBe(1);
+        expect(distances.get(0, 0)).toBe(1);
         expect(distances.size).toBe(1);
     });
 
@@ -103,7 +105,7 @@ describe("computeEdgeDistances", () => {
         for (let y = 0; y <= 2; y++) {
             for (let x = 0; x <= 2; x++) {
                 const expected = (x === 1 && y === 1) ? 2 : 1;
-                expect(distances.get(coordinateKey(x, y))).toBe(expected);
+                expect(distances.get(x, y)).toBe(expected);
             }
         }
     });
@@ -112,87 +114,90 @@ describe("computeEdgeDistances", () => {
         // Outer ring: distance 1. Next ring: distance 2. Centre tile: distance 3.
         const component = filledRect(0, 0, 4, 4);
         const distances = computeEdgeDistances(component);
-        const outerRing = [
-            ...[0, 1, 2, 3, 4].map(x => coordinateKey(x, 0)),
-            ...[0, 1, 2, 3, 4].map(x => coordinateKey(x, 4)),
-            ...[1, 2, 3].map(y => coordinateKey(0, y)),
-            ...[1, 2, 3].map(y => coordinateKey(4, y)),
+        const outerRing: [number, number][] = [
+            ...[0, 1, 2, 3, 4].map(x => [x, 0] as [number, number]),
+            ...[0, 1, 2, 3, 4].map(x => [x, 4] as [number, number]),
+            ...[1, 2, 3].map(y => [0, y] as [number, number]),
+            ...[1, 2, 3].map(y => [4, y] as [number, number]),
         ];
-        for (const key of outerRing) {
-            expect(distances.get(key)).toBe(1);
+        for (const [x, y] of outerRing) {
+            expect(distances.get(x, y)).toBe(1);
         }
-        const midRing = [
-            coordinateKey(1, 1), coordinateKey(2, 1), coordinateKey(3, 1),
-            coordinateKey(1, 3), coordinateKey(2, 3), coordinateKey(3, 3),
-            coordinateKey(1, 2), coordinateKey(3, 2),
+        const midRing: [number, number][] = [
+            [1, 1], [2, 1], [3, 1],
+            [1, 3], [2, 3], [3, 3],
+            [1, 2], [3, 2],
         ];
-        for (const key of midRing) {
-            expect(distances.get(key)).toBe(2);
+        for (const [x, y] of midRing) {
+            expect(distances.get(x, y)).toBe(2);
         }
-        expect(distances.get(coordinateKey(2, 2))).toBe(3);
+        expect(distances.get(2, 2)).toBe(3);
     });
 
     it("assigns distance 1 to all tiles of two disconnected single tiles", () => {
         // Neither isolated tile is fully surrounded, so both are shore tiles.
-        const component = new Set([coordinateKey(0, 0), coordinateKey(10, 10)]);
+        const component = new CoordSet();
+        component.add(0, 0);
+        component.add(10, 10);
         const distances = computeEdgeDistances(component);
-        expect(distances.get(coordinateKey(0, 0))).toBe(1);
-        expect(distances.get(coordinateKey(10, 10))).toBe(1);
+        expect(distances.get(0, 0)).toBe(1);
+        expect(distances.get(10, 10)).toBe(1);
         expect(distances.size).toBe(2);
     });
 
     it("does not mutate the input set", () => {
         const component = filledRect(0, 0, 2, 2);
-        const snapshot = new Set(component);
+        const sizeBefore = component.size;
         computeEdgeDistances(component);
-        expect(component).toEqual(snapshot);
+        expect(component.size).toBe(sizeBefore);
+        for (let y = 0; y <= 2; y++) {
+            for (let x = 0; x <= 2; x++) {
+                expect(component.has(x, y)).toBe(true);
+            }
+        }
     });
 });
+
 
 describe("findCoreTiles", () => {
     it("returns only the centre of a filled 3x3 square", () => {
         // Only (1,1) has all 8 neighbours inside the square.
         const result = findCoreTiles(filledRect(0, 0, 2, 2));
-        expect(result).toEqual(new Set([coordinateKey(1, 1)]));
+        expect(result.size).toBe(1);
+        expect(result.has(1, 1)).toBe(true);
     });
 
     it("returns the four interior tiles of a filled 4x4 square", () => {
         const result = findCoreTiles(filledRect(0, 0, 3, 3));
-        expect(result).toEqual(new Set([
-            coordinateKey(1, 1),
-            coordinateKey(2, 1),
-            coordinateKey(1, 2),
-            coordinateKey(2, 2),
-        ]));
+        const expected = new CoordSet();
+        expected.add(1, 1); expected.add(2, 1); expected.add(1, 2); expected.add(2, 2);
+        expect(result.equals(expected)).toBe(true);
     });
 
     it("returns an empty set for a single row", () => {
         // No tile in a 1xN row has all 8 neighbours present.
-        const row = filledRect(0, 0, 4, 0);
-        expect(findCoreTiles(row)).toEqual(new Set());
+        expect(findCoreTiles(filledRect(0, 0, 4, 0)).size).toBe(0);
     });
 
     it("returns an empty set for an empty component", () => {
-        expect(findCoreTiles(new Set())).toEqual(new Set());
+        expect(findCoreTiles(new CoordSet()).size).toBe(0);
     });
 
     it("returns a new set and does not mutate the input", () => {
         const component = filledRect(0, 0, 2, 2);
-        const snapshot = new Set(component);
         const result = findCoreTiles(component);
-        expect(component).toEqual(snapshot);
         expect(result).not.toBe(component);
+        expect(component.size).toBe(9);
     });
 });
 
+
 describe("isFullySurrounded", () => {
     it("returns true for the centre tile of a filled 3x3 square", () => {
-        // Centre (1,1) has all 8 neighbours inside the square.
         expect(isFullySurrounded(filledRect(0, 0, 2, 2), 1, 1)).toBe(true);
     });
 
     it("returns false for a corner tile of a filled 3x3 square", () => {
-        // Corner (0,0) is missing neighbours at (-1,-1), (-1,0), (0,-1), etc.
         expect(isFullySurrounded(filledRect(0, 0, 2, 2), 0, 0)).toBe(false);
     });
 
@@ -202,14 +207,19 @@ describe("isFullySurrounded", () => {
     });
 
     it("returns false for a single isolated tile", () => {
-        const single = new Set([coordinateKey(0, 0)]);
+        const single = new CoordSet();
+        single.add(0, 0);
         expect(isFullySurrounded(single, 0, 0)).toBe(false);
     });
 
     it("returns false when exactly one of the 8 neighbours is absent", () => {
-        // Full 3x3 minus the top-left corner - centre still has 7 neighbours.
-        const component = filledRect(0, 0, 2, 2);
-        component.delete(coordinateKey(0, 0));
+        // 3x3 square but missing the top-left corner (0,0), so (1,1) has only 7 neighbours.
+        const component = new CoordSet();
+        for (let y = 0; y <= 2; y++) {
+            for (let x = 0; x <= 2; x++) {
+                if (x !== 0 || y !== 0) component.add(x, y);
+            }
+        }
         expect(isFullySurrounded(component, 1, 1)).toBe(false);
     });
 
@@ -223,62 +233,60 @@ describe("isFullySurrounded", () => {
     });
 });
 
+
 describe("erodeComponent", () => {
     it("retains only the centre of a 3x3 square with threshold 6", () => {
         // Corners have 3 neighbours, edge midpoints have 5, centre has 8.
         // Threshold 6 removes everything except the centre.
-        const component = filledRect(0, 0, 2, 2);
-        const result = erodeComponent(component, 6);
-        expect(result).toEqual(new Set([coordinateKey(1, 1)]));
+        const result = erodeComponent(filledRect(0, 0, 2, 2), 6);
+        expect(result.size).toBe(1);
+        expect(result.has(1, 1)).toBe(true);
     });
 
     it("retains only the four interior tiles of a 4x4 square with threshold 6", () => {
         // Perimeter tiles have at most 5 neighbours; interior tiles have 8.
-        const component = filledRect(0, 0, 3, 3);
-        const result = erodeComponent(component, 6);
-        expect(result).toEqual(new Set([
-            coordinateKey(1, 1),
-            coordinateKey(2, 1),
-            coordinateKey(1, 2),
-            coordinateKey(2, 2),
-        ]));
+        const result = erodeComponent(filledRect(0, 0, 3, 3), 6);
+        const expected = new CoordSet();
+        expected.add(1, 1); expected.add(2, 1); expected.add(1, 2); expected.add(2, 2);
+        expect(result.equals(expected)).toBe(true);
     });
 
     it("retains centre and edge midpoints of a 3x3 square with threshold 5", () => {
         // Edge midpoints have exactly 5 neighbours (>= 5 passes); corners have 3.
-        const component = filledRect(0, 0, 2, 2);
-        const result = erodeComponent(component, 5);
-        expect(result).toEqual(new Set([
-            coordinateKey(1, 0),
-            coordinateKey(0, 1),
-            coordinateKey(1, 1),
-            coordinateKey(2, 1),
-            coordinateKey(1, 2),
-        ]));
+        const result = erodeComponent(filledRect(0, 0, 2, 2), 5);
+        const expected = new CoordSet();
+        expected.add(1, 0); expected.add(0, 1); expected.add(1, 1); expected.add(2, 1); expected.add(1, 2);
+        expect(result.equals(expected)).toBe(true);
     });
 
     it("returns an empty set for an empty component", () => {
-        expect(erodeComponent(new Set(), 5)).toEqual(new Set());
+        expect(erodeComponent(new CoordSet(), 5).size).toBe(0);
     });
 
     it("removes a single tile (0 neighbours, any positive threshold)", () => {
-        const single = new Set([coordinateKey(0, 0)]);
-        expect(erodeComponent(single, 1)).toEqual(new Set());
+        const single = new CoordSet();
+        single.add(0, 0);
+        expect(erodeComponent(single, 1).size).toBe(0);
     });
 
     it("retains every tile when threshold is 0", () => {
         const component = filledRect(0, 0, 2, 2);
         const result = erodeComponent(component, 0);
-        expect(result).toEqual(component);
+        expect(result.equals(component)).toBe(true);
     });
 
     it("does not mutate the input set", () => {
         const component = filledRect(0, 0, 2, 2);
-        const snapshot = new Set(component);
         erodeComponent(component, 6);
-        expect(component).toEqual(snapshot);
+        expect(component.size).toBe(9);
+        for (let y = 0; y <= 2; y++) {
+            for (let x = 0; x <= 2; x++) {
+                expect(component.has(x, y)).toBe(true);
+            }
+        }
     });
 });
+
 
 describe("floodFill8", () => {
     /** Returns a candidate predicate bounded to the rectangle [x0, x1] by [y0, y1]. */
@@ -288,7 +296,7 @@ describe("floodFill8", () => {
 
     it("fills a finite all-candidate region and reports no cap exceeded", () => {
         const {tiles, exceededCap} = floodFill8(0, 0, inRect(0, 0, 2, 2), 100);
-        expect(tiles).toEqual(filledRect(0, 0, 2, 2));
+        expect(tiles.equals(filledRect(0, 0, 2, 2))).toBe(true);
         expect(exceededCap).toBe(false);
     });
 
@@ -298,13 +306,10 @@ describe("floodFill8", () => {
         const isCandidate = (x: number, y: number) =>
             x >= 0 && x <= 2 && y >= 0 && y <= 2 && (x + y) % 2 === 0;
         const {tiles, exceededCap} = floodFill8(0, 0, isCandidate, 100);
-        expect(tiles).toEqual(new Set<CoordinateKey>([
-            coordinateKey(0, 0),
-            coordinateKey(1, 1),
-            coordinateKey(2, 0),
-            coordinateKey(0, 2),
-            coordinateKey(2, 2),
-        ]));
+        const expected = new CoordSet();
+        expected.add(0, 0); expected.add(1, 1); expected.add(2, 0);
+        expected.add(0, 2); expected.add(2, 2);
+        expect(tiles.equals(expected)).toBe(true);
         expect(exceededCap).toBe(false);
     });
 
@@ -312,9 +317,8 @@ describe("floodFill8", () => {
         // Blob A: (0,0)-(1,1). Blob B: (10,0)-(11,1). Too far apart for 8-connectivity.
         const blobA = inRect(0, 0, 1, 1);
         const blobB = inRect(10, 0, 11, 1);
-        const isCandidate = (x: number, y: number) => blobA(x, y) || blobB(x, y);
-        const {tiles} = floodFill8(0, 0, isCandidate, 100);
-        expect(tiles).toEqual(filledRect(0, 0, 1, 1));
+        const {tiles} = floodFill8(0, 0, (x, y) => blobA(x, y) || blobB(x, y), 100);
+        expect(tiles.equals(filledRect(0, 0, 1, 1))).toBe(true);
     });
 
     it("reports exceededCap false when the region fits within maxTiles", () => {
@@ -332,7 +336,8 @@ describe("floodFill8", () => {
 
     it("always includes the seed even when its neighbours are non-candidates", () => {
         const {tiles, exceededCap} = floodFill8(5, 5, () => false, 100);
-        expect(tiles).toEqual(new Set([coordinateKey(5, 5)]));
+        expect(tiles.size).toBe(1);
+        expect(tiles.has(5, 5)).toBe(true);
         expect(exceededCap).toBe(false);
     });
 
