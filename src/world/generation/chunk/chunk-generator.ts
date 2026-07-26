@@ -5,7 +5,7 @@ import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "../biome/biome";
 import {DesertBiome} from "../biome/desert-biome";
 import {PlainsBiome} from "../biome/plains-biome";
 import {Feature, FeatureProvider} from "../feature/feature";
-import {PositionCache} from "../position-cache";
+import {CoordMap} from "../../coord-set";
 import {ClimateFields} from "../biome/climate-fields";
 import {GenerationContext} from "../generation-context";
 import {computeCappedRegionDepths} from "../grid-algorithms";
@@ -32,7 +32,7 @@ export class ChunkGenerator {
     private climate!: ClimateFields;
     private biomes: readonly Biome[] = [];
     private features: readonly Feature[] = [];
-    private readonly biomeCache = new PositionCache<Biome>();
+    private readonly biomeCache = new CoordMap<Biome>();
     private readonly terrainDepthConfig: TerrainDepthConfig;
 
     /**
@@ -172,8 +172,12 @@ export class ChunkGenerator {
      * @returns The biome that matches at that position.
      */
     private resolveBiomeAt(worldX: number, worldY: number): Biome {
-        return this.biomeCache.get([worldX, worldY], ([x, y]) =>
-            resolveBiome(this.biomes, this.climate.sample(x, y)));
+        let cached = this.biomeCache.get(worldX, worldY);
+        if (cached === undefined) {
+            cached = resolveBiome(this.biomes, this.climate.sample(worldX, worldY));
+            this.biomeCache.set(worldX, worldY, cached);
+        }
+        return cached;
     }
 
     /** Returns a biome tag only when it occupies at least two-thirds of the chunk. */
