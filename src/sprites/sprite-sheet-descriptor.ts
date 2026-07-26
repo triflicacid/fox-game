@@ -22,10 +22,11 @@ export interface SpriteTileDescriptor<TType extends string = string> {
     x: number;
     /** Pixel y (top edge) of this entry's cell. */
     y: number;
-    /**
-     * Collision bounding shape relative to the cell's centre. Absent for a
-     * non-interactable entry.
-     */
+    /** This entry's cell width in pixels, if it differs from the sheet's default {@link SpriteSheetDescriptor.cellWidth}. */
+    width?: number;
+    /** This entry's cell height in pixels, if it differs from {@link SpriteSheetDescriptor.cellHeight}. */
+    height?: number;
+    /** Collision bounding shape relative to the cell's centre. Absent for a non-interactable entry. */
     bounds?: SpriteBounds;
 }
 

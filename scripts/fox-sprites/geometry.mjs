@@ -26,13 +26,29 @@ export function lerp(a, b, t) {
  * @returns {number} the distance from the point to the nearest point on the segment.
  */
 export function distToSegment(px, py, ax, ay, bx, by) {
+    return projectOnSegment(px, py, ax, ay, bx, by).dist;
+}
+
+/**
+ * finds the nearest point on a line segment to a point, and how far along the
+ * segment that point sits.
+ *
+ * @param {number} px - point x.
+ * @param {number} py - point y.
+ * @param {number} ax - segment start x.
+ * @param {number} ay - segment start y.
+ * @param {number} bx - segment end x.
+ * @param {number} by - segment end y.
+ * @returns {{t: number, dist: number}} `t` in `[0, 1]` (0 at the start, 1 at the end) and the distance from the point to the nearest point on the segment.
+ */
+export function projectOnSegment(px, py, ax, ay, bx, by) {
     const abx = bx - ax, aby = by - ay;
     const apx = px - ax, apy = py - ay;
     const abLen2 = abx * abx + aby * aby;
     let t = abLen2 > 0 ? (apx * abx + apy * aby) / abLen2 : 0;
     t = Math.max(0, Math.min(1, t));
     const cx = ax + abx * t, cy = ay + aby * t;
-    return Math.hypot(px - cx, py - cy);
+    return { t, dist: Math.hypot(px - cx, py - cy) };
 }
 
 /**
@@ -82,16 +98,19 @@ export function convexHull(points) {
  *
  * @param {(number[]|null)[]} gridColors - row-major grid of rgba colors for one frame.
  * @param {{x: number, y: number}[]} points - array to append the corner points to.
+ * @param {number} [gridW] - cells per grid row, for rows using a non-default grid (e.g. a leap direction's tailored canvas).
+ * @param {number} [block] - real pixels per grid cell, for rows using a non-default grid.
+ * @param {number} [gridH] - cells per grid column, if the grid isn't square.
  * @returns {void}
  */
-export function collectOpaquePoints(gridColors, points) {
-    for (let gy = 0; gy < GRID; gy++) {
-        for (let gx = 0; gx < GRID; gx++) {
-            if (!gridColors[gy * GRID + gx]) continue;
-            points.push({ x: gx * BLOCK, y: gy * BLOCK });
-            points.push({ x: (gx + 1) * BLOCK, y: gy * BLOCK });
-            points.push({ x: gx * BLOCK, y: (gy + 1) * BLOCK });
-            points.push({ x: (gx + 1) * BLOCK, y: (gy + 1) * BLOCK });
+export function collectOpaquePoints(gridColors, points, gridW = GRID, block = BLOCK, gridH = gridW) {
+    for (let gy = 0; gy < gridH; gy++) {
+        for (let gx = 0; gx < gridW; gx++) {
+            if (!gridColors[gy * gridW + gx]) continue;
+            points.push({ x: gx * block, y: gy * block });
+            points.push({ x: (gx + 1) * block, y: gy * block });
+            points.push({ x: gx * block, y: (gy + 1) * block });
+            points.push({ x: (gx + 1) * block, y: (gy + 1) * block });
         }
     }
 }
@@ -100,9 +119,12 @@ export function collectOpaquePoints(gridColors, points) {
  * converts hull points relative to a cell's top-left corner into points relative to its center.
  *
  * @param {{x: number, y: number}[]} hullPoints - hull vertices, relative to the cell's top-left.
+ * @param {number} [cellW] - this row's cell width in pixels, for rows using a non-default grid.
+ * @param {number} [cellH] - this row's cell height in pixels, if it differs from `cellW`.
  * @returns {{points: {x: number, y: number}[]}} the bounds shape, matching `SpriteBounds` in src/sprites/sprite.d.ts.
  */
-export function hullToBounds(hullPoints) {
-    const half = CELL_PX / 2;
-    return { points: hullPoints.map((p) => ({ x: p.x - half, y: p.y - half })) };
+export function hullToBounds(hullPoints, cellW = CELL_PX, cellH = cellW) {
+    const halfW = cellW / 2;
+    const halfH = cellH / 2;
+    return { points: hullPoints.map((p) => ({ x: p.x - halfW, y: p.y - halfH })) };
 }
