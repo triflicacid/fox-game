@@ -2,6 +2,7 @@ import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {Biome} from "./biome";
 import {ClimateSample} from "./climate-fields";
 import {NoiseField, ValueNoiseField} from "../noise-field";
+import {selectTerrainVariant, TERRAIN_DEPTH_CONFIG, TerrainDepthConfig, TerrainDepthVariants} from "./terrain-depth";
 
 /** Per-channel seed offset for grass variety. */
 const GRASS_VARIANT_SEED_OFFSET = 1013;
@@ -9,8 +10,12 @@ const GRASS_VARIANT_SEED_OFFSET = 1013;
 /** Noise cycles per tile for grass variety: one lattice cell spans 10 tiles. */
 const GRASS_VARIANT_FREQUENCY = 1 / 10;
 
-/** Grass variants, in ascending order of the noise band that selects them. */
-const GRASS_VARIANTS: readonly BackgroundTileType[] = ["grass1", "grass2", "grass3"];
+/** Explicit visual ordering audited from the generated sprite palettes. */
+const GRASS_VARIANTS: TerrainDepthVariants = {
+    light: "grass2",
+    medium: "grass1",
+    dark: "grass3",
+};
 
 /**
  * Grassland: the only biome so far. Matches unconditionally, so it must stay
@@ -23,8 +28,9 @@ export class PlainsBiome extends Biome {
 
     /**
      * @param worldSeed - The world's seed, so this biome's fields sample deterministically.
+     * @param terrainDepthConfig - Shared biome-interior depth tuning.
      */
-    public constructor(worldSeed: number) {
+    public constructor(worldSeed: number, private readonly terrainDepthConfig: TerrainDepthConfig = TERRAIN_DEPTH_CONFIG) {
         super();
         this.grassVariantField = new ValueNoiseField("grass_variant", worldSeed, GRASS_VARIANT_SEED_OFFSET, GRASS_VARIANT_FREQUENCY);
     }
@@ -38,14 +44,10 @@ export class PlainsBiome extends Biome {
         return true;
     }
 
-    /**
-     * Bands {@link grassVariantField} into {@link GRASS_VARIANTS}.length equal
-     * parts.
-     */
-    public override sampleBaseTerrain(worldX: number, worldY: number): BackgroundTileType {
+    /** Selects progressively darker grass bands while retaining world-space variation. */
+    public override sampleBaseTerrain(worldX: number, worldY: number, biomeDepth: number): BackgroundTileType {
         const value = this.grassVariantField.sample(worldX, worldY);
-        const index = Math.min(GRASS_VARIANTS.length - 1, Math.floor(value * GRASS_VARIANTS.length));
-        return GRASS_VARIANTS[index];
+        return selectTerrainVariant(value, biomeDepth, GRASS_VARIANTS, this.terrainDepthConfig);
     }
 }
 

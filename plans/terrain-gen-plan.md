@@ -1,6 +1,6 @@
 # Terrain Generation Plan
 
-_Last aligned with the codebase on 2026-07-25._
+_Last aligned with the codebase on 2026-07-26._
 
 This document is the implementation plan for terrain generation. It supersedes
 the earlier branch-history analysis that used to live here. The design goals in
@@ -8,10 +8,9 @@ the earlier branch-history analysis that used to live here. The design goals in
 architecture that actually exists, deliberate deviations from that document,
 and the remaining milestones.
 
-The next milestone is **biome-interior terrain depth**. Desert classification
-and terrain are complete. Before adding more water features, grass and sand
-colour variants should reflect distance from biome borders. Rare Desert oases
-follow that work.
+The next milestone is **rare Desert oases**. Desert classification, terrain,
+and biome-interior terrain depth are complete. Oases should now add rare,
+Desert-specific water without weakening the shared climate model.
 
 ---
 
@@ -71,7 +70,7 @@ created once rather than duplicated by consumers.
 - a stable `name`;
 - `getFields()`;
 - `matches(fieldValues)`;
-- `sampleBaseTerrain(worldX, worldY)`.
+- `sampleBaseTerrain(worldX, worldY, biomeDepth)`.
 
 `resolveBiome` tries biome instances in order and returns the first match. The
 list must end with a catch-all biome.
@@ -375,7 +374,23 @@ Desert-specific criteria rather than simply allowing every lake in Desert.
 
 ### Phase 2: Biome-interior terrain depth
 
-**Status: next.** Complete this phase before implementing oases.
+**Status: complete.**
+
+The implemented default caps depth at 8 tiles and classifies a 9-tile halo,
+so each chunk uses a bounded 34x34 biome mask. Border depths use 8-connectivity
+and start at 1. The first two rings are hard light-only bands; intermediate
+rings allow light/medium sprites with at most 0.75 tile of world-space noise
+perturbation; capped depth allows medium/dark sprites with a 0.5 noise split.
+
+Sprite palettes were audited rather than ordered by numeric suffix:
+
+- Plains light/medium/dark: `grass2`, `grass1`, `grass3`;
+- Desert light/medium/dark: `sand2`, `sand1`, `sand3`.
+
+`ChunkGenerator` accepts validated depth tuning, owns padded classification and
+distance orchestration, and shares the tuning with both biome samplers. Tests
+cover capped/diagonal transforms, exact padded work, negative/positive chunk
+edges, both biome mappings, and generation-order independence.
 
 Grass and sand variants currently come from biome-owned world-space noise.
 Retain that variation, but make colour depth primarily reflect how far a tile

@@ -1,6 +1,13 @@
 import {describe, expect, it, vi} from "vitest";
 import {coordinateKey, CoordinateKey} from "../coordinate-key";
-import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8, isFullySurrounded} from "./grid-algorithms";
+import {
+    computeCappedRegionDepths,
+    computeEdgeDistances,
+    erodeComponent,
+    findCoreTiles,
+    floodFill8,
+    isFullySurrounded,
+} from "./grid-algorithms";
 
 /** Builds a filled rectangular set of coordinateKey strings. */
 function filledRect(x0: number, y0: number, x1: number, y1: number): Set<CoordinateKey> {
@@ -12,6 +19,70 @@ function filledRect(x0: number, y0: number, x1: number, y1: number): Set<Coordin
     }
     return tiles;
 }
+
+describe("computeCappedRegionDepths", () => {
+    it("returns an empty grid for an empty mask", () => {
+        expect(computeCappedRegionDepths([], 4)).toEqual([]);
+    });
+
+    it("treats a homogeneous mask as fully interior", () => {
+        expect(computeCappedRegionDepths([
+            ["plains", "plains"],
+            ["plains", "plains"],
+        ], 4)).toEqual([
+            [4, 4],
+            [4, 4],
+        ]);
+    });
+
+    it("computes successive 8-connected rings on both sides of a straight border", () => {
+        expect(computeCappedRegionDepths([
+            ["plains", "plains", "plains", "desert", "desert", "desert"],
+            ["plains", "plains", "plains", "desert", "desert", "desert"],
+            ["plains", "plains", "plains", "desert", "desert", "desert"],
+        ], 4)).toEqual([
+            [3, 2, 1, 1, 2, 3],
+            [3, 2, 1, 1, 2, 3],
+            [3, 2, 1, 1, 2, 3],
+        ]);
+    });
+
+    it("caps propagation without traversing a complete region", () => {
+        expect(computeCappedRegionDepths([
+            ["a", "a", "a", "a", "a", "b"],
+        ], 3)).toEqual([[3, 3, 3, 2, 1, 1]]);
+    });
+
+    it("marks diagonal unlike neighbours as border cells", () => {
+        const depths = computeCappedRegionDepths([
+            ["desert", "plains", "plains"],
+            ["plains", "plains", "plains"],
+            ["plains", "plains", "plains"],
+        ], 3);
+        expect(depths).toEqual([
+            [1, 1, 2],
+            [1, 1, 2],
+            [2, 2, 2],
+        ]);
+    });
+
+    it("supports zero as a depth cap", () => {
+        expect(computeCappedRegionDepths([["a", "b"]], 0)).toEqual([[0, 0]]);
+    });
+
+    it("rejects invalid caps and ragged masks", () => {
+        expect(() => computeCappedRegionDepths([["a"]], -1)).toThrow(RangeError);
+        expect(() => computeCappedRegionDepths([["a"]], 1.5)).toThrow(RangeError);
+        expect(() => computeCappedRegionDepths([["a"], ["a", "b"]], 2)).toThrow(/rectangular/);
+    });
+
+    it("does not mutate the region mask", () => {
+        const regions = [["a", "b"], ["a", "a"]] as const;
+        const snapshot = regions.map((row) => [...row]);
+        computeCappedRegionDepths(regions, 3);
+        expect(regions).toEqual(snapshot);
+    });
+});
 
 describe("computeEdgeDistances", () => {
     it("returns an empty map for an empty component", () => {
