@@ -122,11 +122,15 @@ const LEAP_EXTENT_PADDING = 1;
 
 // fraction of the tail's base-to-tip length, in [0, 1], where the cyan tip
 // accent starts blending in; below this the tail stays plain orange.
-const LEAP_TAIL_FADE_START = 0.1;
+const DASH_TAIL_FADE_START = 0.1;
 
-// true: tail blends from orange to cyan starting at LEAP_TAIL_FADE_START;
-// false: tail stays plain orange up to the cyan tip, with no gradient
-export const ADD_COLOUR_FADE = true;
+// true: tail blends from orange to DASH_ACCENT_COLOR starting at
+// DASH_TAIL_FADE_START; false: tail stays plain orange up to the tip accent,
+// with no gradient
+const ADD_COLOUR_FADE = true;
+
+// the dash tail-tip/fade accent color (rgba).
+const DASH_ACCENT_COLOR = [90, 220, 240, 255];
 
 /** all tunable fox sprite sheet parameters, grouped by pose/animation. */
 export const constants = {
@@ -142,7 +146,6 @@ export const constants = {
         cream: [255, 243, 224, 255],
         white: [255, 255, 255, 255],
         rust: [188, 89, 32, 255], // darker orange, for the curled tail against the body
-        dashCyan: [90, 220, 240, 255], // leap-only tail-tip accent, echoes the (separate) dash trail effect
     },
 
     dirs: {
@@ -198,6 +201,11 @@ export const constants = {
         stretchT: LEAP_STRETCH_T,
         stretch: LEAP_STRETCH,
         legs: LEAP_LEGS,
-        tailFadeStart: LEAP_TAIL_FADE_START,
+    },
+
+    dash: {
+        accentColor: DASH_ACCENT_COLOR,
+        addColourFade: ADD_COLOUR_FADE,
+        tailFadeStart: DASH_TAIL_FADE_START,
     },
 };
