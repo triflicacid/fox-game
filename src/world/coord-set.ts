@@ -9,7 +9,7 @@ const COORD_RANGE = MAX_COORD * 2; // 16,777,216
 function pack(x: number, y: number): number {
     if (x < -MAX_COORD || x >= MAX_COORD || y < -MAX_COORD || y >= MAX_COORD) {
         throw new RangeError(
-            `TileSet/TileMap coordinate out of range: (${x}, ${y}). ` +
+            `CoordSet/CoordMap coordinate out of range: (${x}, ${y}). ` +
             `Each axis must be in [-${MAX_COORD}, ${MAX_COORD}).`,
         );
     }
@@ -17,28 +17,27 @@ function pack(x: number, y: number): number {
 }
 
 /**
- * A read-only view of a {@link TileSet}: size, membership, and
+ * A read-only view of a {@link CoordSet}: size, membership, equality, and
  * insertion-order iteration as `[x, y]` pairs.
  */
-export interface ReadonlyTileSet extends Iterable<[number, number]> {
+export interface ReadonlyCoordSet extends Iterable<[number, number]> {
     readonly size: number;
     has(x: number, y: number): boolean;
     /** Whether this set contains exactly the same coordinates as `other`. */
-    equals(other: ReadonlyTileSet): boolean;
+    equals(other: ReadonlyCoordSet): boolean;
 }
 
 /**
  * A mutable set of integer `(x, y)` coordinate pairs, backed by a numeric
- * hash key for O(1) membership tests and safe-integer arithmetic instead of
- * string encoding.
+ * hash key for O(1) membership tests.
  *
  * Iterates in insertion order as `[x, y]` tuples.
  */
-export class TileSet implements ReadonlyTileSet {
+export class CoordSet implements ReadonlyCoordSet {
     private readonly keys = new Set<number>();
     private readonly pairs: [number, number][] = [];
 
-    /** Number of tiles in the set. */
+    /** Number of coordinates in the set. */
     get size(): number {
         return this.keys.size;
     }
@@ -67,7 +66,7 @@ export class TileSet implements ReadonlyTileSet {
     }
 
     /** Whether this set contains exactly the same coordinates as `other`. */
-    equals(other: ReadonlyTileSet): boolean {
+    equals(other: ReadonlyCoordSet): boolean {
         if (this.size !== other.size) {
             return false;
         }
@@ -81,11 +80,13 @@ export class TileSet implements ReadonlyTileSet {
 }
 
 /**
- * A map from integer `(x, y)` coordinate pairs to values of type `T`,
- * backed by a numeric hash key for O(1) lookup.
+ * A map from integer `(x, y)` coordinate pairs to values of type `T`, backed
+ * by a numeric hash key for O(1) lookup. Maintains insertion order for
+ * {@link keys}, {@link values}, and {@link delete}-then-{@link set} reordering.
  */
-export class TileMap<T> {
+export class CoordMap<T> {
     private readonly map = new Map<number, T>();
+    private readonly pairs: [number, number][] = [];
 
     /** Number of entries in the map. */
     get size(): number {
@@ -103,12 +104,59 @@ export class TileMap<T> {
     }
 
     /**
-     * Sets the value at `(x, y)`.
+     * Sets the value at `(x, y)`. New entries are appended to iteration order.
      * @returns `this`, for chaining.
      */
     set(x: number, y: number, value: T): this {
-        this.map.set(pack(x, y), value);
+        const key = pack(x, y);
+        if (!this.map.has(key)) {
+            this.pairs.push([x, y]);
+        }
+        this.map.set(key, value);
         return this;
+    }
+
+    /**
+     * Removes the entry for `(x, y)`.
+     * @returns `true` if the entry existed, `false` otherwise.
+     */
+    delete(x: number, y: number): boolean {
+        const key = pack(x, y);
+        if (!this.map.delete(key)) {
+            return false;
+        }
+        const idx = this.pairs.findIndex(([px, py]) => px === x && py === y);
+        if (idx !== -1) {
+            this.pairs.splice(idx, 1);
+        }
+        return true;
+    }
+
+    /** Removes all entries. */
+    clear(): void {
+        this.map.clear();
+        this.pairs.length = 0;
+    }
+
+    /**
+     * Iterates over coordinate pairs in insertion order.
+     * Safe to call {@link delete} or {@link set} during iteration.
+     */
+    *keys(): IterableIterator<[number, number]> {
+        yield* [...this.pairs];
+    }
+
+    /**
+     * Iterates over values in insertion order.
+     * Safe to call {@link delete} or {@link set} during iteration.
+     */
+    *values(): IterableIterator<T> {
+        for (const [x, y] of [...this.pairs]) {
+            const v = this.map.get(pack(x, y));
+            if (v !== undefined) {
+                yield v;
+            }
+        }
     }
 }
 

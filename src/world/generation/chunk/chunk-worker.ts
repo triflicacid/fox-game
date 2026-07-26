@@ -1,7 +1,7 @@
 import {ChunkGenerator} from "./chunk-generator";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
 import {DEFAULT_FEATURE_PROVIDERS} from "../feature/default-features";
-import {coordinateKey, CoordinateKey} from "../../coordinate-key";
+import {CoordMap} from "../../coord-set";
 
 /**
  * Narrow view of the worker global scope this file needs. Avoids adding the
@@ -91,9 +91,9 @@ async function processQueue(): Promise<void> {
  * @param order - Desired chunk coordinate order, most urgent first. A queued coordinate missing from `order` sorts last.
  */
 function reorderQueue(order: {chunkX: number; chunkY: number}[]): void {
-    const rank = new Map<CoordinateKey, number>();
-    order.forEach(({chunkX, chunkY}, index) => rank.set(coordinateKey(chunkX, chunkY), index));
-    queue.sort((a, b) => (rank.get(coordinateKey(a.chunkX, a.chunkY)) ?? Infinity) - (rank.get(coordinateKey(b.chunkX, b.chunkY)) ?? Infinity));
+    const rank = new CoordMap<number>();
+    order.forEach(({chunkX, chunkY}, index) => rank.set(chunkX, chunkY, index));
+    queue.sort((a, b) => (rank.get(a.chunkX, a.chunkY) ?? Infinity) - (rank.get(b.chunkX, b.chunkY) ?? Infinity));
 }
 
 ctx.onmessage = (event) => {

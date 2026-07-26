@@ -4,7 +4,7 @@ import {BiomeTag} from "../biome/biome";
 import {BiomeTagResolver, Feature} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
 import {PositionCache} from "../position-cache";
-import {ReadonlyTileSet, TileSet} from "../../tile-set";
+import {ReadonlyCoordSet, CoordSet} from "../../coord-set";
 import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8} from "../grid-algorithms";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */
@@ -54,9 +54,9 @@ const LAKE_CONFIG = {
 /** One accepted lake, ready to paint. */
 interface LakeComponent {
     /** Every tile the lake covers. */
-    tiles: ReadonlyTileSet;
+    tiles: ReadonlyCoordSet;
     /** The subset of {@link tiles} used for the biome vote - see {@link findCoreTiles}. */
-    coreTiles: ReadonlyTileSet;
+    coreTiles: ReadonlyCoordSet;
 }
 
 /** Lakes: a region-style feature - flood-filled, smoothed, min-size and biome-vote gated. */
@@ -137,7 +137,7 @@ export class LakeFeature extends Feature {
      * @param resolveBiomeTagAt - Resolves the biome tag at an absolute world position.
      * @returns Whether the majority biome is in `LAKE_CONFIG.allowedBiomes`.
      */
-    private coreTilesVoteAllowed(coreTiles: ReadonlyTileSet, resolveBiomeTagAt: BiomeTagResolver): boolean {
+    private coreTilesVoteAllowed(coreTiles: ReadonlyCoordSet, resolveBiomeTagAt: BiomeTagResolver): boolean {
         const counts = new Map<BiomeTag, number>();
         for (const [x, y] of coreTiles) {
             const tag = resolveBiomeTagAt(x, y);
@@ -171,7 +171,7 @@ export class LakeFeature extends Feature {
         const isCandidateCached = (worldX: number, worldY: number): boolean =>
             candidacyCache.get([worldX, worldY], ([x, y]) => this.isCandidate(x, y));
 
-        const visited = new TileSet();
+        const visited = new CoordSet();
         const components: LakeComponent[] = [];
 
         for (let localY = 0; localY < CHUNK_SIZE; localY++) {
@@ -190,7 +190,7 @@ export class LakeFeature extends Feature {
                     continue;
                 }
 
-                let smoothed: TileSet = raw;
+                let smoothed: CoordSet = raw;
                 for (let pass = 0; pass < LAKE_CONFIG.smoothingPasses; pass++) {
                     smoothed = erodeComponent(smoothed, LAKE_CONFIG.smoothingNeighbourThreshold);
                 }

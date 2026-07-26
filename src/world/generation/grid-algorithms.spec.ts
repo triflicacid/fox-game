@@ -1,10 +1,10 @@
 import {describe, expect, it, vi} from "vitest";
-import {TileSet} from "../tile-set";
+import {CoordSet} from "../coord-set";
 import {computeEdgeDistances, erodeComponent, findCoreTiles, floodFill8, isFullySurrounded} from "./grid-algorithms";
 
-/** Builds a filled rectangular TileSet. */
-function filledRect(x0: number, y0: number, x1: number, y1: number): TileSet {
-    const tiles = new TileSet();
+/** Builds a filled rectangular CoordSet. */
+function filledRect(x0: number, y0: number, x1: number, y1: number): CoordSet {
+    const tiles = new CoordSet();
     for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
             tiles.add(x, y);
@@ -16,11 +16,11 @@ function filledRect(x0: number, y0: number, x1: number, y1: number): TileSet {
 
 describe("computeEdgeDistances", () => {
     it("returns an empty map for an empty component", () => {
-        expect(computeEdgeDistances(new TileSet()).size).toBe(0);
+        expect(computeEdgeDistances(new CoordSet()).size).toBe(0);
     });
 
     it("gives a single tile distance 1", () => {
-        const component = new TileSet();
+        const component = new CoordSet();
         component.add(0, 0);
         const distances = computeEdgeDistances(component);
         expect(distances.get(0, 0)).toBe(1);
@@ -65,7 +65,7 @@ describe("computeEdgeDistances", () => {
 
     it("assigns distance 1 to all tiles of two disconnected single tiles", () => {
         // Neither isolated tile is fully surrounded, so both are shore tiles.
-        const component = new TileSet();
+        const component = new CoordSet();
         component.add(0, 0);
         component.add(10, 10);
         const distances = computeEdgeDistances(component);
@@ -98,7 +98,7 @@ describe("findCoreTiles", () => {
 
     it("returns the four interior tiles of a filled 4x4 square", () => {
         const result = findCoreTiles(filledRect(0, 0, 3, 3));
-        const expected = new TileSet();
+        const expected = new CoordSet();
         expected.add(1, 1); expected.add(2, 1); expected.add(1, 2); expected.add(2, 2);
         expect(result.equals(expected)).toBe(true);
     });
@@ -109,7 +109,7 @@ describe("findCoreTiles", () => {
     });
 
     it("returns an empty set for an empty component", () => {
-        expect(findCoreTiles(new TileSet()).size).toBe(0);
+        expect(findCoreTiles(new CoordSet()).size).toBe(0);
     });
 
     it("returns a new set and does not mutate the input", () => {
@@ -136,14 +136,14 @@ describe("isFullySurrounded", () => {
     });
 
     it("returns false for a single isolated tile", () => {
-        const single = new TileSet();
+        const single = new CoordSet();
         single.add(0, 0);
         expect(isFullySurrounded(single, 0, 0)).toBe(false);
     });
 
     it("returns false when exactly one of the 8 neighbours is absent", () => {
         // 3x3 square but missing the top-left corner (0,0), so (1,1) has only 7 neighbours.
-        const component = new TileSet();
+        const component = new CoordSet();
         for (let y = 0; y <= 2; y++) {
             for (let x = 0; x <= 2; x++) {
                 if (x !== 0 || y !== 0) component.add(x, y);
@@ -175,7 +175,7 @@ describe("erodeComponent", () => {
     it("retains only the four interior tiles of a 4x4 square with threshold 6", () => {
         // Perimeter tiles have at most 5 neighbours; interior tiles have 8.
         const result = erodeComponent(filledRect(0, 0, 3, 3), 6);
-        const expected = new TileSet();
+        const expected = new CoordSet();
         expected.add(1, 1); expected.add(2, 1); expected.add(1, 2); expected.add(2, 2);
         expect(result.equals(expected)).toBe(true);
     });
@@ -183,17 +183,17 @@ describe("erodeComponent", () => {
     it("retains centre and edge midpoints of a 3x3 square with threshold 5", () => {
         // Edge midpoints have exactly 5 neighbours (>= 5 passes); corners have 3.
         const result = erodeComponent(filledRect(0, 0, 2, 2), 5);
-        const expected = new TileSet();
+        const expected = new CoordSet();
         expected.add(1, 0); expected.add(0, 1); expected.add(1, 1); expected.add(2, 1); expected.add(1, 2);
         expect(result.equals(expected)).toBe(true);
     });
 
     it("returns an empty set for an empty component", () => {
-        expect(erodeComponent(new TileSet(), 5).size).toBe(0);
+        expect(erodeComponent(new CoordSet(), 5).size).toBe(0);
     });
 
     it("removes a single tile (0 neighbours, any positive threshold)", () => {
-        const single = new TileSet();
+        const single = new CoordSet();
         single.add(0, 0);
         expect(erodeComponent(single, 1).size).toBe(0);
     });
@@ -235,7 +235,7 @@ describe("floodFill8", () => {
         const isCandidate = (x: number, y: number) =>
             x >= 0 && x <= 2 && y >= 0 && y <= 2 && (x + y) % 2 === 0;
         const {tiles, exceededCap} = floodFill8(0, 0, isCandidate, 100);
-        const expected = new TileSet();
+        const expected = new CoordSet();
         expected.add(0, 0); expected.add(1, 1); expected.add(2, 0);
         expected.add(0, 2); expected.add(2, 2);
         expect(tiles.equals(expected)).toBe(true);
