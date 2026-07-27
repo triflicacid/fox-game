@@ -5,7 +5,6 @@ import {Camera} from "../camera/camera";
 import {KeyBinding} from "../help/key-binding";
 import {Debouncer} from "../input/debouncer";
 import {Keyboard} from "@keyboard";
-import {DASH_CONSTANTS} from "./dash-constants";
 import {MOVEMENT_CONSTANTS} from "./movement-constants";
 import {requireNonNull} from "../util";
 
@@ -453,8 +452,8 @@ export class MovementController {
         }
 
         this.dashActive = true;
-        this.dashRemainingMs = DASH_CONSTANTS.durationMs;
-        this.dashVelocity = Vector2d.fromDirection(direction).scale(MOVEMENT_CONSTANTS.speed * DASH_CONSTANTS.speedMultiplier);
+        this.dashRemainingMs = MOVEMENT_CONSTANTS.dash.durationMs;
+        this.dashVelocity = Vector2d.fromDirection(direction).scale(MOVEMENT_CONSTANTS.speed * MOVEMENT_CONSTANTS.dash.speedMultiplier);
         this.entity.setFacing(direction);
         this.entity.setVelocity(Vector2d.ZERO);
         this.entity.onDashStart?.(direction);
@@ -495,7 +494,7 @@ export class MovementController {
      */
     private endDash(): void {
         this.dashActive = false;
-        this.dashCooldownRemainingMs = DASH_CONSTANTS.cooldownMs;
+        this.dashCooldownRemainingMs = MOVEMENT_CONSTANTS.dash.cooldownMs;
         this.applyMovement();
         this.entity?.onDashComplete?.();
     }
