@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ConstantRegistry, ConstantRegistryError, constantRegistry, integerRange, nonNegativeInteger, nonNegativeNumber, numberRange } from "./constant-registry";
+import { ConstantField, ConstantLookupHandler, ConstantRegistry, ConstantRegistryError, constantRegistry, integerRange, nonNegativeInteger, nonNegativeNumber, numberRange } from "./constant-registry";
 import { ConstantHolder } from "./constant-holder";
 
 /** A small fixture schema, standing in for `ConstantsSchema` in these tests. */
@@ -521,6 +521,191 @@ describe("registerConstants", () => {
 
         registry.set<FixtureSchema>("world.entities.fox.movement.debounceMs", 99);
         expect(worldConstants.movement.debounceMs).toBe(99);
+    });
+});
+
+describe("registerHandler / ConstantLookupHandler", () => {
+    /** A fixture handler standing in for `EntityLookupHandler`: one member per map entry, each exposing a `value` field as an inline accessor. */
+    class GroupHandler extends ConstantLookupHandler {
+        public constructor(private readonly members: Map<string, { value: number }>) {
+            super();
+        }
+
+        public listPaths(): string[] {
+            return [...this.members.keys()];
+        }
+
+        public getAllPaths(): string[] {
+            return this.listPaths().map((id) => `${id}.value`);
+        }
+
+        public get(segment: string): Record<string, unknown> {
+            const member = this.members.get(segment);
+            if (!member) {
+                throw new ConstantRegistryError(`No member '${segment}'.`);
+            }
+            return { value: { get: () => member.value, set: (next: number) => { member.value = next; } } };
+        }
+    }
+
+    it("resolves get/set through a dynamically-returned plain object's inline accessor", () => {
+        const members = new Map([["a", { value: 1 }]]);
+        registry.registerHandler("group", new GroupHandler(members));
+
+        expect(registry.get("group.a.value")).toBe(1);
+
+        registry.set("group.a.value", 5);
+
+        expect(members.get("a")?.value).toBe(5);
+    });
+
+    it("reflects live changes to the backing collection without re-registration", () => {
+        const members = new Map([["a", { value: 1 }]]);
+        registry.registerHandler("group", new GroupHandler(members));
+
+        members.set("b", { value: 2 });
+        expect(registry.listPaths("group").sort()).toEqual(["group.a", "group.b"]);
+        expect(registry.get("group.b.value")).toBe(2);
+
+        members.delete("a");
+        expect(registry.listPaths("group")).toEqual(["group.b"]);
+        expect(() => registry.get("group.a.value")).toThrow(/No member 'a'/);
+    });
+
+    it("propagates the handler's own error for an unknown segment", () => {
+        registry.registerHandler("group", new GroupHandler(new Map()));
+
+        expect(() => registry.get("group.nope.value")).toThrow(/No member 'nope'/);
+    });
+
+    it("throws when a path resolves to a subtree rather than a value", () => {
+        registry.registerHandler("group", new GroupHandler(new Map([["a", { value: 1 }]])));
+
+        expect(() => registry.get("group.a")).toThrow(/resolves to a subtree/);
+    });
+
+    it("throws when a handler is already registered at a path", () => {
+        registry.registerHandler("group", new GroupHandler(new Map()));
+
+        expect(() => registry.registerHandler("group", new GroupHandler(new Map()))).toThrow(/already registered/);
+    });
+
+    it("merges a handler's listPaths into the registry's top-level and prefixed listings, alongside static holders", () => {
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
+        registry.registerHandler("group", new GroupHandler(new Map([["a", { value: 1 }]])));
+
+        expect(registry.listPaths().sort()).toEqual(["dash", "group"]);
+        expect(registry.listPaths("group")).toEqual(["group.a"]);
+    });
+
+    it("lists one level inside a handler's own dynamic subtree via a deeper prefix", () => {
+        registry.registerHandler("group", new GroupHandler(new Map([["a", { value: 1 }]])));
+
+        expect(registry.listPaths("group.a")).toEqual(["group.a.value"]);
+    });
+
+    it("merges a handler's getAllPaths into the registry's leaf listing, alongside static holders", () => {
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
+        registry.registerHandler("group", new GroupHandler(new Map([["a", { value: 1 }]])));
+
+        expect(registry.getAllPaths().sort()).toEqual(["dash.durationMs", "group.a.value"]);
+        expect(registry.getAllPaths("group.a")).toEqual(["group.a.value"]);
+    });
+
+    it("resolves straight to a field the handler returns directly, capture included", () => {
+        class DirectFieldHandler extends ConstantLookupHandler {
+            private value = 5;
+
+            public listPaths(): string[] {
+                return ["clamped"];
+            }
+
+            public getAllPaths(): string[] {
+                return ["clamped"];
+            }
+
+            public get(segment: string): ConstantField<unknown> {
+                if (segment !== "clamped") {
+                    throw new ConstantRegistryError(`No '${segment}'.`);
+                }
+                return {
+                    kind: "accessor",
+                    get: () => this.value,
+                    set: (next: number) => { this.value = next; },
+                    capture: nonNegativeInteger(),
+                };
+            }
+        }
+        registry.registerHandler("direct", new DirectFieldHandler());
+
+        expect(registry.get("direct.clamped")).toBe(5);
+        expect(() => registry.set("direct.clamped", -1)).toThrow(/below the minimum/);
+
+        registry.set("direct.clamped", 10);
+        expect(registry.get("direct.clamped")).toBe(10);
+    });
+
+    it("supports capture on an inline accessor embedded in a dynamically-returned plain object", () => {
+        class BoundedGroupHandler extends ConstantLookupHandler {
+            private readonly member = { value: 5 };
+
+            public listPaths(): string[] {
+                return ["a"];
+            }
+
+            public getAllPaths(): string[] {
+                return ["a.value"];
+            }
+
+            public get(segment: string): Record<string, unknown> {
+                if (segment !== "a") {
+                    throw new ConstantRegistryError(`No '${segment}'.`);
+                }
+                return {
+                    value: {
+                        get: () => this.member.value,
+                        set: (next: number) => { this.member.value = next; },
+                        capture: nonNegativeInteger(),
+                    },
+                };
+            }
+        }
+        registry.registerHandler("bounded", new BoundedGroupHandler());
+
+        expect(() => registry.set("bounded.a.value", -1)).toThrow(/below the minimum/);
+
+        registry.set("bounded.a.value", 20);
+        expect(registry.get("bounded.a.value")).toBe(20);
+    });
+
+    it("resolves through a handler-of-handlers", () => {
+        class OuterHandler extends ConstantLookupHandler {
+            public constructor(private readonly inner: ConstantLookupHandler) {
+                super();
+            }
+
+            public listPaths(): string[] {
+                return ["inner"];
+            }
+
+            public getAllPaths(): string[] {
+                return this.inner.getAllPaths().map((leaf) => `inner.${leaf}`);
+            }
+
+            public get(segment: string): ConstantLookupHandler {
+                if (segment !== "inner") {
+                    throw new ConstantRegistryError(`No '${segment}'.`);
+                }
+                return this.inner;
+            }
+        }
+        const members = new Map([["a", { value: 7 }]]);
+        registry.registerHandler("outer", new OuterHandler(new GroupHandler(members)));
+
+        expect(registry.get("outer.inner.a.value")).toBe(7);
+
+        registry.set("outer.inner.a.value", 8);
+        expect(members.get("a")?.value).toBe(8);
     });
 });
 
