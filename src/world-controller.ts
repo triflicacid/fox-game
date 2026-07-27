@@ -67,7 +67,7 @@ export class WorldController {
 
         const mainEntity = new Fox();
         this.world = new World(WorldController.TILE_SIZE).setMainEntity(mainEntity);
-        mainEntity.addEffectHandler("dash", (request) => {
+        mainEntity.effectDispatcher.add("dash", (request) => {
             if (request instanceof DashEffectRequest) {
                 this.world.registerEffect(new DashEffect(mainEntity, request.position));
             }

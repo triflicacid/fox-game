@@ -702,7 +702,7 @@ export class World {
      * @param entity - Entity to remove.
      */
     private destroyEntity(entity: MovableEntity): void {
-        entity.clearEffectHandlers();
+        entity.effectDispatcher.clear();
         const index = this.entities.indexOf(entity);
         if (index !== -1) {
             this.entities.splice(index, 1);

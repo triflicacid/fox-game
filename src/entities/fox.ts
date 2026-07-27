@@ -283,7 +283,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
         const frame = this.foxSpriteSheet.locateSprite(`dash${direction}`);
         this.setFrameIntervalMs(DASH_CONSTANTS.durationMs / frame.frameCount);
         this.setCurrentFrame(frame);
-        this.requestEffect(new DashEffectRequest(this.getPosition(), Vector2d.fromDirection(direction)));
+        this.effectDispatcher.dispatch(new DashEffectRequest(this.getPosition(), Vector2d.fromDirection(direction)));
     }
 
     /**
