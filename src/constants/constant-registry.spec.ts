@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ConstantRegistry, ConstantRegistryError, constantRegistry } from "./constant-registry";
+import { ConstantRegistry, ConstantRegistryError, constantRegistry, integerRange } from "./constant-registry";
 import { ConstantHolder, registerConstants } from "./constant-holder";
 
 /** A small fixture schema, standing in for `ConstantsSchema` in these tests. */
@@ -116,27 +116,78 @@ describe("get / set", () => {
         expect(holder.durationMs).toBe(250);
     });
 
-    it("throws when a number is below the declared minimum", () => {
+    it("throws the capture validator's reason when it rejects a value", () => {
         const holder = { durationMs: 250 };
-        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", min: 0, max: 1000 } });
+        registry.registerHolder("dash", {
+            durationMs: {
+                kind: "field",
+                holder,
+                key: "durationMs",
+                capture: (value: number) => (value === 0 ? "Cannot set to zero" : undefined),
+            },
+        });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(/Cannot set to zero/);
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("allows a value the capture validator does not reject", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: {
+                kind: "field",
+                holder,
+                key: "durationMs",
+                capture: (value: number) => (value === 0 ? "Cannot set to zero" : undefined),
+            },
+        });
+
+        registry.set<FixtureSchema>("dash.durationMs", 500);
+
+        expect(holder.durationMs).toBe(500);
+    });
+
+});
+
+describe("integerRange", () => {
+    it("rejects a value below the minimum", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: integerRange(0, 1000) },
+        });
 
         expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(ConstantRegistryError);
         expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(/below the minimum/);
         expect(holder.durationMs).toBe(250);
     });
 
-    it("throws when a number is above the declared maximum", () => {
+    it("rejects a value above the maximum", () => {
         const holder = { durationMs: 250 };
-        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", min: 0, max: 1000 } });
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: integerRange(0, 1000) },
+        });
 
         expect(() => registry.set<FixtureSchema>("dash.durationMs", 1001)).toThrow(ConstantRegistryError);
         expect(() => registry.set<FixtureSchema>("dash.durationMs", 1001)).toThrow(/above the maximum/);
         expect(holder.durationMs).toBe(250);
     });
 
-    it("allows a number within the declared range", () => {
+    it("rejects a non-integer value", () => {
         const holder = { durationMs: 250 };
-        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", min: 0, max: 1000 } });
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: integerRange(0, 1000) },
+        });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1.5)).toThrow(/not an integer/);
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("allows an integer within range", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: integerRange(0, 1000) },
+        });
 
         registry.set<FixtureSchema>("dash.durationMs", 500);
 
@@ -313,10 +364,10 @@ describe("registerConstants", () => {
         expect(dashConstants.durationMs).toBe(300);
     });
 
-    it("declares numeric bounds via an override", () => {
+    it("declares numeric bounds via an integerRange capture", () => {
         const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
         registerConstants("dash", dashConstants, {
-            durationMs: { min: 0, max: 1000 },
+            durationMs: { capture: integerRange(0, 1000) },
         });
 
         expect(() => constantRegistry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(ConstantRegistryError);
@@ -324,6 +375,21 @@ describe("registerConstants", () => {
 
         constantRegistry.set<FixtureSchema>("dash.durationMs", 999);
         expect(dashConstants.durationMs).toBe(999);
+    });
+
+    it("declares a capture validator via an override", () => {
+        const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
+        registerConstants("dash", dashConstants, {
+            durationMs: {
+                capture: (value) => (value === 0 ? "Cannot set to zero" : undefined),
+            },
+        });
+
+        expect(() => constantRegistry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(/Cannot set to zero/);
+        expect(dashConstants.durationMs).toBe(250);
+
+        constantRegistry.set<FixtureSchema>("dash.durationMs", 500);
+        expect(dashConstants.durationMs).toBe(500);
     });
 
     it("flattens a nested plain object into dotted leaf paths", () => {
