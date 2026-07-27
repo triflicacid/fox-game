@@ -4,8 +4,9 @@ import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {Rect} from "../geometry/rect";
 import {EffectDispatcher} from "../effects/effect-dispatcher";
+import {Accessor} from "../fields/field-registry";
 
-/** Next unused instance number per {@link Entity.getEntityTypeId}, for {@link Entity.getConstantId}. */
+/** Next unused instance number per {@link Entity.getEntityTypeId}, for {@link Entity.getRegistryId}. */
 const nextInstanceIdByTypeId = new Map<string, number>();
 
 /**
@@ -22,8 +23,8 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
     private currentBitmap: ImageBitmap | null = null;
     private animationElapsedMs = 0;
 
-    /** This entity's stable id in the tunable-constants registry (`world.entities.<id>`) - see {@link getConstantId}. */
-    private readonly constantId: string;
+    /** This entity's stable id in the field registry (`world.entities.<id>`) - see {@link getRegistryId}. */
+    private readonly registryId: string;
 
     /**
      * Lets this entity broadcast (or have handlers registered for) transient
@@ -52,7 +53,7 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
         const typeId = this.getEntityTypeId();
         const instanceId = nextInstanceIdByTypeId.get(typeId) ?? 0;
         nextInstanceIdByTypeId.set(typeId, instanceId + 1);
-        this.constantId = `${typeId}#${instanceId}`;
+        this.registryId = `${typeId}#${instanceId}`;
     }
 
     /**
@@ -63,20 +64,22 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
     /**
      * This entity's stable id.
      *
-     * @returns This entity's constant-registry id.
+     * @returns This entity's field-registry id.
      */
-    public getConstantId(): string {
-        return this.constantId;
+    public getRegistryId(): string {
+        return this.registryId;
     }
 
     /**
-     * This entity's fields exposed through the tunable-constants registry.
+     * This entity's fields exposed through the field registry.
      *
-     * @returns This entity's dynamically-resolved constant fields.
+     * @returns This entity's dynamically-resolved registry fields.
      */
-    public getConstantFields(): Record<string, unknown> {
+    public getRegistryFields(): Record<string, Accessor> {
         return {
             type: { get: () => this.getEntityTypeId() },
+            status: { get: () => this.getStatus() },
+            frameIntervalMs: { get: () => this.frameIntervalMs, set: (value: number) => this.setFrameIntervalMs(value) },
             x: { get: () => this.getPosition().x, set: (value: number) => this.setX(value) },
             y: { get: () => this.getPosition().y, set: (value: number) => this.setY(value) },
         };

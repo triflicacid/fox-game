@@ -1,10 +1,10 @@
 import {WorldController} from "./world-controller";
 import {CameraFollowMode} from "./entities/movement-controller";
-import {constantRegistry, nonNegativeInteger} from "./constants/constant-registry";
+import {fieldRegistry, nonNegativeInteger} from "./fields/field-registry";
 import {EntityLookupHandler} from "./world/entity-lookup-handler";
 
 /**
- * Registers per-instance tunable constants that only exist once
+ * Registers per-instance tunable fields that only exist once
  * `worldController` has constructed its object graph.
  *
  * Note that camera `x`/`y` only stay put while `spectating` is `true`: in
@@ -15,7 +15,7 @@ import {EntityLookupHandler} from "./world/entity-lookup-handler";
  * @param worldController - The running game's controller.
  */
 export function registerDynamicFields(worldController: WorldController): void {
-    constantRegistry.registerHandler("world.entities", new EntityLookupHandler(worldController.getWorld()));
+    fieldRegistry.registerHandler("world.entities", new EntityLookupHandler(worldController.getWorld()));
 
     const movementController = worldController.getMovementController();
     const cameraFollow = movementController.getCameraFollow();
@@ -55,7 +55,7 @@ export function registerDynamicFields(worldController: WorldController): void {
             cameraFollow.camera.setY(value);
         },
     };
-    constantRegistry.registerConstants("camera", cameraOptions, {
+    fieldRegistry.registerFields("camera", cameraOptions, {
         edgeMargin: nonNegativeInteger(),
     });
 }

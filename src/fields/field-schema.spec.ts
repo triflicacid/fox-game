@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from "vitest";
-import type { DotPath, ValueAt } from "./constants-schema";
+import type { DotPath, ValueAt } from "./field-schema";
 
-/** A small fixture schema, standing in for `ConstantsSchema` in these tests. */
+/** A small fixture schema, standing in for `FieldSchema` in these tests. */
 interface FixtureSchema {
     dash: {
         durationMs: number;

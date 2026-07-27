@@ -73,7 +73,7 @@ function tintSpriteBitmap(bitmap: ImageBitmap, w: number, h: number, color: stri
 export class DashEffect extends Effect {
     /**
      * Recomputed on every call rather than cached, since `MOVEMENT_CONSTANTS`
-     * is live-editable through the constants registry.
+     * is live-editable through the field registry.
      */
     private static lifetimeMs(): number {
         return MOVEMENT_CONSTANTS.dash.durationMs + MOVEMENT_CONSTANTS.dash.trailFadeTailMs;

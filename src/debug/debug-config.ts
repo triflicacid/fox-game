@@ -1,5 +1,5 @@
 import {COLORS} from "@display/colors";
-import {constantRegistry, nonNegativeInteger} from "../constants/constant-registry";
+import {fieldRegistry, nonNegativeInteger} from "../fields/field-registry";
 
 /**
  * Colours, line widths, and layout used by the debug rendering overlay
@@ -66,7 +66,7 @@ export const DEBUG_CONFIG = {
     hudLineSpacing: 6,
 };
 
-constantRegistry.registerConstants("debug", DEBUG_CONFIG, {
+fieldRegistry.registerFields("debug", DEBUG_CONFIG, {
     chunkOutlineWidth: nonNegativeInteger(),
     chunkLabelPadding: nonNegativeInteger(),
     featureOutlineWidth: nonNegativeInteger(),
