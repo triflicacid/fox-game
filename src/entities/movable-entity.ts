@@ -163,6 +163,16 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     public getKeyBindings?(): KeyBinding[];
 
     /**
+     * Optional hook: called by a bound {@link MovementController} whenever
+     * its run-modifier state (double-tapped movement) changes, letting the
+     * entity speed up its walk animation to match.
+     *
+     * @param running - Whether movement is currently scaled by
+     * {@link MovementController.RUN_MULTIPLIER}.
+     */
+    public setRunning?(running: boolean): void;
+
+    /**
      * Optional hook: implementing it marks an entity as dashable. Called by
      * a bound {@link MovementController} on an `X` keydown.
      *

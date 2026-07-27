@@ -6,6 +6,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
 import {DASH_CONSTANTS} from "./dash-constants";
 import {DashEffectRequest} from "../effects/dash-effect";
+import {MovementController} from "./movement-controller";
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -13,12 +14,15 @@ export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurn
 /** How long, in milliseconds, any of the fox's animations show each frame before advancing. */
 const WALK_FRAME_MS = 120;
 
+/**
+ * How long, in milliseconds, each walk frame is shown while running.
+ */
+const RUN_FRAME_MS = WALK_FRAME_MS / MovementController.RUN_MULTIPLIER;
+
 /** Direction a fox faces when spawned. */
 const INITIAL_FACING: CompassDirection = "N";
 
-/**
- * Direction the `curl`/`uncurl` art is drawn at.
- */
+/** Direction the `curl`/`uncurl` art is drawn at. */
 const CURL_ART_FACING: CompassDirection = "NW";
 const CURL_ART_ANGLE = Vector2d.fromDirection(CURL_ART_FACING).angleRadians();
 
@@ -42,6 +46,9 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
     /** Phases left to step through before a triggered `sleepTurn` returns to a static `sleeping` hold. */
     private sleepTurnPhasesRemaining = 0;
+
+    /** Whether the bound {@link MovementController} currently has its run modifier active. */
+    private running = false;
 
     /**
      * A dash requested while resting, held until `uncurl` completes so it can
@@ -125,6 +132,28 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
             return;
         }
         super.setVelocity(velocity);
+    }
+
+    /**
+     * Speeds up (or restores) the walk animation to match the
+     * {@link MovementController}'s run modifier.
+     *
+     * @param running - Whether movement is currently scaled by {@link MovementController.RUN_MULTIPLIER}.
+     */
+    public override setRunning(running: boolean): void {
+        this.running = running;
+        if (this.isRestState() || this.status === "dashing") {
+            return;
+        }
+        this.setFrameIntervalMs(this.walkFrameIntervalMs());
+    }
+
+    /**
+     * The frame interval the walk animation should currently show at, per
+     * {@link running}.
+     */
+    private walkFrameIntervalMs(): number {
+        return this.running ? RUN_FRAME_MS : WALK_FRAME_MS;
     }
 
     /**
@@ -247,6 +276,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
         const moving = velocity.x !== 0 || velocity.y !== 0;
         this.status = moving ? "walking" : "idle";
+        this.setFrameIntervalMs(this.walkFrameIntervalMs());
         this.setCurrentFrame(this.locateFrameForFacing(this.facing, moving));
         this.setVelocity(velocity);
     }
@@ -313,7 +343,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      */
     private returnFromDash(): void {
         this.status = this.isMoving() ? "walking" : "idle";
-        this.setFrameIntervalMs(WALK_FRAME_MS);
+        this.setFrameIntervalMs(this.walkFrameIntervalMs());
         this.setCurrentFrame(this.locateFrameForFacing(this.facing, this.isMoving()));
     }
 }

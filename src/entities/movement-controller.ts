@@ -46,7 +46,7 @@ export class MovementController {
     private static readonly SPEED = 250;
 
     /** Factor a movement speed is scaled by while running (double-tapped). */
-    private static readonly RUN_MULTIPLIER = 1.6;
+    public static readonly RUN_MULTIPLIER = 1.6;
 
     /** Speed the camera pans at in spectator mode, in world pixels per second. */
     private static readonly SPECTATOR_SPEED = 520;
@@ -386,6 +386,8 @@ export class MovementController {
         if (!this.entity || this.dashActive) {
             return;
         }
+
+        this.entity.setRunning?.(this.runningKeys.size > 0);
 
         const direction = this.resolveDirection();
         if (!direction) {
