@@ -15,7 +15,6 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "experimentalDecorators": true,
     "paths": {
       "@display/*": ["lib/display/src/*"],
       "@frames": ["lib/frames/src/index.ts"],

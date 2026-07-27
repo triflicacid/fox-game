@@ -6,7 +6,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
 import {DASH_CONSTANTS} from "./dash-constants";
 import {DashEffectRequest} from "../effects/dash-effect";
-import {MovementController} from "./movement-controller";
+import {MOVEMENT_CONSTANTS} from "./movement-constants";
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -17,7 +17,7 @@ const WALK_FRAME_MS = 120;
 /**
  * How long, in milliseconds, each walk frame is shown while running.
  */
-const RUN_FRAME_MS = WALK_FRAME_MS / MovementController.RUN_MULTIPLIER;
+const RUN_FRAME_MS = WALK_FRAME_MS / MOVEMENT_CONSTANTS.runMultiplier;
 
 /** Direction a fox faces when spawned. */
 const INITIAL_FACING: CompassDirection = "N";
@@ -138,7 +138,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      * Speeds up (or restores) the walk animation to match the
      * {@link MovementController}'s run modifier.
      *
-     * @param running - Whether movement is currently scaled by {@link MovementController.RUN_MULTIPLIER}.
+     * @param running - Whether movement is currently scaled by {@link MOVEMENT_CONSTANTS}'s `runMultiplier`.
      */
     public override setRunning(running: boolean): void {
         this.running = running;
