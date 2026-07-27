@@ -4,3 +4,4 @@
 - A dash (like Celeste)
 - Other entities - rabbits in plains
   - Eat mechanics??
+- Dash cooldown indicator
