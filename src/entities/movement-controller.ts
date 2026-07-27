@@ -39,9 +39,7 @@ export interface CameraFollowOptions {
 
 /**
  * Drives a bound {@link MovableEntity}'s facing and velocity from the arrow
- * keys. Not tied to a single entity for its lifetime: {@link bind} can point
- * it at a different entity later, e.g. when the player switches control to
- * something else.
+ * keys.
  */
 export class MovementController {
     /** Speed a bound entity moves at, in world pixels per second. */
@@ -94,28 +92,28 @@ export class MovementController {
         private entity: MovableEntity | null = null,
         private readonly cameraFollow: CameraFollowOptions | null = null
     ) {
-        this.entity = entity;
         this.cameraFollow = cameraFollow;
         this.movementDebouncer = new Debouncer(MovementController.DEBOUNCE_MS, () => {
             this.applyMovement();
         });
         keyboard.onKeyDown(this.handleKeyDown);
         keyboard.onKeyUp(this.handleKeyUp);
+        if (this.entity) this.setMovableEntity(this.entity);
     }
 
     /**
-     * Binds this controller to a different entity, or unbinds it entirely.
-     * The previously bound entity keeps whatever velocity it last had -
-     * callers switching control away from it should stop it themselves if
-     * that's not the desired behaviour.
+     * Binds this controller to a different entity, or unbinds it entirely,
+     * returning `this` so setup can be chained.
      *
      * @param entity - Entity to bind to, or `null` to unbind.
+     * @returns `this`, for chaining.
      */
-    public bind(entity: MovableEntity | null): void {
+    public setMovableEntity(entity: MovableEntity | null): this {
         this.cancelDash();
         this.entity = entity;
         this.applyMovement();
         this.update(0);
+        return this;
     }
 
     /**
