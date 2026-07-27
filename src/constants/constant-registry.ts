@@ -13,12 +13,47 @@ export class ConstantRegistryError extends Error {
  * plain object/class ("field", writable unless marked `readonly`), or an
  * explicit getter/setter pair ("accessor") for a value that needs a side
  * effect on write, or that's exposed read-only by omitting `set`. Either kind
- * may declare `min`/`max`, checked by {@link ConstantRegistry.set} only when
- * the incoming value is a number.
+ * may declare `capture`, an arbitrary validator run just before the write -
+ * returning a string rejects the value with that reason; returning nothing
+ * allows it. Range/shape checks (e.g. {@link integerRange}) are just captures.
  */
 export type ConstantField<T> =
-    | { kind: "field"; holder: Record<string, T>; key: string; readonly?: boolean; min?: number; max?: number }
-    | { kind: "accessor"; get(): T; set?(value: T): void; min?: number; max?: number };
+    | {
+        kind: "field";
+        holder: Record<string, T>;
+        key: string;
+        readonly?: boolean;
+        capture?(value: T): string | undefined;
+      }
+    | {
+        kind: "accessor";
+        get(): T;
+        set?(value: T): void;
+        capture?(value: T): string | undefined;
+      };
+
+/**
+ * Builds a {@link ConstantField.capture} validator rejecting anything that
+ * isn't an integer in `[min, max]`.
+ *
+ * @param min - The smallest allowed value, inclusive.
+ * @param max - The largest allowed value, inclusive.
+ * @returns A capture function for use as a field's `capture`.
+ */
+export function integerRange(min: number, max: number): (value: number) => string | undefined {
+    return (value) => {
+        if (!Number.isInteger(value)) {
+            return `${value} is not an integer.`;
+        }
+        if (value < min) {
+            return `${value} is below the minimum of ${min}.`;
+        }
+        if (value > max) {
+            return `${value} is above the maximum of ${max}.`;
+        }
+        return undefined;
+    };
+}
 
 /**
  * A flat, path-addressed registry of tunable constants. Every holder
@@ -106,8 +141,8 @@ export class ConstantRegistry {
      * Writes a value to a registered path, running whatever side effect is
      * registered for that field (see {@link ConstantField}'s `"accessor"`
      * variant). Throws if the field at `path` is read-only, if `value`'s
-     * runtime type doesn't match the field's current value, or if `value` is
-     * a number outside the field's declared `min`/`max` (when set).
+     * runtime type doesn't match the field's current value, or if the
+     * field's `capture` validator rejects `value`.
      *
      * @param path - A registered dotted path.
      * @param value - The value to write.
@@ -121,13 +156,9 @@ export class ConstantRegistry {
                 `Cannot set '${path}': expected ${typeof current}, got ${typeof value}.`,
             );
         }
-        if (typeof value === "number") {
-            if (field.min !== undefined && value < field.min) {
-                throw new ConstantRegistryError(`Cannot set '${path}': ${value} is below the minimum of ${field.min}.`);
-            }
-            if (field.max !== undefined && value > field.max) {
-                throw new ConstantRegistryError(`Cannot set '${path}': ${value} is above the maximum of ${field.max}.`);
-            }
+        const rejection = field.capture?.(value);
+        if (rejection) {
+            throw new ConstantRegistryError(`Cannot set '${path}': ${rejection}`);
         }
 
         this.writeField(field, value);
