@@ -102,6 +102,46 @@ describe("get / set", () => {
         expect(() => registry.set<FixtureSchema>("dash.durationMs", 999)).toThrow(ConstantRegistryError);
         expect(holder.durationMs).toBe(250);
     });
+
+    it("throws when the value's runtime type doesn't match the current value", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs" } });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", "not a number" as unknown as number)).toThrow(
+            ConstantRegistryError,
+        );
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", "not a number" as unknown as number)).toThrow(
+            /expected number, got string/,
+        );
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("throws when a number is below the declared minimum", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", min: 0, max: 1000 } });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(/below the minimum/);
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("throws when a number is above the declared maximum", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", min: 0, max: 1000 } });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1001)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1001)).toThrow(/above the maximum/);
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("allows a number within the declared range", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", min: 0, max: 1000 } });
+
+        registry.set<FixtureSchema>("dash.durationMs", 500);
+
+        expect(holder.durationMs).toBe(500);
+    });
 });
 
 describe("reset", () => {
@@ -271,6 +311,19 @@ describe("registerConstants", () => {
 
         constantRegistry.set<FixtureSchema>("dash.durationMs", 300);
         expect(dashConstants.durationMs).toBe(300);
+    });
+
+    it("declares numeric bounds via an override", () => {
+        const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
+        registerConstants("dash", dashConstants, {
+            durationMs: { min: 0, max: 1000 },
+        });
+
+        expect(() => constantRegistry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(ConstantRegistryError);
+        expect(dashConstants.durationMs).toBe(250);
+
+        constantRegistry.set<FixtureSchema>("dash.durationMs", 999);
+        expect(dashConstants.durationMs).toBe(999);
     });
 
     it("flattens a nested plain object into dotted leaf paths", () => {

@@ -5,20 +5,28 @@ interface Accessor<T = unknown> {
     set?(value: T): void;
 }
 
-/** Marks a field readonly while keeping it a direct reference to its own property, rather than switching it to an accessor. */
-interface ReadonlyOverride {
-    readonly: true;
+/**
+ * Options for a field kept as a direct reference to its own property, rather
+ * than switching it to an accessor: `readonly` blocks writes through the
+ * registry entirely; `min`/`max` bound a numeric field's value on write (see
+ * {@link ConstantRegistry.set}).
+ */
+interface FieldOptionsOverride {
+    readonly?: boolean;
+    min?: number;
+    max?: number;
 }
 
-type FieldOverride<T> = Accessor<T> | ReadonlyOverride;
+type FieldOverride<T> = Accessor<T> | FieldOptionsOverride;
 
 /**
  * Per-field overrides, keyed by property name. A field with no override
  * registers as a direct, writable reference to `T`'s own property. A field
- * can instead be overridden with an explicit getter/setter pair, or marked
- * `{ readonly: true }` to keep the direct reference but block writes through
- * the registry. A property that's itself a plain object can be given a
- * nested overrides map instead, addressing its own properties one level down.
+ * can instead be overridden with an explicit getter/setter pair, or given
+ * `{ readonly, min, max }` options to keep the direct reference while
+ * constraining writes through the registry. A property that's itself a
+ * plain object can be given a nested overrides map instead, addressing its
+ * own properties one level down.
  */
 export type AccessorOverrides<T> = {
     [K in keyof T]?: T[K] extends Record<string, unknown>
@@ -30,8 +38,12 @@ function isAccessorOverride(override: unknown): override is Accessor {
     return typeof override === "object" && override !== null && typeof (override as { get?: unknown }).get === "function";
 }
 
-function isReadonlyOverride(override: unknown): override is ReadonlyOverride {
-    return typeof override === "object" && override !== null && (override as { readonly?: unknown }).readonly === true;
+function isFieldOptionsOverride(override: unknown): override is FieldOptionsOverride {
+    if (typeof override !== "object" || override === null) {
+        return false;
+    }
+    const candidate = override as { readonly?: unknown; min?: unknown; max?: unknown };
+    return "readonly" in candidate || "min" in candidate || "max" in candidate;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -61,8 +73,8 @@ function buildFields(
 
         if (isAccessorOverride(override)) {
             fields[key] = { kind: "accessor", get: override.get, set: override.set };
-        } else if (isReadonlyOverride(override)) {
-            fields[key] = { kind: "field", holder, key, readonly: true };
+        } else if (isFieldOptionsOverride(override)) {
+            fields[key] = { kind: "field", holder, key, readonly: override.readonly, min: override.min, max: override.max };
         } else if (isPlainObject(value)) {
             const nestedOverrides = override as Record<string, unknown> | undefined;
             for (const [nestedKey, nestedField] of Object.entries(buildFields(value, nestedOverrides))) {
