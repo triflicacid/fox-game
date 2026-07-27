@@ -1,4 +1,4 @@
-import { registerHolder, type ConstantField } from "./constant-registry";
+import { constantRegistry, type ConstantField } from "./constant-registry";
 
 interface Accessor<T = unknown> {
     get(): T;
@@ -17,36 +17,59 @@ type FieldOverride<T> = Accessor<T> | ReadonlyOverride;
  * registers as a direct, writable reference to `T`'s own property. A field
  * can instead be overridden with an explicit getter/setter pair, or marked
  * `{ readonly: true }` to keep the direct reference but block writes through
- * the registry.
+ * the registry. A property that's itself a plain object can be given a
+ * nested overrides map instead, addressing its own properties one level down.
  */
-export type AccessorOverrides<T> = { [K in keyof T]?: FieldOverride<T[K]> };
+export type AccessorOverrides<T> = {
+    [K in keyof T]?: T[K] extends Record<string, unknown>
+        ? FieldOverride<T[K]> | AccessorOverrides<T[K]>
+        : FieldOverride<T[K]>;
+};
 
-function isReadonlyOverride(override: FieldOverride<unknown>): override is ReadonlyOverride {
-    return !("get" in override);
+function isAccessorOverride(override: unknown): override is Accessor {
+    return typeof override === "object" && override !== null && typeof (override as { get?: unknown }).get === "function";
+}
+
+function isReadonlyOverride(override: unknown): override is ReadonlyOverride {
+    return typeof override === "object" && override !== null && (override as { readonly?: unknown }).readonly === true;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
  * Builds one {@link ConstantField} per key of `holder` plus any override-only
- * key in `overrides`, preferring the override when both exist.
+ * key in `overrides`, preferring an explicit accessor/readonly override when
+ * present. A key whose value is a plain object (and has no such override)
+ * recurses instead of becoming a single opaque field, so its own properties
+ * are addressable as `${key}.${nestedKey}`.
  *
  * @param holder - The object/class whose own properties become fields.
- * @param overrides - Per-key overrides.
- * @returns The resulting fields, keyed by property name.
+ * @param overrides - Per-key overrides, possibly nested for object-valued keys.
+ * @returns The resulting fields, keyed by (possibly dotted) property path.
  */
 function buildFields(
     holder: Record<string, unknown>,
-    overrides: Record<string, FieldOverride<unknown>> | undefined,
+    overrides: Record<string, unknown> | undefined,
 ): Record<string, ConstantField<unknown>> {
     const fields: Record<string, ConstantField<unknown>> = {};
     const keys = new Set([...Object.keys(holder), ...Object.keys(overrides ?? {})]);
     for (const key of keys) {
         const override = overrides?.[key];
-        if (!override) {
-            fields[key] = { kind: "field", holder, key };
+        const value = holder[key];
+
+        if (isAccessorOverride(override)) {
+            fields[key] = { kind: "accessor", get: override.get, set: override.set };
         } else if (isReadonlyOverride(override)) {
             fields[key] = { kind: "field", holder, key, readonly: true };
+        } else if (isPlainObject(value)) {
+            const nestedOverrides = override as Record<string, unknown> | undefined;
+            for (const [nestedKey, nestedField] of Object.entries(buildFields(value, nestedOverrides))) {
+                fields[`${key}.${nestedKey}`] = nestedField;
+            }
         } else {
-            fields[key] = { kind: "accessor", get: override.get, set: override.set };
+            fields[key] = { kind: "field", holder, key };
         }
     }
     return fields;
@@ -68,7 +91,7 @@ export function registerConstants<T extends Record<string, unknown>>(
     obj: T,
     overrides?: AccessorOverrides<T>,
 ): void {
-    registerHolder(path, buildFields(obj, overrides as Record<string, FieldOverride<unknown>> | undefined));
+    constantRegistry.registerHolder(path, buildFields(obj, overrides as Record<string, unknown> | undefined));
 }
 
 /**
@@ -89,6 +112,6 @@ export function ConstantHolder<C extends abstract new (...args: never[]) => unkn
      * @param target - The decorated class.
      */
     return function decorate(target: C): void {
-        registerHolder(path, buildFields(target as unknown as Record<string, unknown>, overrides as Record<string, FieldOverride<unknown>> | undefined));
+        constantRegistry.registerHolder(path, buildFields(target as unknown as Record<string, unknown>, overrides as Record<string, unknown> | undefined));
     };
 }

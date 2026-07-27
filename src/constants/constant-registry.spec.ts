@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ConstantRegistryError, clearRegistry, get, listPaths, registerHolder, reset, set } from "./constant-registry";
+import { ConstantRegistry, ConstantRegistryError, constantRegistry } from "./constant-registry";
 import { ConstantHolder, registerConstants } from "./constant-holder";
 
 /** A small fixture schema, standing in for `ConstantsSchema` in these tests. */
@@ -14,18 +14,33 @@ interface FixtureSchema {
     debug: {
         computedMs: number;
     };
+    world: {
+        entities: {
+            fox: {
+                dash: {
+                    durationMs: number;
+                };
+                movement: {
+                    debounceMs: number;
+                };
+            };
+        };
+    };
 }
 
+let registry: ConstantRegistry;
+
 beforeEach(() => {
-    clearRegistry();
+    registry = new ConstantRegistry();
+    constantRegistry.clear();
 });
 
 describe("registerHolder", () => {
     it("throws when a path is already taken", () => {
-        registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
 
         expect(() =>
-            registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 2 }, key: "durationMs" } }),
+            registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 2 }, key: "durationMs" } }),
         ).toThrow(/already registered/);
     });
 });
@@ -33,20 +48,20 @@ describe("registerHolder", () => {
 describe("get / set", () => {
     it("reads and writes a plain field entry directly on its holder", () => {
         const holder = { durationMs: 250 };
-        registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs" } });
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs" } });
 
-        expect(get<FixtureSchema>("dash.durationMs")).toBe(250);
+        expect(registry.get<FixtureSchema>("dash.durationMs")).toBe(250);
 
-        set<FixtureSchema>("dash.durationMs", 500);
+        registry.set<FixtureSchema>("dash.durationMs", 500);
 
         expect(holder.durationMs).toBe(500);
-        expect(get<FixtureSchema>("dash.durationMs")).toBe(500);
+        expect(registry.get<FixtureSchema>("dash.durationMs")).toBe(500);
     });
 
     it("reads and writes through an accessor entry, running its setter side effect", () => {
         let value = 10;
         let setCalls = 0;
-        registerHolder("movement", {
+        registry.registerHolder("movement", {
             debounceMs: {
                 kind: "accessor",
                 get: () => value,
@@ -57,34 +72,34 @@ describe("get / set", () => {
             },
         });
 
-        set<FixtureSchema>("movement.debounceMs", 20);
+        registry.set<FixtureSchema>("movement.debounceMs", 20);
 
         expect(value).toBe(20);
         expect(setCalls).toBe(1);
-        expect(get<FixtureSchema>("movement.debounceMs")).toBe(20);
+        expect(registry.get<FixtureSchema>("movement.debounceMs")).toBe(20);
     });
 
     it("throws when reading an unregistered path", () => {
-        expect(() => get<FixtureSchema>("dash.durationMs")).toThrow(/No constant is registered/);
+        expect(() => registry.get<FixtureSchema>("dash.durationMs")).toThrow(/No constant is registered/);
     });
 
     it("throws when writing an unregistered path", () => {
-        expect(() => set<FixtureSchema>("dash.durationMs", 1)).toThrow(/No constant is registered/);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1)).toThrow(/No constant is registered/);
     });
 
     it("throws a ConstantRegistryError when writing a read-only accessor entry", () => {
-        registerHolder("debug", { computedMs: { kind: "accessor", get: () => 42 } });
+        registry.registerHolder("debug", { computedMs: { kind: "accessor", get: () => 42 } });
 
-        expect(() => set<FixtureSchema>("debug.computedMs", 1)).toThrow(ConstantRegistryError);
-        expect(() => set<FixtureSchema>("debug.computedMs", 1)).toThrow(/read-only/);
+        expect(() => registry.set<FixtureSchema>("debug.computedMs", 1)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("debug.computedMs", 1)).toThrow(/read-only/);
     });
 
     it("throws when writing a field entry marked readonly", () => {
         const holder = { durationMs: 250 };
-        registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", readonly: true } });
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", readonly: true } });
 
-        expect(get<FixtureSchema>("dash.durationMs")).toBe(250);
-        expect(() => set<FixtureSchema>("dash.durationMs", 999)).toThrow(ConstantRegistryError);
+        expect(registry.get<FixtureSchema>("dash.durationMs")).toBe(250);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 999)).toThrow(ConstantRegistryError);
         expect(holder.durationMs).toBe(250);
     });
 });
@@ -92,10 +107,10 @@ describe("get / set", () => {
 describe("reset", () => {
     it("restores a plain field to its value at registration time", () => {
         const holder = { durationMs: 250 };
-        registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs" } });
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs" } });
 
-        set<FixtureSchema>("dash.durationMs", 999);
-        reset<FixtureSchema>("dash.durationMs");
+        registry.set<FixtureSchema>("dash.durationMs", 999);
+        registry.reset<FixtureSchema>("dash.durationMs");
 
         expect(holder.durationMs).toBe(250);
     });
@@ -103,7 +118,7 @@ describe("reset", () => {
     it("restores an accessor field by re-running its setter", () => {
         let value = 10;
         let setCalls = 0;
-        registerHolder("movement", {
+        registry.registerHolder("movement", {
             debounceMs: {
                 kind: "accessor",
                 get: () => value,
@@ -114,42 +129,99 @@ describe("reset", () => {
             },
         });
 
-        set<FixtureSchema>("movement.debounceMs", 999);
+        registry.set<FixtureSchema>("movement.debounceMs", 999);
         setCalls = 0;
-        reset<FixtureSchema>("movement.debounceMs");
+        registry.reset<FixtureSchema>("movement.debounceMs");
 
         expect(value).toBe(10);
         expect(setCalls).toBe(1);
     });
 
     it("throws when resetting an unregistered path", () => {
-        expect(() => reset<FixtureSchema>("dash.durationMs")).toThrow(/No constant is registered/);
+        expect(() => registry.reset<FixtureSchema>("dash.durationMs")).toThrow(/No constant is registered/);
     });
 });
 
 describe("listPaths", () => {
-    it("lists every registered path when no prefix is given", () => {
-        registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
-        registerHolder("movement", { debounceMs: { kind: "field", holder: { debounceMs: 1 }, key: "debounceMs" } });
+    it("lists top-level segments when no prefix is given", () => {
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
+        registry.registerHolder("world.entities.fox.dash", {
+            durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" },
+        });
 
-        expect(listPaths().sort()).toEqual(["dash.durationMs", "movement.debounceMs"]);
+        expect(registry.listPaths().sort()).toEqual(["dash", "world"]);
     });
 
-    it("lists only paths nested under the given prefix", () => {
-        registerHolder("dash", {
+    it("lists only the next segment under a prefix, not the full leaf path", () => {
+        registry.registerHolder("world.entities.fox.dash", {
+            durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" },
+        });
+        registry.registerHolder("world.entities.fox.movement", {
+            debounceMs: { kind: "field", holder: { debounceMs: 1 }, key: "debounceMs" },
+        });
+
+        expect(registry.listPaths("world")).toEqual(["world.entities"]);
+        expect(registry.listPaths("world.entities")).toEqual(["world.entities.fox"]);
+        expect(registry.listPaths("world.entities.fox").sort()).toEqual([
+            "world.entities.fox.dash",
+            "world.entities.fox.movement",
+        ]);
+    });
+
+    it("lists leaf fields directly when they're only one level under the prefix", () => {
+        registry.registerHolder("dash", {
             durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" },
             trailColor: { kind: "field", holder: { trailColor: "#fff" }, key: "trailColor" },
         });
-        registerHolder("movement", { debounceMs: { kind: "field", holder: { debounceMs: 1 }, key: "debounceMs" } });
 
-        expect(listPaths("dash").sort()).toEqual(["dash.durationMs", "dash.trailColor"]);
+        expect(registry.listPaths("dash").sort()).toEqual(["dash.durationMs", "dash.trailColor"]);
     });
 
     it("does not match a sibling path that merely shares a prefix string", () => {
-        registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
-        registerHolder("dashboard", { x: { kind: "field", holder: { x: 1 }, key: "x" } });
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
+        registry.registerHolder("dashboard", { x: { kind: "field", holder: { x: 1 }, key: "x" } });
 
-        expect(listPaths("dash")).toEqual(["dash.durationMs"]);
+        expect(registry.listPaths("dash")).toEqual(["dash.durationMs"]);
+    });
+
+    it("throws when the given prefix matches nothing registered", () => {
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
+
+        expect(() => registry.listPaths("nope")).toThrow(ConstantRegistryError);
+    });
+
+    it("throws when nothing at all is registered and no prefix is given", () => {
+        expect(() => registry.listPaths()).toThrow(ConstantRegistryError);
+    });
+});
+
+describe("getAllPaths", () => {
+    it("lists every registered path when no prefix is given", () => {
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
+        registry.registerHolder("movement", { debounceMs: { kind: "field", holder: { debounceMs: 1 }, key: "debounceMs" } });
+
+        expect(registry.getAllPaths().sort()).toEqual(["dash.durationMs", "movement.debounceMs"]);
+    });
+
+    it("lists every registered leaf path nested under a prefix, regardless of depth", () => {
+        registry.registerHolder("world.entities.fox.dash", {
+            durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" },
+        });
+        registry.registerHolder("world.entities.fox.movement", {
+            debounceMs: { kind: "field", holder: { debounceMs: 1 }, key: "debounceMs" },
+        });
+
+        expect(registry.getAllPaths("world").sort()).toEqual([
+            "world.entities.fox.dash.durationMs",
+            "world.entities.fox.movement.debounceMs",
+        ]);
+    });
+
+    it("does not match a sibling path that merely shares a prefix string", () => {
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
+        registry.registerHolder("dashboard", { x: { kind: "field", holder: { x: 1 }, key: "x" } });
+
+        expect(registry.getAllPaths("dash")).toEqual(["dash.durationMs"]);
     });
 });
 
@@ -158,10 +230,10 @@ describe("registerConstants", () => {
         const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
         registerConstants("dash", dashConstants);
 
-        expect(get<FixtureSchema>("dash.durationMs")).toBe(250);
-        expect(get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
+        expect(constantRegistry.get<FixtureSchema>("dash.durationMs")).toBe(250);
+        expect(constantRegistry.get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
 
-        set<FixtureSchema>("dash.durationMs", 300);
+        constantRegistry.set<FixtureSchema>("dash.durationMs", 300);
 
         expect(dashConstants.durationMs).toBe(300);
     });
@@ -180,7 +252,7 @@ describe("registerConstants", () => {
             },
         });
 
-        set<FixtureSchema>("movement.debounceMs", 42);
+        constantRegistry.set<FixtureSchema>("movement.debounceMs", 42);
 
         expect(internal).toBe(42);
         expect(setCalls).toBe(1);
@@ -193,12 +265,51 @@ describe("registerConstants", () => {
             trailColor: { readonly: true },
         });
 
-        expect(get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
-        expect(() => set<FixtureSchema>("dash.trailColor", "#000000")).toThrow(ConstantRegistryError);
+        expect(constantRegistry.get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
+        expect(() => constantRegistry.set<FixtureSchema>("dash.trailColor", "#000000")).toThrow(ConstantRegistryError);
         expect(dashConstants.trailColor).toBe("#ff00ff");
 
-        set<FixtureSchema>("dash.durationMs", 300);
+        constantRegistry.set<FixtureSchema>("dash.durationMs", 300);
         expect(dashConstants.durationMs).toBe(300);
+    });
+
+    it("flattens a nested plain object into dotted leaf paths", () => {
+        const worldConstants = {
+            dash: { durationMs: 250 },
+            movement: { debounceMs: 10 },
+        };
+        registerConstants("world.entities.fox", worldConstants);
+
+        expect(constantRegistry.get<FixtureSchema>("world.entities.fox.dash.durationMs")).toBe(250);
+        expect(constantRegistry.get<FixtureSchema>("world.entities.fox.movement.debounceMs")).toBe(10);
+        expect(constantRegistry.getAllPaths("world.entities.fox").sort()).toEqual([
+            "world.entities.fox.dash.durationMs",
+            "world.entities.fox.movement.debounceMs",
+        ]);
+
+        constantRegistry.set<FixtureSchema>("world.entities.fox.dash.durationMs", 500);
+
+        expect(worldConstants.dash.durationMs).toBe(500);
+    });
+
+    it("marks one nested leaf readonly via a nested override, leaving its sibling writable", () => {
+        const worldConstants = {
+            dash: { durationMs: 250 },
+            movement: { debounceMs: 10 },
+        };
+        registerConstants("world.entities.fox", worldConstants, {
+            dash: {
+                durationMs: { readonly: true },
+            },
+        });
+
+        expect(() => constantRegistry.set<FixtureSchema>("world.entities.fox.dash.durationMs", 999)).toThrow(
+            ConstantRegistryError,
+        );
+        expect(worldConstants.dash.durationMs).toBe(250);
+
+        constantRegistry.set<FixtureSchema>("world.entities.fox.movement.debounceMs", 99);
+        expect(worldConstants.movement.debounceMs).toBe(99);
     });
 });
 
@@ -210,9 +321,9 @@ describe("ConstantHolder", () => {
             public static durationMs = 250;
         }
 
-        expect(get<FixtureSchema>("dash.durationMs")).toBe(250);
+        expect(constantRegistry.get<FixtureSchema>("dash.durationMs")).toBe(250);
 
-        set<FixtureSchema>("dash.durationMs", 500);
+        constantRegistry.set<FixtureSchema>("dash.durationMs", 500);
 
         expect(DashFixture.durationMs).toBe(500);
     });
@@ -235,7 +346,7 @@ describe("ConstantHolder", () => {
             private static debounceMs = 5;
         }
 
-        set<FixtureSchema>("movement.debounceMs", 7);
+        constantRegistry.set<FixtureSchema>("movement.debounceMs", 7);
 
         expect(internal).toBe(7);
         expect(setCalls).toBe(1);
