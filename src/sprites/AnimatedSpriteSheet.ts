@@ -51,7 +51,8 @@ export class AnimatedSpriteSheet<TType extends string = string> extends SpriteSh
             throw new Error(`Phase must be between 1 and ${row.phases}, got ${phase}`);
         }
 
-        const {cellWidth: w, cellHeight: h} = this.descriptor;
+        const w = row.width ?? this.descriptor.cellWidth;
+        const h = row.height ?? this.descriptor.cellHeight;
         return {
             x: row.x + (phase - 1) * w,
             y: row.y,
@@ -80,7 +81,8 @@ export class AnimatedSpriteSheet<TType extends string = string> extends SpriteSh
             throw new Error(`Sprite type ${type} has no idle frame`);
         }
 
-        const {cellWidth: w, cellHeight: h} = this.descriptor;
+        const w = row.width ?? this.descriptor.cellWidth;
+        const h = row.height ?? this.descriptor.cellHeight;
         return {
             x: row.idleX,
             y: row.y,
