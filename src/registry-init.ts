@@ -52,7 +52,7 @@ export function registerDynamicFields(worldController: WorldController): void {
             cameraFollow.camera.setY(value);
         },
     };
-    constantRegistry.registerConstants("world.camera", cameraOptions, {
+    constantRegistry.registerConstants("camera", cameraOptions, {
         edgeMargin: nonNegativeInteger(),
     });
 }

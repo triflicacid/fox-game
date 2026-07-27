@@ -52,7 +52,7 @@ export const MOVEMENT_CONSTANTS = {
     },
 };
 
-constantRegistry.registerConstants("world.movement", MOVEMENT_CONSTANTS, {
+constantRegistry.registerConstants("movement", MOVEMENT_CONSTANTS, {
     speed: nonNegativeInteger(),
     runMultiplier: nonNegativeNumber(),
     dash: {
