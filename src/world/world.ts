@@ -15,6 +15,8 @@ import {FeatureTag} from "./generation/feature/feature-tag";
 import {BiomeSummary} from "./generation/biome/biome";
 import {SpriteFrame} from "../sprites/sprite";
 import {CoordMap, CoordSet} from "./coord-set";
+import {Effect} from "../effects/effect";
+import {DashEffect} from "../effects/dash-effect";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -66,6 +68,10 @@ export class World {
     /** Debug knob: minimum time the worker leaves between finishing one chunk and starting the next. `0` disables it - see {@link setMinChunkGenerationDelayMs}. */
     private minChunkGenerationDelayMs = 0;
     private readonly debugHud = new DebugHud();
+
+    /** Every currently active {@link Effect}, driven generically by {@link update}/{@link draw} - see {@link registerEffect}. */
+    private effects: Effect[] = [];
+
     private mainEntity: MovableEntity;
 
     /** Sum of every generated chunk's {@link Chunk.generationTimeMs}, for {@link getAverageChunkGenerationTimeMs}. */
@@ -117,7 +123,33 @@ export class World {
         this.chunkGenerator = new ChunkGenerator(worldSeed, DEFAULT_FEATURE_PROVIDERS);
         this.chunkWorkerClient = new ChunkWorkerClient(worldSeed);
         this.mainEntity = new Fox();
+        this.wireDashEffectHandler(this.mainEntity);
         this.entities.push(this.mainEntity);
+    }
+
+    /**
+     * Registers an {@link Effect} to be advanced every simulation tick (see
+     * {@link update}) and drawn behind entities every frame (see
+     * {@link draw}) until it expires. Lets transient visual systems - the
+     * cyan dash trail today, particle effects or similar later - plug into
+     * `World` without it growing a bespoke field/update/draw call for each
+     * one.
+     *
+     * @param effect - Effect to register.
+     */
+    public registerEffect(effect: Effect): void {
+        this.effects.push(effect);
+    }
+
+    /**
+     * Wires `entity` up to spawn a {@link DashEffect} whenever it requests
+     * one (see {@link MovableEntity.setDashEffectHandler}), without `World`
+     * needing to know it's specifically a {@link Fox}.
+     *
+     * @param entity - Entity to wire the handler onto.
+     */
+    private wireDashEffectHandler(entity: MovableEntity): void {
+        entity.setDashEffectHandler((event) => this.registerEffect(new DashEffect(entity, event.position)));
     }
 
     /**
@@ -663,6 +695,7 @@ export class World {
      */
     public setMainEntity(entity: MovableEntity): void {
         this.mainEntity = entity;
+        this.wireDashEffectHandler(entity);
     }
 
     /**
@@ -699,6 +732,7 @@ export class World {
             }
             entity.update(deltaMs);
         }
+        this.updateEffects(deltaMs);
         const focus = this.getChunkGenerationFocus(camera, spectating);
         this.updateLoadedChunks(camera, focus);
         this.reorderChunkGenerationQueueIfFocusMoved(focus);
@@ -707,6 +741,17 @@ export class World {
         } else if (!this.canMoveOntoGeneratingChunks) {
             this.constrainEntitiesToChunks(previousPositions, (chunk) => chunk.isReady());
         }
+    }
+
+    /**
+     * Ages every registered {@link Effect} by `deltaMs`, then drops any that
+     * have expired.
+     *
+     * @param deltaMs - Time elapsed since the last update, in milliseconds.
+     */
+    private updateEffects(deltaMs: number): void {
+        this.effects.forEach(e => e.update(deltaMs));
+        this.effects = this.effects.filter(e => !e.isExpired());
     }
 
     /**
@@ -887,6 +932,9 @@ export class World {
             this.drawNoiseFieldOverlay(ctx, camera, noiseFieldName);
         }
 
+        for (const effect of this.effects) {
+            effect.draw(ctx, viewX, viewY);
+        }
         this.drawEntities(ctx, camera, debugEnabled);
 
         if (debugEnabled) {

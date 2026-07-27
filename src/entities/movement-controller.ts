@@ -5,7 +5,7 @@ import {Camera} from "../camera/camera";
 import {KeyBinding} from "../help/key-binding";
 import {Debouncer} from "../input/debouncer";
 import {Keyboard} from "@keyboard";
-import {DASH_COOLDOWN_MS, DASH_DURATION_MS, DASH_SPEED_MULTIPLIER} from "./dash-constants";
+import {DASH_CONSTANTS} from "./dash-constants";
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {
@@ -448,8 +448,8 @@ export class MovementController {
         }
 
         this.dashActive = true;
-        this.dashRemainingMs = DASH_DURATION_MS;
-        this.dashVelocity = Vector2d.fromDirection(direction).scale(MovementController.SPEED * DASH_SPEED_MULTIPLIER);
+        this.dashRemainingMs = DASH_CONSTANTS.durationMs;
+        this.dashVelocity = Vector2d.fromDirection(direction).scale(MovementController.SPEED * DASH_CONSTANTS.speedMultiplier);
         this.entity.setFacing(direction);
         this.entity.setVelocity(Vector2d.ZERO);
         this.entity.onDashStart?.(direction);
@@ -490,7 +490,7 @@ export class MovementController {
      */
     private endDash(): void {
         this.dashActive = false;
-        this.dashCooldownRemainingMs = DASH_COOLDOWN_MS;
+        this.dashCooldownRemainingMs = DASH_CONSTANTS.cooldownMs;
         this.applyMovement();
         this.entity?.onDashComplete?.();
     }

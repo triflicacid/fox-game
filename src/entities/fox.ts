@@ -4,7 +4,7 @@ import {CompassDirection} from "../geometry/direction";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
-import {DASH_DURATION_MS} from "./dash-constants";
+import {DASH_CONSTANTS} from "./dash-constants";
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -280,8 +280,9 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     public override onDashStart(direction: CompassDirection): void {
         this.status = "dashing";
         const frame = this.foxSpriteSheet.locateSprite(`dash${direction}`);
-        this.setFrameIntervalMs(DASH_DURATION_MS / frame.frameCount);
+        this.setFrameIntervalMs(DASH_CONSTANTS.durationMs / frame.frameCount);
         this.setCurrentFrame(frame);
+        this.requestDashEffect({position: this.getPosition(), direction: Vector2d.fromDirection(direction)});
     }
 
     /**

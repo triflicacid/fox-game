@@ -112,7 +112,7 @@ If vertical jumping is implemented later, keep the concepts separate:
 
 ## 3. Fox leap animation
 
-### 3.1 Art direction
+### 3.1 Art direction ✅
 
 The dash uses a non-looping eight-phase `leap` animation. It should read as one
 continuous bound:
@@ -292,7 +292,7 @@ Avoid separate controller and fox timers that can drift apart.
     previously testable at all, since importing `MovableEntity` pulls in
     `@display/colors` via `debug-config.ts`.
 
-### Phase 2: Leap sprite
+### Phase 2: Leap sprite ✅
 
 Mostly folded into Phase 1 above, since the sprite artifacts already existed
 (3.2) and Phase 1 wired dash-duration animation timing directly. Remaining:
@@ -307,8 +307,6 @@ Mostly folded into Phase 1 above, since the sprite artifacts already existed
 - Implement the launch burst and afterimages behind the fox.
 - Tune opacity and lifetime on Plains, Desert, sand/grass borders, and water.
 - Confirm effect canvas state cannot alter subsequent draws.
-- Playtest dash duration, speed, and cooldown together; record changed defaults
-  next to their constants.
 
 ### Phase 4: Collision integration
 
