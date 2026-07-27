@@ -6,6 +6,8 @@ import {KeyBinding} from "../help/key-binding";
 import {Debouncer} from "../input/debouncer";
 import {Keyboard} from "@keyboard";
 import {DASH_CONSTANTS} from "./dash-constants";
+import {ConstantHolder} from "../constants/constant-holder";
+import {nonNegativeInteger, nonNegativeNumber} from "../constants/constant-registry";
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {
@@ -39,14 +41,20 @@ export interface CameraFollowOptions {
 
 /**
  * Drives a bound {@link MovableEntity}'s facing and velocity from the arrow
- * keys.
+ * keys. `SPEED` and `RUN_MULTIPLIER` are registered under
+ * `world.entities.fox.movement` (see `tunable-constants-plan.md`), so both
+ * are live-editable through the constants registry.
  */
+@ConstantHolder("world.entities.fox.movement", {
+    SPEED: nonNegativeInteger(),
+    RUN_MULTIPLIER: nonNegativeNumber(),
+})
 export class MovementController {
     /** Speed a bound entity moves at, in world pixels per second. */
-    private static readonly SPEED = 250;
+    private static SPEED = 250;
 
     /** Factor a movement speed is scaled by while running (double-tapped). */
-    public static readonly RUN_MULTIPLIER = 1.6;
+    public static RUN_MULTIPLIER = 1.6;
 
     /** Speed the camera pans at in spectator mode, in world pixels per second. */
     private static readonly SPECTATOR_SPEED = 520;

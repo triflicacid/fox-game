@@ -1,6 +1,5 @@
 import {WorldController} from "./world-controller";
 import {exposeGlobals} from "./globals";
-import "./constants/demo-constants";
 
 const TARGET_FPS = 60;
 

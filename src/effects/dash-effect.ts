@@ -33,7 +33,9 @@ interface DashEffectSnapshot {
 }
 
 /** How often, in milliseconds, a fresh afterimage is captured - spread evenly across the dash's own travel time. */
-const SNAPSHOT_INTERVAL_MS = DASH_CONSTANTS.durationMs / (DASH_CONSTANTS.trailSnapshotCount + 1);
+function snapshotIntervalMs(): number {
+    return DASH_CONSTANTS.durationMs / (DASH_CONSTANTS.trailSnapshotCount + 1);
+}
 
 /**
  * Reused across every snapshot tint (see {@link tintSpriteBitmap}).
@@ -69,7 +71,13 @@ function tintSpriteBitmap(bitmap: ImageBitmap, w: number, h: number, color: stri
  * cyan afterimages captured from `entity` while it's dashing.
  */
 export class DashEffect extends Effect {
-    private static readonly LIFETIME_MS = DASH_CONSTANTS.durationMs + DASH_CONSTANTS.trailFadeTailMs;
+    /**
+     * Recomputed on every call rather than cached, since `DASH_CONSTANTS` is
+     * live-editable through the constants registry.
+     */
+    private static lifetimeMs(): number {
+        return DASH_CONSTANTS.durationMs + DASH_CONSTANTS.trailFadeTailMs;
+    }
 
     private ageMs = 0;
     private sinceLastSnapshotMs = Infinity;
@@ -106,7 +114,7 @@ export class DashEffect extends Effect {
      * @returns `true` once every visual has faded out.
      */
     public override isExpired(): boolean {
-        return this.ageMs >= DashEffect.LIFETIME_MS;
+        return this.ageMs >= DashEffect.lifetimeMs();
     }
 
     /**
@@ -128,7 +136,7 @@ export class DashEffect extends Effect {
      */
     private maybeCaptureSnapshot(): void {
         const bitmap = this.entity.getCurrentBitmap();
-        if (!bitmap || this.sinceLastSnapshotMs < SNAPSHOT_INTERVAL_MS) {
+        if (!bitmap || this.sinceLastSnapshotMs < snapshotIntervalMs()) {
             return;
         }
         this.sinceLastSnapshotMs = 0;

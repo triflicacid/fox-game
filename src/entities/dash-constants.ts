@@ -1,7 +1,7 @@
+import {constantRegistry, nonNegativeInteger, nonNegativeNumber, numberRange} from "../constants/constant-registry";
+
 /**
- * Tuning values for the dash mechanic and its cyan trail effect - see
- * `dash-mechanic-plan.md` sections 2 and 4. Shared by `MovementController`,
- * `Fox`, and `DashEffect` so there's one source of truth for dash timing.
+ * Tuning values for the dash mechanic and its cyan trail effect.
  */
 export const DASH_CONSTANTS = {
     /** How long, in milliseconds, an active dash lasts. */
@@ -39,4 +39,17 @@ export const DASH_CONSTANTS = {
      * which every trail visual must have fully faded.
      */
     trailFadeTailMs: 100,
-} as const;
+};
+
+constantRegistry.registerConstants("world.entities.fox.dash", DASH_CONSTANTS, {
+    durationMs: nonNegativeInteger(),
+    speedMultiplier: nonNegativeNumber(),
+    cooldownMs: nonNegativeInteger(),
+    trailSnapshotCount: nonNegativeInteger(),
+    trailSnapshotFadeMs: nonNegativeInteger(),
+    trailSnapshotPeakAlpha: numberRange(0, 1),
+    burstLifetimeMs: nonNegativeInteger(),
+    burstStartRadius: nonNegativeInteger(),
+    burstEndRadius: nonNegativeInteger(),
+    trailFadeTailMs: nonNegativeInteger(),
+});
