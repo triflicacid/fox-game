@@ -8,6 +8,17 @@ import {KeyBinding} from "../help/key-binding";
 import {drawArrow} from "../geometry/arrow";
 
 /**
+ * A request to spawn a transient dash visual effect - see
+ * {@link MovableEntity.setDashEffectHandler}.
+ */
+export interface DashEffectRequest {
+    /** World-pixel point the dash launched from (the entity's centre at that moment). */
+    position: Vector2d;
+    /** Normalized world-space direction the dash travels in. */
+    direction: Vector2d;
+}
+
+/**
  * An {@link Entity} that can move: it has a facing direction and a
  * velocity, and moves itself by that velocity each tick. Bind a
  * {@link MovementController} to one to drive it from arrow-key input.
@@ -17,6 +28,9 @@ import {drawArrow} from "../geometry/arrow";
  */
 export abstract class MovableEntity<TSpriteType extends string = string, TStatus extends string = string> extends Entity<TSpriteType, TStatus> {
     private velocity: Vector2d;
+
+    /** Handler set via {@link setDashEffectHandler}; invoked through {@link requestDashEffect}. */
+    private dashEffectHandler?: (event: DashEffectRequest) => void;
 
     /**
      * @param spriteSheet - Sprite sheet this entity is rendered from.
@@ -195,6 +209,28 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * queued dash is cancelled (e.g. entering spectator mode, rebinding).
      */
     public onDashCancel?(): void;
+
+    /**
+     * Supplies a callback dash-capable entities can invoke (via
+     * {@link requestDashEffect}) to ask whatever layer owns rendering (e.g.
+     * {@link World}) to spawn a transient dash visual effect, without this
+     * entity needing a reference to that layer's concrete type.
+     *
+     * @param handler - Callback to invoke on dash launch, or `undefined` to clear it.
+     */
+    public setDashEffectHandler(handler: ((event: DashEffectRequest) => void) | undefined): void {
+        this.dashEffectHandler = handler;
+    }
+
+    /**
+     * Invokes the handler set via {@link setDashEffectHandler}, if any. A
+     * no-op if nothing has registered one.
+     *
+     * @param event - Details of the dash effect to request.
+     */
+    protected requestDashEffect(event: DashEffectRequest): void {
+        this.dashEffectHandler?.(event);
+    }
 
     /**
      * Draws this entity's bounding box (via the base {@link Entity}
