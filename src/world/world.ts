@@ -695,14 +695,14 @@ export class World {
     }
 
     /**
-     * Removes `entity` from the world and clears any dash effect handler it
-     * had, so it stops being simulated/drawn and can no longer register new
-     * effects into this `World`.
+     * Removes `entity` from the world and clears every effect handler it had
+     * registered, so it stops being simulated/drawn and can no longer
+     * register new effects into this `World`.
      *
      * @param entity - Entity to remove.
      */
     private destroyEntity(entity: MovableEntity): void {
-        entity.setDashEffectHandler(undefined);
+        entity.clearEffectHandlers();
         const index = this.entities.indexOf(entity);
         if (index !== -1) {
             this.entities.splice(index, 1);

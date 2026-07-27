@@ -4,7 +4,7 @@ import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";
 import {Fox} from "./entities/fox";
-import {DashEffect} from "./effects/dash-effect";
+import {DashEffect, DashEffectRequest} from "./effects/dash-effect";
 import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
 import {FrameLoopController} from "@frames";
@@ -67,7 +67,11 @@ export class WorldController {
 
         const mainEntity = new Fox();
         this.world = new World(WorldController.TILE_SIZE).setMainEntity(mainEntity);
-        mainEntity.setDashEffectHandler((event) => this.world.registerEffect(new DashEffect(mainEntity, event.position)));
+        mainEntity.addEffectHandler("dash", (request) => {
+            if (request instanceof DashEffectRequest) {
+                this.world.registerEffect(new DashEffect(mainEntity, request.position));
+            }
+        });
 
         this.camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
         new CameraDragController(canvas, this.camera);

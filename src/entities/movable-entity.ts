@@ -6,16 +6,15 @@ import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {KeyBinding} from "../help/key-binding";
 import {drawArrow} from "../geometry/arrow";
+import {EffectRequest} from "../effects/effect-request";
 
-/**
- * A request to spawn a transient dash visual effect - see
- * {@link MovableEntity.setDashEffectHandler}.
- */
-export interface DashEffectRequest {
-    /** World-pixel point the dash launched from (the entity's centre at that moment). */
-    position: Vector2d;
-    /** Normalized world-space direction the dash travels in. */
-    direction: Vector2d;
+/** A handler registered via {@link MovableEntity.addEffectHandler}. */
+export type EffectHandler = (request: EffectRequest) => void;
+
+/** One handler registered via {@link MovableEntity.addEffectHandler}, alongside the key it was registered under. */
+interface EffectHandlerRegistration {
+    key: string;
+    handler: EffectHandler;
 }
 
 /**
@@ -29,8 +28,8 @@ export interface DashEffectRequest {
 export abstract class MovableEntity<TSpriteType extends string = string, TStatus extends string = string> extends Entity<TSpriteType, TStatus> {
     private velocity: Vector2d;
 
-    /** Handler set via {@link setDashEffectHandler}; invoked through {@link requestDashEffect}. */
-    private dashEffectHandler?: (event: DashEffectRequest) => void;
+    /** Handlers registered via {@link addEffectHandler}, each matched against a dispatched {@link EffectRequest} by its own key. */
+    private readonly effectHandlers: EffectHandlerRegistration[] = [];
 
     /**
      * @param spriteSheet - Sprite sheet this entity is rendered from.
@@ -177,11 +176,8 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     public getKeyBindings?(): KeyBinding[];
 
     /**
-     * Optional hook: implementing it marks an entity as dashable and offers
-     * the `X` key for it. Called by a bound {@link MovementController} on a
-     * fresh `X` keydown. Implementations that can dash immediately should
-     * call `launch` synchronously; ones that need to defer (e.g. waking up
-     * first) should hold onto `launch` and call it once ready.
+     * Optional hook: implementing it marks an entity as dashable. Called by
+     * a bound {@link MovementController} on an `X` keydown.
      *
      * @param direction - Direction the dash was requested in.
      * @param launch - Callback that actually starts the dash; the controller
@@ -211,25 +207,50 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     public onDashCancel?(): void;
 
     /**
-     * Supplies a callback dash-capable entities can invoke (via
-     * {@link requestDashEffect}) to ask whatever layer owns rendering (e.g.
-     * {@link World}) to spawn a transient dash visual effect, without this
-     * entity needing a reference to that layer's concrete type.
+     * Registers a handler that runs whenever this entity broadcasts (via an {@link EffectRequest})
+     * that {@link EffectRequest.matches} says yes for `key`.
      *
-     * @param handler - Callback to invoke on dash launch, or `undefined` to clear it.
+     * @param key - Effect kind to register for (e.g. `"dash"`).
+     * @param handler - Callback to invoke for every request matching `key`.
      */
-    public setDashEffectHandler(handler: ((event: DashEffectRequest) => void) | undefined): void {
-        this.dashEffectHandler = handler;
+    public addEffectHandler(key: string, handler: EffectHandler): void {
+        this.effectHandlers.push({key, handler});
     }
 
     /**
-     * Invokes the handler set via {@link setDashEffectHandler}, if any. A
-     * no-op if nothing has registered one.
+     * Unregisters a previously-added handler (see {@link addEffectHandler}).
+     * A no-op if it isn't currently registered under `key`.
      *
-     * @param event - Details of the dash effect to request.
+     * @param key - Effect kind the handler was registered under.
+     * @param handler - The exact handler reference to remove.
      */
-    protected requestDashEffect(event: DashEffectRequest): void {
-        this.dashEffectHandler?.(event);
+    public removeEffectHandler(key: string, handler: EffectHandler): void {
+        const index = this.effectHandlers.findIndex((registration) => registration.key === key && registration.handler === handler);
+        if (index !== -1) {
+            this.effectHandlers.splice(index, 1);
+        }
+    }
+
+    /**
+     * Unregisters every handler currently registered on this entity - e.g.
+     * when `World` destroys it.
+     */
+    public clearEffectHandlers(): void {
+        this.effectHandlers.length = 0;
+    }
+
+    /**
+     * Dispatches `request` to every registered handler whose key it
+     * {@link EffectRequest.matches}.
+     *
+     * @param request - The effect request to broadcast.
+     */
+    protected requestEffect(request: EffectRequest): void {
+        for (const registration of this.effectHandlers) {
+            if (request.matches(registration.key)) {
+                registration.handler(request);
+            }
+        }
     }
 
     /**
