@@ -5,6 +5,7 @@ import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
 import {DASH_CONSTANTS} from "./dash-constants";
+import {DashEffectRequest} from "../effects/dash-effect";
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -282,7 +283,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
         const frame = this.foxSpriteSheet.locateSprite(`dash${direction}`);
         this.setFrameIntervalMs(DASH_CONSTANTS.durationMs / frame.frameCount);
         this.setCurrentFrame(frame);
-        this.requestDashEffect({position: this.getPosition(), direction: Vector2d.fromDirection(direction)});
+        this.requestEffect(new DashEffectRequest(this.getPosition(), Vector2d.fromDirection(direction)));
     }
 
     /**

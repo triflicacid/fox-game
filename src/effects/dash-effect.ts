@@ -1,9 +1,24 @@
 import {Effect} from "./effect";
+import {EffectRequest} from "./effect-request";
 import {Vector2d} from "../geometry/vector2d";
 import {MovableEntity} from "../entities/movable-entity";
 import {SpriteFrame} from "../sprites/sprite";
 import {DASH_CONSTANTS} from "../entities/dash-constants";
 import {requireNonNull} from "../util";
+
+/** Broadcast by a dashing entity (see `MovableEntity.requestEffect`) to ask for the cyan dash trail. */
+export class DashEffectRequest extends EffectRequest {
+    /**
+     * @param position - World-pixel point the dash launched from (the entity's centre at that moment).
+     * @param direction - Normalized world-space direction the dash travels in.
+     */
+    public constructor(
+        public readonly position: Vector2d,
+        public readonly direction: Vector2d,
+    ) {
+        super("dash");
+    }
+}
 
 /** One captured render state of the dashing entity, drawn as a translucent afterimage. */
 interface DashEffectSnapshot {
