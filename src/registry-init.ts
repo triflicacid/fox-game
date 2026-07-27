@@ -1,19 +1,22 @@
 import {WorldController} from "./world-controller";
 import {CameraFollowMode} from "./entities/movement-controller";
 import {constantRegistry, nonNegativeInteger} from "./constants/constant-registry";
+import {EntityLookupHandler} from "./world/entity-lookup-handler";
 
 /**
  * Registers per-instance tunable constants that only exist once
  * `worldController` has constructed its object graph.
  *
- * Note that `x`/`y` only stay put while `spectating` is `true`: in normal
- * play, {@link MovementController.update} repositions the camera around the
- * bound entity every frame (per `mode`/`edgeMargin`), which would otherwise
- * fight a manual edit on the very next frame.
+ * Note that camera `x`/`y` only stay put while `spectating` is `true`: in
+ * normal play, {@link MovementController.update} repositions the camera
+ * around the bound entity every frame (per `mode`/`edgeMargin`), which would
+ * otherwise fight a manual edit on the very next frame.
  *
  * @param worldController - The running game's controller.
  */
 export function registerDynamicFields(worldController: WorldController): void {
+    constantRegistry.registerHandler("world.entities", new EntityLookupHandler(worldController.getWorld()));
+
     const movementController = worldController.getMovementController();
     const cameraFollow = movementController.getCameraFollow();
     if (!cameraFollow) {

@@ -2,31 +2,29 @@ import type { CameraFollowMode } from "../entities/movement-controller";
 
 /** The full set of tunable-constant paths, kept by hand alongside the holders each slice describes. */
 export interface ConstantsSchema {
-    world: {
-        movement: {
-            speed: number;
-            runMultiplier: number;
-            dash: {
-                durationMs: number;
-                speedMultiplier: number;
-                cooldownMs: number;
-                trailColor: string;
-                trailSnapshotCount: number;
-                trailSnapshotFadeMs: number;
-                trailSnapshotPeakAlpha: number;
-                burstLifetimeMs: number;
-                burstStartRadius: number;
-                burstEndRadius: number;
-                trailFadeTailMs: number;
-            };
+    movement: {
+        speed: number;
+        runMultiplier: number;
+        dash: {
+            durationMs: number;
+            speedMultiplier: number;
+            cooldownMs: number;
+            trailColor: string;
+            trailSnapshotCount: number;
+            trailSnapshotFadeMs: number;
+            trailSnapshotPeakAlpha: number;
+            burstLifetimeMs: number;
+            burstStartRadius: number;
+            burstEndRadius: number;
+            trailFadeTailMs: number;
         };
-        camera: {
-            mode: CameraFollowMode;
-            edgeMargin: number;
-            spectating: boolean;
-            x: number;
-            y: number;
-        };
+    };
+    camera: {
+        mode: CameraFollowMode;
+        edgeMargin: number;
+        spectating: boolean;
+        x: number;
+        y: number;
     };
     debug: {
         chunkOutlineColor: string;

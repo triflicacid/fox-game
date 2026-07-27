@@ -64,6 +64,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isConstantField(value: unknown): value is ConstantField<unknown> {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+    const kind = (value as { kind?: unknown }).kind;
+    return kind === "field" || kind === "accessor";
+}
+
 /**
  * Builds a single {@link ConstantField} for `propertyName` on `holder`,
  * dispatching on `override`'s shape: an explicit accessor, a bare capture
@@ -159,6 +167,133 @@ export type ConstantField<T> =
       };
 
 /**
+ * A dynamically resolved subtree of the constants address space looked up fresh
+ * on every `get`/`set`/`listPaths`/`getAllPaths` call instead of being registered
+ * up front like {@link ConstantRegistry.registerHolder}.
+ */
+export abstract class ConstantLookupHandler {
+    /**
+     * Every immediate child segment currently reachable under this handler.
+     */
+    public abstract listPaths(): string[];
+
+    /**
+     * Every leaf path, at any depth, currently reachable under this handler.
+     */
+    public abstract getAllPaths(): string[];
+
+    /**
+     * Resolves one path segment directly under this handler: a leaf field, a
+     * plain object to keep descending into via direct property access, or
+     * another handler to keep descending into dynamically.
+     * Throws {@link ConstantRegistryError} if `segment` isn't currently reachable.
+     *
+     * @param segment - The single next path segment to resolve.
+     */
+    public abstract get(segment: string): ConstantField<unknown> | ConstantLookupHandler | Record<string, unknown>;
+}
+
+type DynamicNode = ConstantLookupHandler | Record<string, unknown>;
+
+/**
+ * Resolves the terminal segment of a plain-object holder returned from
+ * dynamic resolution.
+ *
+ * @param holder - The plain object the terminal segment lives on.
+ * @param key - The terminal segment/property name.
+ * @returns The resolved field.
+ */
+function resolveDynamicField(holder: Record<string, unknown>, key: string): ConstantField<unknown> {
+    const candidate = holder[key];
+    if (isAccessorOverride(candidate)) {
+        return { kind: "accessor", get: candidate.get, set: candidate.set, capture: candidate.capture };
+    }
+    return { kind: "field", holder, key };
+}
+
+/**
+ * Walks `segments` down from `node`, dispatching on whether each step is
+ * another {@link ConstantLookupHandler} (dynamic) or a plain object (direct
+ * property access, recursing into nested plain objects same as
+ * {@link buildFields}). Throws {@link ConstantRegistryError} if `segments`
+ * runs out on a subtree rather than a leaf, or if a plain object's next
+ * segment isn't itself a plain object when more segments remain.
+ *
+ * @param node - The current position, starting at the handler a path resolved to.
+ * @param segments - Remaining path segments to walk.
+ * @param fullPath - The original full path, for error messages only.
+ * @returns The resolved leaf field.
+ */
+function resolveDynamic(node: DynamicNode, segments: string[], fullPath: string): ConstantField<unknown> {
+    const [segment, ...rest] = segments;
+    if (segment === undefined) {
+        throw new ConstantRegistryError(`Path '${fullPath}' resolves to a subtree, not a value.`);
+    }
+
+    if (node instanceof ConstantLookupHandler) {
+        const next = node.get(segment);
+        if (isConstantField(next)) {
+            if (rest.length > 0) {
+                throw new ConstantRegistryError(`No constant is registered at path '${fullPath}'.`);
+            }
+            return next;
+        }
+        return resolveDynamic(next, rest, fullPath);
+    }
+
+    if (rest.length === 0) {
+        return resolveDynamicField(node, segment);
+    }
+    const nested = node[segment];
+    if (!isPlainObject(nested)) {
+        throw new ConstantRegistryError(`No constant is registered at path '${fullPath}'.`);
+    }
+    return resolveDynamic(nested, rest, fullPath);
+}
+
+/**
+ * Like {@link resolveDynamic}, but stops at a subtree instead of requiring a
+ * leaf - used by `listPaths`/`getAllPaths` to reach the node a deeper prefix
+ * points at, so they can list what's one level (or every leaf) under it.
+ *
+ * @param node - The current position, starting at the handler a prefix resolved to.
+ * @param segments - Remaining path segments to walk.
+ * @returns The subtree `segments` points at.
+ */
+function navigateDynamic(node: DynamicNode, segments: string[]): DynamicNode {
+    let current = node;
+    for (const segment of segments) {
+        const next = current instanceof ConstantLookupHandler ? current.get(segment) : current[segment];
+        if (!(next instanceof ConstantLookupHandler) && !isPlainObject(next)) {
+            throw new ConstantRegistryError(`Path segment '${segment}' resolves to a value, not a subtree.`);
+        }
+        current = next;
+    }
+    return current;
+}
+
+/** One level of child segments reachable from `node`, for `listPaths`. */
+function listDynamicSegments(node: DynamicNode): string[] {
+    return node instanceof ConstantLookupHandler ? node.listPaths() : Object.keys(node);
+}
+
+/** Every leaf path, at any depth, reachable from `node`, for `getAllPaths`. */
+function listDynamicLeaves(node: DynamicNode): string[] {
+    if (node instanceof ConstantLookupHandler) {
+        return node.getAllPaths();
+    }
+    const leaves: string[] = [];
+    for (const [key, value] of Object.entries(node)) {
+        if (isPlainObject(value) && !isAccessorOverride(value)) {
+            leaves.push(...listDynamicLeaves(value).map((leaf) => `${key}.${leaf}`));
+        } else {
+            leaves.push(key);
+        }
+    }
+    return leaves;
+}
+
+/**
  * Builds a {@link ConstantField.capture} validator rejecting anything outside
  * `[min, max]`.
  *
@@ -217,6 +352,7 @@ export function nonNegativeNumber(): (value: number) => string | undefined {
 export class ConstantRegistry {
     private readonly fieldsByPath = new Map<string, ConstantField<unknown>>();
     private readonly snapshotsByPath = new Map<string, unknown>();
+    private readonly handlersByPath = new Map<string, ConstantLookupHandler>();
 
     /**
      * Reads a field's current value, dispatching on its {@link ConstantField} kind.
@@ -249,17 +385,25 @@ export class ConstantRegistry {
     }
 
     /**
-     * Looks up the field registered at `path`, or throws if none is registered.
+     * Looks up the field registered at `path`, or throws if none is
+     * registered. Checked first against statically registered fields, then -
+     * on a miss - resolved fresh through whichever {@link ConstantLookupHandler}
+     * owns `path` (see {@link registerHandler}), if any.
      *
      * @param path - A dotted path.
-     * @returns The registered field at `path`.
+     * @returns The registered (or dynamically resolved) field at `path`.
      */
     private requireField(path: string): ConstantField<unknown> {
         const field = this.fieldsByPath.get(path);
-        if (!field) {
-            throw new ConstantRegistryError(`No constant is registered at path '${path}'.`);
+        if (field) {
+            return field;
         }
-        return field;
+        for (const [handlerPath, handler] of this.handlersByPath) {
+            if (path.startsWith(`${handlerPath}.`)) {
+                return resolveDynamic(handler, path.slice(handlerPath.length + 1).split("."), path);
+            }
+        }
+        throw new ConstantRegistryError(`No constant is registered at path '${path}'.`);
     }
 
     /**
@@ -283,13 +427,39 @@ export class ConstantRegistry {
     }
 
     /**
+     * Registers a {@link ConstantLookupHandler} at `path`, for a subtree
+     * that's resolved fresh on every `get`/`set`/`listPaths`/`getAllPaths`
+     * call instead of registered up front - e.g. one entry per currently-alive
+     * game entity, which comes and goes at runtime.
+     *
+     * @param path - The dotted path this handler's subtree lives under.
+     * @param handler - The handler resolving everything under `path`.
+     */
+    public registerHandler(path: string, handler: ConstantLookupHandler): void {
+        if (this.handlersByPath.has(path)) {
+            throw new ConstantRegistryError(`A lookup handler is already registered at path '${path}'.`);
+        }
+        this.handlersByPath.set(path, handler);
+    }
+
+    /**
      * Reads the current value at a registered path.
      *
      * @param path - A registered dotted path.
      * @returns The current value at `path`.
      */
-    public get<S = ConstantsSchema, P extends DotPath<S> = DotPath<S>>(path: P): ValueAt<S, P> {
-        return this.readField(this.requireField(path)) as ValueAt<S, P>;
+    public get<S = ConstantsSchema, P extends DotPath<S> = DotPath<S>>(path: P): ValueAt<S, P>;
+    /**
+     * Reads the current value at a dynamically resolved path (see
+     * {@link registerHandler}), which - unlike a schema-known path - can't be
+     * compile-time checked.
+     *
+     * @param path - A dotted path, resolved at call time.
+     * @returns The current value at `path`.
+     */
+    public get(path: string): unknown;
+    public get(path: string): unknown {
+        return this.readField(this.requireField(path));
     }
 
     /**
@@ -302,7 +472,17 @@ export class ConstantRegistry {
      * @param path - A registered dotted path.
      * @param value - The value to write.
      */
-    public set<S = ConstantsSchema, P extends DotPath<S> = DotPath<S>>(path: P, value: ValueAt<S, P>): void {
+    public set<S = ConstantsSchema, P extends DotPath<S> = DotPath<S>>(path: P, value: ValueAt<S, P>): void;
+    /**
+     * Writes a value to a dynamically resolved path (see
+     * {@link registerHandler}), which - unlike a schema-known path - can't be
+     * compile-time checked.
+     *
+     * @param path - A dotted path, resolved at call time.
+     * @param value - The value to write.
+     */
+    public set(path: string, value: unknown): void;
+    public set(path: string, value: unknown): void {
         const field = this.requireField(path);
         const current = this.readField(field);
 
@@ -353,6 +533,25 @@ export class ConstantRegistry {
             }
             segments.add(path.split(".").slice(0, depth).join("."));
         }
+
+        for (const [handlerPath, handler] of this.handlersByPath) {
+            if (prefix !== undefined && prefix.startsWith(`${handlerPath}.`)) {
+                // Listing inside the handler's own dynamic subtree.
+                const node = navigateDynamic(handler, prefix.slice(handlerPath.length + 1).split("."));
+                for (const segment of listDynamicSegments(node)) {
+                    segments.add(`${prefix}.${segment}`);
+                }
+            } else if (prefix === handlerPath) {
+                // Listing directly at the handler's own root.
+                for (const segment of handler.listPaths()) {
+                    segments.add(`${handlerPath}.${segment}`);
+                }
+            } else if (!prefix || handlerPath.startsWith(`${prefix}.`)) {
+                // The handler's own root is itself a (possibly deeper) segment under prefix.
+                segments.add(handlerPath.split(".").slice(0, depth).join("."));
+            }
+        }
+
         if (segments.size === 0) {
             throw new ConstantRegistryError(
                 prefix ? `No constant is registered under path '${prefix}'.` : "No constants are registered.",
@@ -369,10 +568,21 @@ export class ConstantRegistry {
      * @returns Every registered path equal to, or nested under, `prefix`.
      */
     public getAllPaths(prefix?: string): string[] {
-        if (!prefix) {
-            return [...this.fieldsByPath.keys()];
+        const staticPaths = [...this.fieldsByPath.keys()].filter(
+            (path) => !prefix || path === prefix || path.startsWith(`${prefix}.`),
+        );
+
+        const dynamicPaths: string[] = [];
+        for (const [handlerPath, handler] of this.handlersByPath) {
+            if (prefix !== undefined && prefix.startsWith(`${handlerPath}.`)) {
+                const node = navigateDynamic(handler, prefix.slice(handlerPath.length + 1).split("."));
+                dynamicPaths.push(...listDynamicLeaves(node).map((leaf) => `${prefix}.${leaf}`));
+            } else if (!prefix || prefix === handlerPath || handlerPath.startsWith(`${prefix}.`)) {
+                dynamicPaths.push(...handler.getAllPaths().map((leaf) => `${handlerPath}.${leaf}`));
+            }
         }
-        return [...this.fieldsByPath.keys()].filter((path) => path === prefix || path.startsWith(`${prefix}.`));
+
+        return [...staticPaths, ...dynamicPaths];
     }
 
     /**
@@ -403,6 +613,7 @@ export class ConstantRegistry {
     public clear(): void {
         this.fieldsByPath.clear();
         this.snapshotsByPath.clear();
+        this.handlersByPath.clear();
     }
 }
 
