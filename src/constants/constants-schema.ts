@@ -32,6 +32,34 @@ export interface ConstantsSchema {
             y: number;
         };
     };
+    debug: {
+        chunkOutlineColor: string;
+        chunkPendingOutlineColor: string;
+        chunkOutlineWidth: number;
+        chunkLabelColor: string;
+        chunkLabelFont: string;
+        chunkLabelPadding: number;
+        chunkQueuePositionFont: string;
+        featureOutlineColor: string;
+        featureOutlineWidth: number;
+        biomeOutlineColor: string;
+        biomeOutlineWidth: number;
+        boundingBoxColor: string;
+        boundingBoxWidth: number;
+        facingArrowColor: string;
+        facingArrowWidth: number;
+        hudTextColor: string;
+        hudStringValueColor: string;
+        hudNumberValueColor: string;
+        hudChunkGeneratingColor: string;
+        hudChunkUnloadedColor: string;
+        hudSpectatorColor: string;
+        hudBackgroundColor: string;
+        hudFontFamily: string;
+        hudFontSize: number;
+        hudPadding: number;
+        hudLineSpacing: number;
+    };
 }
 
 /**
