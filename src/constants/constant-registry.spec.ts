@@ -103,6 +103,16 @@ describe("get / set", () => {
         expect(holder.durationMs).toBe(250);
     });
 
+    it("reports a read-only field as such even when the value's type also wouldn't have matched", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", readonly: true } });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", "not a number" as unknown as number)).toThrow(
+            /read-only/,
+        );
+        expect(holder.durationMs).toBe(250);
+    });
+
     it("throws when the value's runtime type doesn't match the current value", () => {
         const holder = { durationMs: 250 };
         registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs" } });
@@ -576,6 +586,12 @@ describe("registerHandler / ConstantLookupHandler", () => {
         registry.registerHandler("group", new GroupHandler(new Map()));
 
         expect(() => registry.get("group.nope.value")).toThrow(/No member 'nope'/);
+    });
+
+    it("names the specific missing property, not the whole path, when a dynamically-returned object lacks it", () => {
+        registry.registerHandler("group", new GroupHandler(new Map([["a", { value: 1 }]])));
+
+        expect(() => registry.get("group.a.bogus")).toThrow("'group.a' has no property 'bogus'.");
     });
 
     it("throws when a path resolves to a subtree rather than a value", () => {
