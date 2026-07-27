@@ -6,8 +6,8 @@ import {KeyBinding} from "../help/key-binding";
 import {Debouncer} from "../input/debouncer";
 import {Keyboard} from "@keyboard";
 import {DASH_CONSTANTS} from "./dash-constants";
-import {ConstantHolder} from "../constants/constant-holder";
-import {nonNegativeInteger, nonNegativeNumber} from "../constants/constant-registry";
+import {MOVEMENT_CONSTANTS} from "./movement-constants";
+import {requireNonNull} from "../util";
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {
@@ -34,33 +34,19 @@ export interface CameraFollowOptions {
     /**
      * In `"edge"` mode, how close, in canvas pixels, the entity can get to
      * the viewport's edge before the camera starts dragging to keep up.
-     * Defaults to {@link MovementController.DEFAULT_EDGE_MARGIN}.
+     * Must be present if `mode === "edge"`.
      */
     edgeMargin?: number;
 }
 
 /**
  * Drives a bound {@link MovableEntity}'s facing and velocity from the arrow
- * keys. `SPEED` and `RUN_MULTIPLIER` are registered under
- * `world.entities.fox.movement` (see `tunable-constants-plan.md`), so both
- * are live-editable through the constants registry.
+ * keys. Speed comes from {@link MOVEMENT_CONSTANTS}, which is live-editable
+ * through the constants registry.
  */
-@ConstantHolder("world.entities.fox.movement", {
-    SPEED: nonNegativeInteger(),
-    RUN_MULTIPLIER: nonNegativeNumber(),
-})
 export class MovementController {
-    /** Speed a bound entity moves at, in world pixels per second. */
-    private static SPEED = 250;
-
-    /** Factor a movement speed is scaled by while running (double-tapped). */
-    public static RUN_MULTIPLIER = 1.6;
-
     /** Speed the camera pans at in spectator mode, in world pixels per second. */
     private static readonly SPECTATOR_SPEED = 520;
-
-    /** Default {@link CameraFollowOptions.edgeMargin} for `"edge"` follow mode. */
-    private static readonly DEFAULT_EDGE_MARGIN = 200;
 
     /**
      * How long, in milliseconds, to wait after a key event before actually
@@ -153,6 +139,17 @@ export class MovementController {
      */
     public getCameraFollowMode(): CameraFollowMode | undefined {
         return this.cameraFollow?.mode;
+    }
+
+    /**
+     * This controller's camera-follow config, for wiring its fields into the
+     * tunable-constants registry once this controller (and its bound
+     * camera, if any) exist.
+     *
+     * @returns The bound {@link CameraFollowOptions}, or `null` if this controller isn't following a camera.
+     */
+    public getCameraFollow(): CameraFollowOptions | null {
+        return this.cameraFollow;
     }
 
     /**
@@ -309,7 +306,7 @@ export class MovementController {
      * @param entityPosition - World-space point being tracked.
      */
     private dragCameraToEdge(camera: Camera, entityPosition: Vector2d): void {
-        const margin = this.cameraFollow?.edgeMargin ?? MovementController.DEFAULT_EDGE_MARGIN;
+        const margin = requireNonNull(this.cameraFollow?.edgeMargin);
         const screenX = entityPosition.x - camera.getViewX();
         const screenY = entityPosition.y - camera.getViewY();
 
@@ -403,7 +400,7 @@ export class MovementController {
             return;
         }
 
-        const speed = this.applyRunMultiplier(MovementController.SPEED);
+        const speed = this.applyRunMultiplier(MOVEMENT_CONSTANTS.speed);
         this.entity.setFacing(direction);
         this.entity.setVelocity(Vector2d.fromDirection(direction).scale(speed));
     }
@@ -416,7 +413,7 @@ export class MovementController {
      * @returns `speed`, scaled up if currently running.
      */
     private applyRunMultiplier(speed: number): number {
-        return this.runningKeys.size > 0 ? speed * MovementController.RUN_MULTIPLIER : speed;
+        return this.runningKeys.size > 0 ? speed * MOVEMENT_CONSTANTS.runMultiplier : speed;
     }
 
     /**
@@ -457,7 +454,7 @@ export class MovementController {
 
         this.dashActive = true;
         this.dashRemainingMs = DASH_CONSTANTS.durationMs;
-        this.dashVelocity = Vector2d.fromDirection(direction).scale(MovementController.SPEED * DASH_CONSTANTS.speedMultiplier);
+        this.dashVelocity = Vector2d.fromDirection(direction).scale(MOVEMENT_CONSTANTS.speed * DASH_CONSTANTS.speedMultiplier);
         this.entity.setFacing(direction);
         this.entity.setVelocity(Vector2d.ZERO);
         this.entity.onDashStart?.(direction);

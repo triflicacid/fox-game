@@ -1,3 +1,5 @@
+import type { CameraFollowMode } from "../entities/movement-controller";
+
 /** The full set of tunable-constant paths, kept by hand alongside the holders each slice describes. */
 export interface ConstantsSchema {
     world: {
@@ -16,11 +18,18 @@ export interface ConstantsSchema {
                     burstEndRadius: number;
                     trailFadeTailMs: number;
                 };
-                movement: {
-                    SPEED: number;
-                    RUN_MULTIPLIER: number;
-                };
             };
+        };
+        movement: {
+            speed: number;
+            runMultiplier: number;
+        };
+        camera: {
+            mode: CameraFollowMode;
+            edgeMargin: number;
+            spectating: boolean;
+            x: number;
+            y: number;
         };
     };
 }

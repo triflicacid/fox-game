@@ -75,7 +75,7 @@ export class WorldController {
 
         this.camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
         new CameraDragController(canvas, this.camera);
-        this.movementController = new MovementController(keyboard, mainEntity, {camera: this.camera, mode: "edge"});
+        this.movementController = new MovementController(keyboard, mainEntity, {camera: this.camera, mode: "edge", edgeMargin: 200});
         this.debugController = new DebugController(
             keyboard,
             () => this.world.reloadAllChunks(),
@@ -170,6 +170,15 @@ export class WorldController {
      */
     public getWorld(): World {
         return this.world;
+    }
+
+    /**
+     * The controller driving the player's movement and camera-follow, for
+     * wiring its per-instance fields into the tunable-constants registry
+     * (see `registerDynamicFields`).
+     */
+    public getMovementController(): MovementController {
+        return this.movementController;
     }
 
     private readonly resize = (): void => {

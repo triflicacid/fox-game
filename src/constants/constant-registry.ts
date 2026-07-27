@@ -26,7 +26,7 @@ interface FieldOptionsOverride<T> {
     capture?(value: T): string | undefined;
 }
 
-type FieldOverride<T> = Accessor<T> | FieldOptionsOverride<T> | ((value: T) => string | undefined);
+export type FieldOverride<T> = Accessor<T> | FieldOptionsOverride<T> | ((value: T) => string | undefined);
 
 /**
  * Per-field overrides, keyed by property name. A field with no override
@@ -65,6 +65,34 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Builds a single {@link ConstantField} for `propertyName` on `holder`,
+ * dispatching on `override`'s shape: an explicit accessor, a bare capture
+ * function (shorthand for `{ capture }`), `{ readonly, capture }` options
+ * kept as a direct reference, or (with no override) a plain direct reference.
+ *
+ * @param holder - The object/class `propertyName` is a property of.
+ * @param propertyName - The property this field reads and writes.
+ * @param override - The override for this property, if any.
+ * @returns The resulting field.
+ */
+function buildField(
+    holder: Record<string, unknown>,
+    propertyName: string,
+    override: unknown,
+): ConstantField<unknown> {
+    if (isAccessorOverride(override)) {
+        return { kind: "accessor", get: override.get, set: override.set, capture: override.capture };
+    }
+    if (isCaptureOverride(override)) {
+        return { kind: "field", holder, key: propertyName, capture: override };
+    }
+    if (isFieldOptionsOverride(override)) {
+        return { kind: "field", holder, key: propertyName, readonly: override.readonly, capture: override.capture };
+    }
+    return { kind: "field", holder, key: propertyName };
+}
+
+/**
  * Builds one {@link ConstantField} per key of `holder` plus any override-only
  * key in `overrides`, preferring an explicit accessor/readonly override when
  * present. A key whose value is a plain object (and has no such override)
@@ -85,19 +113,14 @@ function buildFields(
         const override = overrides?.[key];
         const value = holder[key];
 
-        if (isAccessorOverride(override)) {
-            fields[key] = { kind: "accessor", get: override.get, set: override.set, capture: override.capture };
-        } else if (isCaptureOverride(override)) {
-            fields[key] = { kind: "field", holder, key, capture: override };
-        } else if (isFieldOptionsOverride(override)) {
-            fields[key] = { kind: "field", holder, key, readonly: override.readonly, capture: override.capture };
-        } else if (isPlainObject(value)) {
+        const isOverridden = isAccessorOverride(override) || isCaptureOverride(override) || isFieldOptionsOverride(override);
+        if (!isOverridden && isPlainObject(value)) {
             const nestedOverrides = override as Record<string, unknown> | undefined;
             for (const [nestedKey, nestedField] of Object.entries(buildFields(value, nestedOverrides))) {
                 fields[`${key}.${nestedKey}`] = nestedField;
             }
         } else {
-            fields[key] = { kind: "field", holder, key };
+            fields[key] = buildField(holder, key, override);
         }
     }
     return fields;

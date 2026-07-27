@@ -34,6 +34,24 @@ export class Camera {
     }
 
     /**
+     * Moves this camera's centre to a new X position, keeping Y unchanged.
+     *
+     * @param x - New centre X position, in world pixels.
+     */
+    public setX(x: number): void {
+        this.center = new Vector2d(x, this.center.y);
+    }
+
+    /**
+     * Moves this camera's centre to a new Y position, keeping X unchanged.
+     *
+     * @param y - New centre Y position, in world pixels.
+     */
+    public setY(y: number): void {
+        this.center = new Vector2d(this.center.x, y);
+    }
+
+    /**
      * Moves this camera's centre by the given offset.
      *
      * @param delta - Offset to move by, in world pixels.

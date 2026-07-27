@@ -168,7 +168,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * entity speed up its walk animation to match.
      *
      * @param running - Whether movement is currently scaled by
-     * {@link MovementController.RUN_MULTIPLIER}.
+     * `MOVEMENT_CONSTANTS`'s `runMultiplier`.
      */
     public setRunning?(running: boolean): void;
 
