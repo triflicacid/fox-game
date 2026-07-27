@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ConstantField, ConstantLookupHandler, ConstantRegistry, ConstantRegistryError, constantRegistry, integerRange, nonNegativeInteger, nonNegativeNumber, numberRange } from "./constant-registry";
-import { ConstantHolder } from "./constant-holder";
+import { Field, FieldLookupHandler, FieldRegistry, FieldRegistryError, fieldRegistry, integerRange, nonNegativeInteger, nonNegativeNumber, numberRange } from "./field-registry";
+import { FieldHolder } from "./field-holder";
 
-/** A small fixture schema, standing in for `ConstantsSchema` in these tests. */
+/** A small fixture schema, standing in for `FieldSchema` in these tests. */
 interface FixtureSchema {
     dash: {
         durationMs: number;
@@ -28,11 +28,11 @@ interface FixtureSchema {
     };
 }
 
-let registry: ConstantRegistry;
+let registry: FieldRegistry;
 
 beforeEach(() => {
-    registry = new ConstantRegistry();
-    constantRegistry.clear();
+    registry = new FieldRegistry();
+    fieldRegistry.clear();
 });
 
 describe("registerHolder", () => {
@@ -80,17 +80,17 @@ describe("get / set", () => {
     });
 
     it("throws when reading an unregistered path", () => {
-        expect(() => registry.get<FixtureSchema>("dash.durationMs")).toThrow(/No constant is registered/);
+        expect(() => registry.get<FixtureSchema>("dash.durationMs")).toThrow(/No field is registered/);
     });
 
     it("throws when writing an unregistered path", () => {
-        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1)).toThrow(/No constant is registered/);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1)).toThrow(/No field is registered/);
     });
 
-    it("throws a ConstantRegistryError when writing a read-only accessor entry", () => {
+    it("throws a FieldRegistryError when writing a read-only accessor entry", () => {
         registry.registerHolder("debug", { computedMs: { kind: "accessor", get: () => 42 } });
 
-        expect(() => registry.set<FixtureSchema>("debug.computedMs", 1)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("debug.computedMs", 1)).toThrow(FieldRegistryError);
         expect(() => registry.set<FixtureSchema>("debug.computedMs", 1)).toThrow(/read-only/);
     });
 
@@ -99,7 +99,7 @@ describe("get / set", () => {
         registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs", readonly: true } });
 
         expect(registry.get<FixtureSchema>("dash.durationMs")).toBe(250);
-        expect(() => registry.set<FixtureSchema>("dash.durationMs", 999)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 999)).toThrow(FieldRegistryError);
         expect(holder.durationMs).toBe(250);
     });
 
@@ -118,7 +118,7 @@ describe("get / set", () => {
         registry.registerHolder("dash", { durationMs: { kind: "field", holder, key: "durationMs" } });
 
         expect(() => registry.set<FixtureSchema>("dash.durationMs", "not a number" as unknown as number)).toThrow(
-            ConstantRegistryError,
+            FieldRegistryError,
         );
         expect(() => registry.set<FixtureSchema>("dash.durationMs", "not a number" as unknown as number)).toThrow(
             /expected number, got string/,
@@ -137,7 +137,7 @@ describe("get / set", () => {
             },
         });
 
-        expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(FieldRegistryError);
         expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(/Cannot set to zero/);
         expect(holder.durationMs).toBe(250);
     });
@@ -167,7 +167,7 @@ describe("integerRange", () => {
             durationMs: { kind: "field", holder, key: "durationMs", capture: integerRange(0, 1000) },
         });
 
-        expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(FieldRegistryError);
         expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(/below the minimum/);
         expect(holder.durationMs).toBe(250);
     });
@@ -178,7 +178,7 @@ describe("integerRange", () => {
             durationMs: { kind: "field", holder, key: "durationMs", capture: integerRange(0, 1000) },
         });
 
-        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1001)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1001)).toThrow(FieldRegistryError);
         expect(() => registry.set<FixtureSchema>("dash.durationMs", 1001)).toThrow(/above the maximum/);
         expect(holder.durationMs).toBe(250);
     });
@@ -318,7 +318,7 @@ describe("reset", () => {
     });
 
     it("throws when resetting an unregistered path", () => {
-        expect(() => registry.reset<FixtureSchema>("dash.durationMs")).toThrow(/No constant is registered/);
+        expect(() => registry.reset<FixtureSchema>("dash.durationMs")).toThrow(/No field is registered/);
     });
 });
 
@@ -367,11 +367,11 @@ describe("listPaths", () => {
     it("throws when the given prefix matches nothing registered", () => {
         registry.registerHolder("dash", { durationMs: { kind: "field", holder: { durationMs: 1 }, key: "durationMs" } });
 
-        expect(() => registry.listPaths("nope")).toThrow(ConstantRegistryError);
+        expect(() => registry.listPaths("nope")).toThrow(FieldRegistryError);
     });
 
     it("throws when nothing at all is registered and no prefix is given", () => {
-        expect(() => registry.listPaths()).toThrow(ConstantRegistryError);
+        expect(() => registry.listPaths()).toThrow(FieldRegistryError);
     });
 });
 
@@ -405,24 +405,24 @@ describe("getAllPaths", () => {
     });
 });
 
-describe("registerConstants", () => {
+describe("registerFields", () => {
     it("registers a plain object's own properties as fields", () => {
-        const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registry.registerConstants("dash", dashConstants);
+        const dashFields = { durationMs: 250, trailColor: "#ff00ff" };
+        registry.registerFields("dash", dashFields);
 
         expect(registry.get<FixtureSchema>("dash.durationMs")).toBe(250);
         expect(registry.get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
 
         registry.set<FixtureSchema>("dash.durationMs", 300);
 
-        expect(dashConstants.durationMs).toBe(300);
+        expect(dashFields.durationMs).toBe(300);
     });
 
     it("uses an override instead of a direct field reference", () => {
         let internal = 10;
         let setCalls = 0;
         const obj = { debounceMs: 10 };
-        registry.registerConstants("movement", obj, {
+        registry.registerFields("movement", obj, {
             debounceMs: {
                 get: () => internal,
                 set: (value) => {
@@ -440,66 +440,66 @@ describe("registerConstants", () => {
     });
 
     it("marks a field readonly via an override, without switching it to an accessor", () => {
-        const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registry.registerConstants("dash", dashConstants, {
+        const dashFields = { durationMs: 250, trailColor: "#ff00ff" };
+        registry.registerFields("dash", dashFields, {
             trailColor: { readonly: true },
         });
 
         expect(registry.get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
-        expect(() => registry.set<FixtureSchema>("dash.trailColor", "#000000")).toThrow(ConstantRegistryError);
-        expect(dashConstants.trailColor).toBe("#ff00ff");
+        expect(() => registry.set<FixtureSchema>("dash.trailColor", "#000000")).toThrow(FieldRegistryError);
+        expect(dashFields.trailColor).toBe("#ff00ff");
 
         registry.set<FixtureSchema>("dash.durationMs", 300);
-        expect(dashConstants.durationMs).toBe(300);
+        expect(dashFields.durationMs).toBe(300);
     });
 
     it("declares numeric bounds via an integerRange capture", () => {
-        const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registry.registerConstants("dash", dashConstants, {
+        const dashFields = { durationMs: 250, trailColor: "#ff00ff" };
+        registry.registerFields("dash", dashFields, {
             durationMs: { capture: integerRange(0, 1000) },
         });
 
-        expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(ConstantRegistryError);
-        expect(dashConstants.durationMs).toBe(250);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(FieldRegistryError);
+        expect(dashFields.durationMs).toBe(250);
 
         registry.set<FixtureSchema>("dash.durationMs", 999);
-        expect(dashConstants.durationMs).toBe(999);
+        expect(dashFields.durationMs).toBe(999);
     });
 
     it("declares a capture validator via an override", () => {
-        const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registry.registerConstants("dash", dashConstants, {
+        const dashFields = { durationMs: 250, trailColor: "#ff00ff" };
+        registry.registerFields("dash", dashFields, {
             durationMs: {
                 capture: (value) => (value === 0 ? "Cannot set to zero" : undefined),
             },
         });
 
         expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(/Cannot set to zero/);
-        expect(dashConstants.durationMs).toBe(250);
+        expect(dashFields.durationMs).toBe(250);
 
         registry.set<FixtureSchema>("dash.durationMs", 500);
-        expect(dashConstants.durationMs).toBe(500);
+        expect(dashFields.durationMs).toBe(500);
     });
 
     it("accepts a bare capture function as shorthand for { capture }", () => {
-        const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registry.registerConstants("dash", dashConstants, {
+        const dashFields = { durationMs: 250, trailColor: "#ff00ff" };
+        registry.registerFields("dash", dashFields, {
             durationMs: (value) => (value === 0 ? "Cannot set to zero" : undefined),
         });
 
         expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(/Cannot set to zero/);
-        expect(dashConstants.durationMs).toBe(250);
+        expect(dashFields.durationMs).toBe(250);
 
         registry.set<FixtureSchema>("dash.durationMs", 500);
-        expect(dashConstants.durationMs).toBe(500);
+        expect(dashFields.durationMs).toBe(500);
     });
 
     it("flattens a nested plain object into dotted leaf paths", () => {
-        const worldConstants = {
+        const worldFields = {
             dash: { durationMs: 250 },
             movement: { debounceMs: 10 },
         };
-        registry.registerConstants("world.entities.fox", worldConstants);
+        registry.registerFields("world.entities.fox", worldFields);
 
         expect(registry.get<FixtureSchema>("world.entities.fox.dash.durationMs")).toBe(250);
         expect(registry.get<FixtureSchema>("world.entities.fox.movement.debounceMs")).toBe(10);
@@ -510,33 +510,33 @@ describe("registerConstants", () => {
 
         registry.set<FixtureSchema>("world.entities.fox.dash.durationMs", 500);
 
-        expect(worldConstants.dash.durationMs).toBe(500);
+        expect(worldFields.dash.durationMs).toBe(500);
     });
 
     it("marks one nested leaf readonly via a nested override, leaving its sibling writable", () => {
-        const worldConstants = {
+        const worldFields = {
             dash: { durationMs: 250 },
             movement: { debounceMs: 10 },
         };
-        registry.registerConstants("world.entities.fox", worldConstants, {
+        registry.registerFields("world.entities.fox", worldFields, {
             dash: {
                 durationMs: { readonly: true },
             },
         });
 
         expect(() => registry.set<FixtureSchema>("world.entities.fox.dash.durationMs", 999)).toThrow(
-            ConstantRegistryError,
+            FieldRegistryError,
         );
-        expect(worldConstants.dash.durationMs).toBe(250);
+        expect(worldFields.dash.durationMs).toBe(250);
 
         registry.set<FixtureSchema>("world.entities.fox.movement.debounceMs", 99);
-        expect(worldConstants.movement.debounceMs).toBe(99);
+        expect(worldFields.movement.debounceMs).toBe(99);
     });
 });
 
-describe("registerHandler / ConstantLookupHandler", () => {
+describe("registerHandler / FieldLookupHandler", () => {
     /** A fixture handler standing in for `EntityLookupHandler`: one member per map entry, each exposing a `value` field as an inline accessor. */
-    class GroupHandler extends ConstantLookupHandler {
+    class GroupHandler extends FieldLookupHandler {
         public constructor(private readonly members: Map<string, { value: number }>) {
             super();
         }
@@ -552,7 +552,7 @@ describe("registerHandler / ConstantLookupHandler", () => {
         public get(segment: string): Record<string, unknown> {
             const member = this.members.get(segment);
             if (!member) {
-                throw new ConstantRegistryError(`No member '${segment}'.`);
+                throw new FieldRegistryError(`No member '${segment}'.`);
             }
             return { value: { get: () => member.value, set: (next: number) => { member.value = next; } } };
         }
@@ -629,7 +629,7 @@ describe("registerHandler / ConstantLookupHandler", () => {
     });
 
     it("resolves straight to a field the handler returns directly, capture included", () => {
-        class DirectFieldHandler extends ConstantLookupHandler {
+        class DirectFieldHandler extends FieldLookupHandler {
             private value = 5;
 
             public listPaths(): string[] {
@@ -640,9 +640,9 @@ describe("registerHandler / ConstantLookupHandler", () => {
                 return ["clamped"];
             }
 
-            public get(segment: string): ConstantField<unknown> {
+            public get(segment: string): Field<unknown> {
                 if (segment !== "clamped") {
-                    throw new ConstantRegistryError(`No '${segment}'.`);
+                    throw new FieldRegistryError(`No '${segment}'.`);
                 }
                 return {
                     kind: "accessor",
@@ -662,7 +662,7 @@ describe("registerHandler / ConstantLookupHandler", () => {
     });
 
     it("supports capture on an inline accessor embedded in a dynamically-returned plain object", () => {
-        class BoundedGroupHandler extends ConstantLookupHandler {
+        class BoundedGroupHandler extends FieldLookupHandler {
             private readonly member = { value: 5 };
 
             public listPaths(): string[] {
@@ -675,7 +675,7 @@ describe("registerHandler / ConstantLookupHandler", () => {
 
             public get(segment: string): Record<string, unknown> {
                 if (segment !== "a") {
-                    throw new ConstantRegistryError(`No '${segment}'.`);
+                    throw new FieldRegistryError(`No '${segment}'.`);
                 }
                 return {
                     value: {
@@ -695,8 +695,8 @@ describe("registerHandler / ConstantLookupHandler", () => {
     });
 
     it("resolves through a handler-of-handlers", () => {
-        class OuterHandler extends ConstantLookupHandler {
-            public constructor(private readonly inner: ConstantLookupHandler) {
+        class OuterHandler extends FieldLookupHandler {
+            public constructor(private readonly inner: FieldLookupHandler) {
                 super();
             }
 
@@ -708,9 +708,9 @@ describe("registerHandler / ConstantLookupHandler", () => {
                 return this.inner.getAllPaths().map((leaf) => `inner.${leaf}`);
             }
 
-            public get(segment: string): ConstantLookupHandler {
+            public get(segment: string): FieldLookupHandler {
                 if (segment !== "inner") {
-                    throw new ConstantRegistryError(`No '${segment}'.`);
+                    throw new FieldRegistryError(`No '${segment}'.`);
                 }
                 return this.inner;
             }
@@ -725,17 +725,17 @@ describe("registerHandler / ConstantLookupHandler", () => {
     });
 });
 
-describe("ConstantHolder", () => {
+describe("FieldHolder", () => {
     it("registers a class's own static fields", () => {
-        @ConstantHolder("dash")
+        @FieldHolder("dash")
         // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- fixture class for testing the class decorator
         class DashFixture {
             public static durationMs = 250;
         }
 
-        expect(constantRegistry.get<FixtureSchema>("dash.durationMs")).toBe(250);
+        expect(fieldRegistry.get<FixtureSchema>("dash.durationMs")).toBe(250);
 
-        constantRegistry.set<FixtureSchema>("dash.durationMs", 500);
+        fieldRegistry.set<FixtureSchema>("dash.durationMs", 500);
 
         expect(DashFixture.durationMs).toBe(500);
     });
@@ -744,7 +744,7 @@ describe("ConstantHolder", () => {
         let internal = 5;
         let setCalls = 0;
 
-        @ConstantHolder("movement", {
+        @FieldHolder("movement", {
             debounceMs: {
                 get: () => internal,
                 set: (value: number) => {
@@ -758,7 +758,7 @@ describe("ConstantHolder", () => {
             private static debounceMs = 5;
         }
 
-        constantRegistry.set<FixtureSchema>("movement.debounceMs", 7);
+        fieldRegistry.set<FixtureSchema>("movement.debounceMs", 7);
 
         expect(internal).toBe(7);
         expect(setCalls).toBe(1);

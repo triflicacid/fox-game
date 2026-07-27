@@ -41,7 +41,7 @@ export interface CameraFollowOptions {
 /**
  * Drives a bound {@link MovableEntity}'s facing and velocity from the arrow
  * keys. Speed comes from {@link MOVEMENT_CONSTANTS}, which is live-editable
- * through the constants registry.
+ * through the field registry.
  */
 export class MovementController {
     /** Speed the camera pans at in spectator mode, in world pixels per second. */
@@ -142,7 +142,7 @@ export class MovementController {
 
     /**
      * This controller's camera-follow config, for wiring its fields into the
-     * tunable-constants registry once this controller (and its bound
+     * field registry once this controller (and its bound
      * camera, if any) exist.
      *
      * @returns The bound {@link CameraFollowOptions}, or `null` if this controller isn't following a camera.

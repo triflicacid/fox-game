@@ -1,18 +1,19 @@
-import type { ConstantsSchema, DotPath, ValueAt } from "./constants-schema";
+import type { FieldSchema, DotPath, ValueAt } from "./field-schema";
 
 /**
  * An explicit getter/setter pair overriding a field's default direct-property
  * registration, for a value that needs a side effect on write (or that's
- * exposed read-only by omitting `set`).
+ * exposed read-only by omitting `set`). Also the shape a {@link FieldLookupHandler}
+ * returns for a single dynamically-resolved field (see `Entity.getRegistryFields`).
  */
-interface Accessor<T = unknown> {
+export interface Accessor<T = unknown> {
     /** Reads the field's current value. */
     get(): T;
     /** Writes a new value to the field. Omit to expose the field as read-only. */
     set?(value: T): void;
     /**
      * Validates a value just before it's written, rejecting it with a string
-     * reason or allowing it by returning nothing (see {@link ConstantRegistry.set}).
+     * reason or allowing it by returning nothing (see {@link FieldRegistry.set}).
      */
     capture?(value: T): string | undefined;
 }
@@ -64,7 +65,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isConstantField(value: unknown): value is ConstantField<unknown> {
+function isField(value: unknown): value is Field<unknown> {
     if (typeof value !== "object" || value === null) {
         return false;
     }
@@ -73,7 +74,7 @@ function isConstantField(value: unknown): value is ConstantField<unknown> {
 }
 
 /**
- * Builds a single {@link ConstantField} for `propertyName` on `holder`,
+ * Builds a single {@link Field} for `propertyName` on `holder`,
  * dispatching on `override`'s shape: an explicit accessor, a bare capture
  * function (shorthand for `{ capture }`), `{ readonly, capture }` options
  * kept as a direct reference, or (with no override) a plain direct reference.
@@ -87,7 +88,7 @@ function buildField(
     holder: Record<string, unknown>,
     propertyName: string,
     override: unknown,
-): ConstantField<unknown> {
+): Field<unknown> {
     if (isAccessorOverride(override)) {
         return { kind: "accessor", get: override.get, set: override.set, capture: override.capture };
     }
@@ -101,7 +102,7 @@ function buildField(
 }
 
 /**
- * Builds one {@link ConstantField} per key of `holder` plus any override-only
+ * Builds one {@link Field} per key of `holder` plus any override-only
  * key in `overrides`, preferring an explicit accessor/readonly override when
  * present. A key whose value is a plain object (and has no such override)
  * recurses instead of becoming a single opaque field, so its own properties
@@ -114,8 +115,8 @@ function buildField(
 function buildFields(
     holder: Record<string, unknown>,
     overrides: Record<string, unknown> | undefined,
-): Record<string, ConstantField<unknown>> {
-    const fields: Record<string, ConstantField<unknown>> = {};
+): Record<string, Field<unknown>> {
+    const fields: Record<string, Field<unknown>> = {};
     const keys = new Set([...Object.keys(holder), ...Object.keys(overrides ?? {})]);
     for (const key of keys) {
         const override = overrides?.[key];
@@ -134,16 +135,16 @@ function buildFields(
     return fields;
 }
 
-/** Thrown for invalid operations against the tunable-constants registry, e.g. an unregistered path, a duplicate registration, or a write to a read-only field. */
-export class ConstantRegistryError extends Error {
+/** Thrown for invalid operations against the field registry, e.g. an unregistered path, a duplicate registration, or a write to a read-only field. */
+export class FieldRegistryError extends Error {
     public constructor(message: string) {
         super(message);
-        this.name = "ConstantRegistryError";
+        this.name = "FieldRegistryError";
     }
 }
 
 /**
- * A single registered constant: either a direct reference to a field on a
+ * A single registered field: either a direct reference to a field on a
  * plain object/class ("field", writable unless marked `readonly`), or an
  * explicit getter/setter pair ("accessor") for a value that needs a side
  * effect on write, or that's exposed read-only by omitting `set`. Either kind
@@ -151,7 +152,7 @@ export class ConstantRegistryError extends Error {
  * returning a string rejects the value with that reason; returning nothing
  * allows it. Range/shape checks (e.g. {@link integerRange}) are just captures.
  */
-export type ConstantField<T> =
+export type Field<T> =
     | {
         kind: "field";
         holder: Record<string, T>;
@@ -167,11 +168,11 @@ export type ConstantField<T> =
       };
 
 /**
- * A dynamically resolved subtree of the constants address space looked up fresh
+ * A dynamically resolved subtree of the field address space looked up fresh
  * on every `get`/`set`/`listPaths`/`getAllPaths` call instead of being registered
- * up front like {@link ConstantRegistry.registerHolder}.
+ * up front like {@link FieldRegistry.registerHolder}.
  */
-export abstract class ConstantLookupHandler {
+export abstract class FieldLookupHandler {
     /**
      * Every immediate child segment currently reachable under this handler.
      */
@@ -186,18 +187,18 @@ export abstract class ConstantLookupHandler {
      * Resolves one path segment directly under this handler: a leaf field, a
      * plain object to keep descending into via direct property access, or
      * another handler to keep descending into dynamically.
-     * Throws {@link ConstantRegistryError} if `segment` isn't currently reachable.
+     * Throws {@link FieldRegistryError} if `segment` isn't currently reachable.
      *
      * @param segment - The single next path segment to resolve.
      */
-    public abstract get(segment: string): ConstantField<unknown> | ConstantLookupHandler | Record<string, unknown>;
+    public abstract get(segment: string): Field<unknown> | FieldLookupHandler | Record<string, unknown>;
 }
 
-type DynamicNode = ConstantLookupHandler | Record<string, unknown>;
+type DynamicNode = FieldLookupHandler | Record<string, unknown>;
 
 /**
  * Resolves the terminal segment of a plain-object holder returned from
- * dynamic resolution. Throws {@link ConstantRegistryError} if `holder` has no
+ * dynamic resolution. Throws {@link FieldRegistryError} if `holder` has no
  * such property, naming `holder`'s own label rather than the whole path -
  * e.g. `"'world.entities.fox#0' has no property 'z'."` instead of blaming the
  * full requested path.
@@ -207,9 +208,9 @@ type DynamicNode = ConstantLookupHandler | Record<string, unknown>;
  * @param holderLabel - The path resolved so far, identifying `holder` itself, for the error message.
  * @returns The resolved field.
  */
-function resolveDynamicField(holder: Record<string, unknown>, key: string, holderLabel: string): ConstantField<unknown> {
+function resolveDynamicField(holder: Record<string, unknown>, key: string, holderLabel: string): Field<unknown> {
     if (!(key in holder)) {
-        throw new ConstantRegistryError(`'${holderLabel}' has no property '${key}'.`);
+        throw new FieldRegistryError(`'${holderLabel}' has no property '${key}'.`);
     }
     const candidate = holder[key];
     if (isAccessorOverride(candidate)) {
@@ -220,9 +221,9 @@ function resolveDynamicField(holder: Record<string, unknown>, key: string, holde
 
 /**
  * Walks `segments` down from `node`, dispatching on whether each step is
- * another {@link ConstantLookupHandler} (dynamic) or a plain object (direct
+ * another {@link FieldLookupHandler} (dynamic) or a plain object (direct
  * property access, recursing into nested plain objects same as
- * {@link buildFields}). Throws {@link ConstantRegistryError} naming the
+ * {@link buildFields}). Throws {@link FieldRegistryError} naming the
  * specific missing/invalid segment rather than the whole requested path - if
  * `segments` runs out on a subtree rather than a leaf, if a plain object has
  * no such property, or if a resolved property isn't itself a plain object
@@ -233,18 +234,18 @@ function resolveDynamicField(holder: Record<string, unknown>, key: string, holde
  * @param resolvedSoFar - The path already walked to reach `node`, for error messages only.
  * @returns The resolved leaf field.
  */
-function resolveDynamic(node: DynamicNode, segments: string[], resolvedSoFar: string): ConstantField<unknown> {
+function resolveDynamic(node: DynamicNode, segments: string[], resolvedSoFar: string): Field<unknown> {
     const [segment, ...rest] = segments;
     if (segment === undefined) {
-        throw new ConstantRegistryError(`'${resolvedSoFar}' resolves to a subtree, not a value.`);
+        throw new FieldRegistryError(`'${resolvedSoFar}' resolves to a subtree, not a value.`);
     }
     const path = `${resolvedSoFar}.${segment}`;
 
-    if (node instanceof ConstantLookupHandler) {
+    if (node instanceof FieldLookupHandler) {
         const next = node.get(segment); // the handler itself throws for an unknown segment
-        if (isConstantField(next)) {
+        if (isField(next)) {
             if (rest.length > 0) {
-                throw new ConstantRegistryError(`'${path}' is a value, not a subtree - cannot resolve '${rest.join(".")}'.`);
+                throw new FieldRegistryError(`'${path}' is a value, not a subtree - cannot resolve '${rest.join(".")}'.`);
             }
             return next;
         }
@@ -255,11 +256,11 @@ function resolveDynamic(node: DynamicNode, segments: string[], resolvedSoFar: st
         return resolveDynamicField(node, segment, resolvedSoFar);
     }
     if (!(segment in node)) {
-        throw new ConstantRegistryError(`'${resolvedSoFar}' has no property '${segment}'.`);
+        throw new FieldRegistryError(`'${resolvedSoFar}' has no property '${segment}'.`);
     }
     const nested = node[segment];
     if (!isPlainObject(nested)) {
-        throw new ConstantRegistryError(`'${path}' is a value, not a subtree - cannot resolve '${rest.join(".")}'.`);
+        throw new FieldRegistryError(`'${path}' is a value, not a subtree - cannot resolve '${rest.join(".")}'.`);
     }
     return resolveDynamic(nested, rest, path);
 }
@@ -279,17 +280,17 @@ function navigateDynamic(node: DynamicNode, segments: string[], resolvedSoFar: s
     let label = resolvedSoFar;
     for (const segment of segments) {
         let next: unknown;
-        if (current instanceof ConstantLookupHandler) {
+        if (current instanceof FieldLookupHandler) {
             next = current.get(segment); // the handler itself throws for an unknown segment
         } else {
             if (!(segment in current)) {
-                throw new ConstantRegistryError(`'${label}' has no property '${segment}'.`);
+                throw new FieldRegistryError(`'${label}' has no property '${segment}'.`);
             }
             next = current[segment];
         }
         label = `${label}.${segment}`;
-        if (isConstantField(next) || (!(next instanceof ConstantLookupHandler) && !isPlainObject(next))) {
-            throw new ConstantRegistryError(`'${label}' is a value, not a subtree.`);
+        if (isField(next) || (!(next instanceof FieldLookupHandler) && !isPlainObject(next))) {
+            throw new FieldRegistryError(`'${label}' is a value, not a subtree.`);
         }
         current = next as DynamicNode;
     }
@@ -298,12 +299,12 @@ function navigateDynamic(node: DynamicNode, segments: string[], resolvedSoFar: s
 
 /** One level of child segments reachable from `node`, for `listPaths`. */
 function listDynamicSegments(node: DynamicNode): string[] {
-    return node instanceof ConstantLookupHandler ? node.listPaths() : Object.keys(node);
+    return node instanceof FieldLookupHandler ? node.listPaths() : Object.keys(node);
 }
 
 /** Every leaf path, at any depth, reachable from `node`, for `getAllPaths`. */
 function listDynamicLeaves(node: DynamicNode): string[] {
-    if (node instanceof ConstantLookupHandler) {
+    if (node instanceof FieldLookupHandler) {
         return node.getAllPaths();
     }
     const leaves: string[] = [];
@@ -318,7 +319,7 @@ function listDynamicLeaves(node: DynamicNode): string[] {
 }
 
 /**
- * Builds a {@link ConstantField.capture} validator rejecting anything outside
+ * Builds a {@link Field.capture} validator rejecting anything outside
  * `[min, max]`.
  *
  * @param min - The smallest allowed value, inclusive.
@@ -338,7 +339,7 @@ export function numberRange(min: number, max: number): (value: number) => string
 }
 
 /**
- * Builds a {@link ConstantField.capture} validator rejecting anything that
+ * Builds a {@link Field.capture} validator rejecting anything that
  * isn't an integer in `[min, max]`.
  *
  * @param min - The smallest allowed value, inclusive.
@@ -351,7 +352,7 @@ export function integerRange(min: number, max: number): (value: number) => strin
 }
 
 /**
- * Builds a {@link ConstantField.capture} validator rejecting any negative
+ * Builds a {@link Field.capture} validator rejecting any negative
  * integer.
  *
  * @returns A capture function for use as a field's `capture`.
@@ -361,7 +362,7 @@ export function nonNegativeInteger(): (value: number) => string | undefined {
 }
 
 /**
- * Builds a {@link ConstantField.capture} validator rejecting any negative number.
+ * Builds a {@link Field.capture} validator rejecting any negative number.
  *
  * @returns A capture function for use as a field's `capture`.
  */
@@ -370,21 +371,21 @@ export function nonNegativeNumber(): (value: number) => string | undefined {
 }
 
 /**
- * A flat, path-addressed registry of tunable constants. Every holder
+ * A flat, path-addressed registry of tunable fields. Every holder
  * registers its fields directly under its own dotted path.
  */
-export class ConstantRegistry {
-    private readonly fieldsByPath = new Map<string, ConstantField<unknown>>();
+export class FieldRegistry {
+    private readonly fieldsByPath = new Map<string, Field<unknown>>();
     private readonly snapshotsByPath = new Map<string, unknown>();
-    private readonly handlersByPath = new Map<string, ConstantLookupHandler>();
+    private readonly handlersByPath = new Map<string, FieldLookupHandler>();
 
     /**
-     * Reads a field's current value, dispatching on its {@link ConstantField} kind.
+     * Reads a field's current value, dispatching on its {@link Field} kind.
      *
      * @param field - The field to read.
      * @returns The field's current value.
      */
-    private readField(field: ConstantField<unknown>): unknown {
+    private readField(field: Field<unknown>): unknown {
         return field.kind === "field" ? field.holder[field.key] : field.get();
     }
 
@@ -395,19 +396,19 @@ export class ConstantRegistry {
      * @param field - The field to check.
      * @returns `true` if `field` can't be written to.
      */
-    private isFieldReadonly(field: ConstantField<unknown>): boolean {
+    private isFieldReadonly(field: Field<unknown>): boolean {
         return field.kind === "field" ? Boolean(field.readonly) : !field.set;
     }
 
     /**
-     * Writes a value to a field, dispatching on its {@link ConstantField} kind.
+     * Writes a value to a field, dispatching on its {@link Field} kind.
      *
      * @param field - The field to write.
      * @param value - The value to write.
      */
-    private writeField(field: ConstantField<unknown>, value: unknown): void {
+    private writeField(field: Field<unknown>, value: unknown): void {
         if (this.isFieldReadonly(field)) {
-            throw new ConstantRegistryError("Cannot set a read-only constant.");
+            throw new FieldRegistryError("Cannot set a read-only field.");
         }
         if (field.kind === "field") {
             field.holder[field.key] = value;
@@ -419,13 +420,13 @@ export class ConstantRegistry {
     /**
      * Looks up the field registered at `path`, or throws if none is
      * registered. Checked first against statically registered fields, then -
-     * on a miss - resolved fresh through whichever {@link ConstantLookupHandler}
+     * on a miss - resolved fresh through whichever {@link FieldLookupHandler}
      * owns `path` (see {@link registerHandler}), if any.
      *
      * @param path - A dotted path.
      * @returns The registered (or dynamically resolved) field at `path`.
      */
-    private requireField(path: string): ConstantField<unknown> {
+    private requireField(path: string): Field<unknown> {
         const field = this.fieldsByPath.get(path);
         if (field) {
             return field;
@@ -435,7 +436,7 @@ export class ConstantRegistry {
                 return resolveDynamic(handler, path.slice(handlerPath.length + 1).split("."), handlerPath);
             }
         }
-        throw new ConstantRegistryError(`No constant is registered at path '${path}'.`);
+        throw new FieldRegistryError(`No field is registered at path '${path}'.`);
     }
 
     /**
@@ -447,11 +448,11 @@ export class ConstantRegistry {
      * @param path - The dotted path this holder's fields live under.
      * @param fields - The holder's fields, keyed by their final path segment.
      */
-    public registerHolder(path: string, fields: Record<string, ConstantField<unknown>>): void {
+    public registerHolder(path: string, fields: Record<string, Field<unknown>>): void {
         for (const [key, field] of Object.entries(fields)) {
             const fullPath = `${path}.${key}`;
             if (this.fieldsByPath.has(fullPath)) {
-                throw new ConstantRegistryError(`A constant is already registered at path '${fullPath}'.`);
+                throw new FieldRegistryError(`A field is already registered at path '${fullPath}'.`);
             }
             this.fieldsByPath.set(fullPath, field);
             this.snapshotsByPath.set(fullPath, this.readField(field));
@@ -459,7 +460,7 @@ export class ConstantRegistry {
     }
 
     /**
-     * Registers a {@link ConstantLookupHandler} at `path`, for a subtree
+     * Registers a {@link FieldLookupHandler} at `path`, for a subtree
      * that's resolved fresh on every `get`/`set`/`listPaths`/`getAllPaths`
      * call instead of registered up front - e.g. one entry per currently-alive
      * game entity, which comes and goes at runtime.
@@ -467,9 +468,9 @@ export class ConstantRegistry {
      * @param path - The dotted path this handler's subtree lives under.
      * @param handler - The handler resolving everything under `path`.
      */
-    public registerHandler(path: string, handler: ConstantLookupHandler): void {
+    public registerHandler(path: string, handler: FieldLookupHandler): void {
         if (this.handlersByPath.has(path)) {
-            throw new ConstantRegistryError(`A lookup handler is already registered at path '${path}'.`);
+            throw new FieldRegistryError(`A lookup handler is already registered at path '${path}'.`);
         }
         this.handlersByPath.set(path, handler);
     }
@@ -480,7 +481,7 @@ export class ConstantRegistry {
      * @param path - A registered dotted path.
      * @returns The current value at `path`.
      */
-    public get<S = ConstantsSchema, P extends DotPath<S> = DotPath<S>>(path: P): ValueAt<S, P>;
+    public get<S = FieldSchema, P extends DotPath<S> = DotPath<S>>(path: P): ValueAt<S, P>;
     /**
      * Reads the current value at a dynamically resolved path (see
      * {@link registerHandler}), which - unlike a schema-known path - can't be
@@ -496,7 +497,7 @@ export class ConstantRegistry {
 
     /**
      * Writes a value to a registered path, running whatever side effect is
-     * registered for that field (see {@link ConstantField}'s `"accessor"`
+     * registered for that field (see {@link Field}'s `"accessor"`
      * variant). Throws if the field at `path` is read-only, if `value`'s
      * runtime type doesn't match the field's current value, or if the
      * field's `capture` validator rejects `value`.
@@ -504,7 +505,7 @@ export class ConstantRegistry {
      * @param path - A registered dotted path.
      * @param value - The value to write.
      */
-    public set<S = ConstantsSchema, P extends DotPath<S> = DotPath<S>>(path: P, value: ValueAt<S, P>): void;
+    public set<S = FieldSchema, P extends DotPath<S> = DotPath<S>>(path: P, value: ValueAt<S, P>): void;
     /**
      * Writes a value to a dynamically resolved path (see
      * {@link registerHandler}), which - unlike a schema-known path - can't be
@@ -517,19 +518,19 @@ export class ConstantRegistry {
     public set(path: string, value: unknown): void {
         const field = this.requireField(path);
         if (this.isFieldReadonly(field)) {
-            throw new ConstantRegistryError("Cannot set a read-only constant.");
+            throw new FieldRegistryError("Cannot set a read-only field.");
         }
 
         const current = this.readField(field);
 
         if (typeof value !== typeof current) {
-            throw new ConstantRegistryError(
+            throw new FieldRegistryError(
                 `Cannot set '${path}': expected ${typeof current}, got ${typeof value}.`,
             );
         }
         const rejection = field.capture?.(value);
         if (rejection) {
-            throw new ConstantRegistryError(`Cannot set '${path}': ${rejection}`);
+            throw new FieldRegistryError(`Cannot set '${path}': ${rejection}`);
         }
 
         this.writeField(field, value);
@@ -542,9 +543,9 @@ export class ConstantRegistry {
      *
      * @param path - A registered dotted path.
      */
-    public reset<S = ConstantsSchema, P extends DotPath<S> = DotPath<S>>(path: P): void {
+    public reset<S = FieldSchema, P extends DotPath<S> = DotPath<S>>(path: P): void {
         if (!this.snapshotsByPath.has(path)) {
-            throw new ConstantRegistryError(`No constant is registered at path '${path}'.`);
+            throw new FieldRegistryError(`No field is registered at path '${path}'.`);
         }
         this.writeField(this.requireField(path), this.snapshotsByPath.get(path));
     }
@@ -589,8 +590,8 @@ export class ConstantRegistry {
         }
 
         if (segments.size === 0) {
-            throw new ConstantRegistryError(
-                prefix ? `No constant is registered under path '${prefix}'.` : "No constants are registered.",
+            throw new FieldRegistryError(
+                prefix ? `No field is registered under path '${prefix}'.` : "No fields are registered.",
             );
         }
         return [...segments];
@@ -622,7 +623,7 @@ export class ConstantRegistry {
     }
 
     /**
-     * Registers a plain object's own properties as tunable constants under
+     * Registers a plain object's own properties as tunable fields under
      * `path`. Each key becomes addressable as `${path}.${key}`, reading and
      * writing the exact same property `obj` already exposes - unless
      * `overrides` supplies an explicit getter/setter for that key, in which
@@ -634,7 +635,7 @@ export class ConstantRegistry {
      * @param obj - The plain object whose own properties become tunable.
      * @param overrides - Per-field getter/setter overrides, keyed by property name.
      */
-    public registerConstants<T extends Record<string, unknown>>(
+    public registerFields<T extends Record<string, unknown>>(
         path: string,
         obj: T,
         overrides?: AccessorOverrides<T>,
@@ -653,5 +654,5 @@ export class ConstantRegistry {
     }
 }
 
-/** The shared tunable-constants registry used throughout the running game. */
-export const constantRegistry = new ConstantRegistry();
+/** The shared field registry used throughout the running game. */
+export const fieldRegistry = new FieldRegistry();

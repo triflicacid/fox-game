@@ -1,9 +1,9 @@
-import {constantRegistry, nonNegativeInteger, nonNegativeNumber, numberRange} from "../constants/constant-registry";
+import {fieldRegistry, nonNegativeInteger, nonNegativeNumber, numberRange} from "../fields/field-registry";
 
 /**
  * Tuning values for movement speed and the dash mechanic's timing/trail
  * effect. Registered under `world.movement` (see `tunable-constants-plan.md`),
- * so every field here is live-editable through the constants registry.
+ * so every field here is live-editable through the field registry.
  */
 export const MOVEMENT_CONSTANTS = {
     /** Speed a bound entity moves at, in world pixels per second. */
@@ -52,7 +52,7 @@ export const MOVEMENT_CONSTANTS = {
     },
 };
 
-constantRegistry.registerConstants("movement", MOVEMENT_CONSTANTS, {
+fieldRegistry.registerFields("movement", MOVEMENT_CONSTANTS, {
     speed: nonNegativeInteger(),
     runMultiplier: nonNegativeNumber(),
     dash: {

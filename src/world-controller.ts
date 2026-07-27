@@ -174,7 +174,7 @@ export class WorldController {
 
     /**
      * The controller driving the player's movement and camera-follow, for
-     * wiring its per-instance fields into the tunable-constants registry
+     * wiring its per-instance fields into the field registry
      * (see `registerDynamicFields`).
      */
     public getMovementController(): MovementController {

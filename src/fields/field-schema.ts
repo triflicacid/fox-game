@@ -1,7 +1,7 @@
 import type { CameraFollowMode } from "../entities/movement-controller";
 
-/** The full set of tunable-constant paths, kept by hand alongside the holders each slice describes. */
-export interface ConstantsSchema {
+/** The full set of tunable-field paths, kept by hand alongside the holders each slice describes. */
+export interface FieldSchema {
     movement: {
         speed: number;
         runMultiplier: number;
