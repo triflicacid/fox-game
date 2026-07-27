@@ -3,7 +3,7 @@ import {EffectRequest} from "./effect-request";
 import {Vector2d} from "../geometry/vector2d";
 import {MovableEntity} from "../entities/movable-entity";
 import {SpriteFrame} from "../sprites/sprite";
-import {DASH_CONSTANTS} from "../entities/dash-constants";
+import {MOVEMENT_CONSTANTS} from "../entities/movement-constants";
 import {requireNonNull} from "../util";
 
 /** Broadcast by a dashing entity (see `MovableEntity.requestEffect`) to ask for the cyan dash trail. */
@@ -34,7 +34,7 @@ interface DashEffectSnapshot {
 
 /** How often, in milliseconds, a fresh afterimage is captured - spread evenly across the dash's own travel time. */
 function snapshotIntervalMs(): number {
-    return DASH_CONSTANTS.durationMs / (DASH_CONSTANTS.trailSnapshotCount + 1);
+    return MOVEMENT_CONSTANTS.dash.durationMs / (MOVEMENT_CONSTANTS.dash.trailSnapshotCount + 1);
 }
 
 /**
@@ -72,11 +72,11 @@ function tintSpriteBitmap(bitmap: ImageBitmap, w: number, h: number, color: stri
  */
 export class DashEffect extends Effect {
     /**
-     * Recomputed on every call rather than cached, since `DASH_CONSTANTS` is
-     * live-editable through the constants registry.
+     * Recomputed on every call rather than cached, since `MOVEMENT_CONSTANTS`
+     * is live-editable through the constants registry.
      */
     private static lifetimeMs(): number {
-        return DASH_CONSTANTS.durationMs + DASH_CONSTANTS.trailFadeTailMs;
+        return MOVEMENT_CONSTANTS.dash.durationMs + MOVEMENT_CONSTANTS.dash.trailFadeTailMs;
     }
 
     private ageMs = 0;
@@ -103,7 +103,7 @@ export class DashEffect extends Effect {
     public override update(deltaMs: number): void {
         this.ageMs += deltaMs;
         this.sinceLastSnapshotMs += deltaMs;
-        if (this.ageMs < DASH_CONSTANTS.durationMs) {
+        if (this.ageMs < MOVEMENT_CONSTANTS.dash.durationMs) {
             this.maybeCaptureSnapshot();
         }
     }
@@ -131,7 +131,7 @@ export class DashEffect extends Effect {
 
     /**
      * Records a fresh afterimage if enough time has passed since the last
-     * one, dropping the oldest snapshot once `DASH_CONSTANTS.trailSnapshotCount`
+     * one, dropping the oldest snapshot once `MOVEMENT_CONSTANTS.dash.trailSnapshotCount`
      * is exceeded. A no-op while {@link entity}'s bitmap isn't loaded yet.
      */
     private maybeCaptureSnapshot(): void {
@@ -146,24 +146,24 @@ export class DashEffect extends Effect {
             bitmap,
             capturedAtMs: this.ageMs,
         });
-        if (this.snapshots.length > DASH_CONSTANTS.trailSnapshotCount) {
+        if (this.snapshots.length > MOVEMENT_CONSTANTS.dash.trailSnapshotCount) {
             this.snapshots.shift();
         }
     }
 
-    /** Draws a compact cyan-white flash at the launch point, growing and fading out over `DASH_CONSTANTS.burstLifetimeMs`. */
+    /** Draws a compact cyan-white flash at the launch point, growing and fading out over `MOVEMENT_CONSTANTS.dash.burstLifetimeMs`. */
     private drawBurst(ctx: CanvasRenderingContext2D, viewX: number, viewY: number): void {
-        if (this.ageMs >= DASH_CONSTANTS.burstLifetimeMs) {
+        if (this.ageMs >= MOVEMENT_CONSTANTS.dash.burstLifetimeMs) {
             return;
         }
-        const progress = this.ageMs / DASH_CONSTANTS.burstLifetimeMs;
-        const radius = DASH_CONSTANTS.burstStartRadius + (DASH_CONSTANTS.burstEndRadius - DASH_CONSTANTS.burstStartRadius) * progress;
+        const progress = this.ageMs / MOVEMENT_CONSTANTS.dash.burstLifetimeMs;
+        const radius = MOVEMENT_CONSTANTS.dash.burstStartRadius + (MOVEMENT_CONSTANTS.dash.burstEndRadius - MOVEMENT_CONSTANTS.dash.burstStartRadius) * progress;
         const x = this.launchPosition.x - viewX;
         const y = this.launchPosition.y - viewY;
 
         ctx.save();
         ctx.globalAlpha = 1 - progress;
-        ctx.fillStyle = DASH_CONSTANTS.trailColor;
+        ctx.fillStyle = MOVEMENT_CONSTANTS.dash.trailColor;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
@@ -177,9 +177,9 @@ export class DashEffect extends Effect {
     /** Draws one afterimage: the entity's captured bitmap tinted a flat trail colour, faded by age and recency. */
     private drawSnapshot(ctx: CanvasRenderingContext2D, viewX: number, viewY: number, snapshot: DashEffectSnapshot, index: number): void {
         const snapshotAgeMs = this.ageMs - snapshot.capturedAtMs;
-        const fadeProgress = Math.min(1, snapshotAgeMs / DASH_CONSTANTS.trailSnapshotFadeMs);
+        const fadeProgress = Math.min(1, snapshotAgeMs / MOVEMENT_CONSTANTS.dash.trailSnapshotFadeMs);
         const recencyWeight = (index + 1) / this.snapshots.length;
-        const alpha = DASH_CONSTANTS.trailSnapshotPeakAlpha * (1 - fadeProgress) * recencyWeight;
+        const alpha = MOVEMENT_CONSTANTS.dash.trailSnapshotPeakAlpha * (1 - fadeProgress) * recencyWeight;
         if (alpha <= 0) {
             return;
         }
@@ -187,7 +187,7 @@ export class DashEffect extends Effect {
         const {frame, bitmap, position} = snapshot;
         const x = position.x - viewX;
         const y = position.y - viewY;
-        const tinted = tintSpriteBitmap(bitmap, frame.w, frame.h, DASH_CONSTANTS.trailColor);
+        const tinted = tintSpriteBitmap(bitmap, frame.w, frame.h, MOVEMENT_CONSTANTS.dash.trailColor);
 
         ctx.save();
         ctx.globalAlpha = alpha;
