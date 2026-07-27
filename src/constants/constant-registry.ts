@@ -12,11 +12,13 @@ export class ConstantRegistryError extends Error {
  * A single registered constant: either a direct reference to a field on a
  * plain object/class ("field", writable unless marked `readonly`), or an
  * explicit getter/setter pair ("accessor") for a value that needs a side
- * effect on write, or that's exposed read-only by omitting `set`.
+ * effect on write, or that's exposed read-only by omitting `set`. Either kind
+ * may declare `min`/`max`, checked by {@link ConstantRegistry.set} only when
+ * the incoming value is a number.
  */
 export type ConstantField<T> =
-    | { kind: "field"; holder: Record<string, T>; key: string; readonly?: boolean }
-    | { kind: "accessor"; get(): T; set?(value: T): void };
+    | { kind: "field"; holder: Record<string, T>; key: string; readonly?: boolean; min?: number; max?: number }
+    | { kind: "accessor"; get(): T; set?(value: T): void; min?: number; max?: number };
 
 /**
  * A flat, path-addressed registry of tunable constants. Every holder
@@ -103,13 +105,32 @@ export class ConstantRegistry {
     /**
      * Writes a value to a registered path, running whatever side effect is
      * registered for that field (see {@link ConstantField}'s `"accessor"`
-     * variant). Throws if the field at `path` is read-only.
+     * variant). Throws if the field at `path` is read-only, if `value`'s
+     * runtime type doesn't match the field's current value, or if `value` is
+     * a number outside the field's declared `min`/`max` (when set).
      *
      * @param path - A registered dotted path.
      * @param value - The value to write.
      */
     public set<S = ConstantsSchema, P extends DotPath<S> = DotPath<S>>(path: P, value: ValueAt<S, P>): void {
-        this.writeField(this.requireField(path), value);
+        const field = this.requireField(path);
+        const current = this.readField(field);
+
+        if (typeof value !== typeof current) {
+            throw new ConstantRegistryError(
+                `Cannot set '${path}': expected ${typeof current}, got ${typeof value}.`,
+            );
+        }
+        if (typeof value === "number") {
+            if (field.min !== undefined && value < field.min) {
+                throw new ConstantRegistryError(`Cannot set '${path}': ${value} is below the minimum of ${field.min}.`);
+            }
+            if (field.max !== undefined && value > field.max) {
+                throw new ConstantRegistryError(`Cannot set '${path}': ${value} is above the maximum of ${field.max}.`);
+            }
+        }
+
+        this.writeField(field, value);
     }
 
     /**
