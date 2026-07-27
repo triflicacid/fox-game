@@ -2,7 +2,6 @@ import {Chunk, ChunkSpriteSheets, CHUNK_SIZE} from "./chunk";
 import {Tile} from "./tile";
 import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
-import {Fox} from "../entities/fox";
 import {Camera} from "../camera/camera";
 import {Vector2d} from "../geometry/vector2d";
 import {DebugHud, ChunkState} from "../debug/debug-hud";
@@ -16,7 +15,7 @@ import {BiomeSummary} from "./generation/biome/biome";
 import {SpriteFrame} from "../sprites/sprite";
 import {CoordMap, CoordSet} from "./coord-set";
 import {Effect} from "../effects/effect";
-import {DashEffect} from "../effects/dash-effect";
+import {requireNonNull} from "../util";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -72,7 +71,13 @@ export class World {
     /** Every currently active {@link Effect}, driven generically by {@link update}/{@link draw} - see {@link registerEffect}. */
     private effects: Effect[] = [];
 
-    private mainEntity: MovableEntity;
+    /**
+     * The entity currently under player control - `undefined` until
+     * {@link setMainEntity} is called at least once. `World` never assumes
+     * one exists on its own; callers must set one up before driving
+     * {@link update}/{@link draw}.
+     */
+    private mainEntity: MovableEntity | undefined;
 
     /** Sum of every generated chunk's {@link Chunk.generationTimeMs}, for {@link getAverageChunkGenerationTimeMs}. */
     private totalChunkGenerationTimeMs = 0;
@@ -122,34 +127,21 @@ export class World {
         this.worldSeed = worldSeed;
         this.chunkGenerator = new ChunkGenerator(worldSeed, DEFAULT_FEATURE_PROVIDERS);
         this.chunkWorkerClient = new ChunkWorkerClient(worldSeed);
-        this.mainEntity = new Fox();
-        this.wireDashEffectHandler(this.mainEntity);
-        this.entities.push(this.mainEntity);
     }
 
     /**
      * Registers an {@link Effect} to be advanced every simulation tick (see
      * {@link update}) and drawn behind entities every frame (see
      * {@link draw}) until it expires. Lets transient visual systems - the
-     * cyan dash trail today, particle effects or similar later - plug into
-     * `World` without it growing a bespoke field/update/draw call for each
-     * one.
+     * cyan dash trail, particle effects or similar later - plug into `World`
+     * without it growing a bespoke field/update/draw call for each one, and
+     * without `World` needing to know about any specific effect's concrete
+     * type.
      *
      * @param effect - Effect to register.
      */
     public registerEffect(effect: Effect): void {
         this.effects.push(effect);
-    }
-
-    /**
-     * Wires `entity` up to spawn a {@link DashEffect} whenever it requests
-     * one (see {@link MovableEntity.setDashEffectHandler}), without `World`
-     * needing to know it's specifically a {@link Fox}.
-     *
-     * @param entity - Entity to wire the handler onto.
-     */
-    private wireDashEffectHandler(entity: MovableEntity): void {
-        entity.setDashEffectHandler((event) => this.registerEffect(new DashEffect(entity, event.position)));
     }
 
     /**
@@ -668,7 +660,7 @@ export class World {
     }
 
     /**
-     * Every entity currently in the world. Just the fox for now.
+     * Every entity currently in the world.
      *
      * @returns The world's entities.
      */
@@ -681,21 +673,52 @@ export class World {
      * {@link MovementController} to.
      *
      * @returns The main entity.
+     * @throws {TypeError} If {@link setMainEntity} hasn't been called yet.
      */
     public getMainEntity(): MovableEntity {
-        return this.mainEntity;
+        return this.requireMainEntity();
     }
 
     /**
-     * Switches which entity is under player control. Doesn't add `entity`
-     * to {@link getEntities} itself - callers should do that first if it
-     * isn't already in the world.
+     * Switches which entity is under player control.
      *
      * @param entity - Entity to make the new main entity.
+     * @returns `this`, for chaining.
      */
-    public setMainEntity(entity: MovableEntity): void {
+    public setMainEntity(entity: MovableEntity): this {
+        if (this.mainEntity) {
+            this.destroyEntity(this.mainEntity);
+        }
         this.mainEntity = entity;
-        this.wireDashEffectHandler(entity);
+        this.entities.push(entity);
+        return this;
+    }
+
+    /**
+     * Removes `entity` from the world and clears any dash effect handler it
+     * had, so it stops being simulated/drawn and can no longer register new
+     * effects into this `World`.
+     *
+     * @param entity - Entity to remove.
+     */
+    private destroyEntity(entity: MovableEntity): void {
+        entity.setDashEffectHandler(undefined);
+        const index = this.entities.indexOf(entity);
+        if (index !== -1) {
+            this.entities.splice(index, 1);
+        }
+    }
+
+    /**
+     * The current main entity, or throws if {@link setMainEntity} hasn't
+     * been called yet - every caller of {@link update}/{@link draw} is
+     * expected to have set one up first.
+     *
+     * @returns The main entity.
+     * @throws {TypeError} If no main entity has been set yet.
+     */
+    private requireMainEntity(): MovableEntity {
+        return requireNonNull(this.mainEntity);
     }
 
     /**
@@ -709,7 +732,7 @@ export class World {
      * @param target - World-pixel point to centre the main entity on.
      */
     public teleportMainEntityTo(target: Vector2d): void {
-        this.mainEntity.teleportTo(target);
+        this.requireMainEntity().teleportTo(target);
     }
 
     /**
@@ -765,7 +788,7 @@ export class World {
      * @returns The chunk generation focus point.
      */
     private getChunkGenerationFocus(camera: Camera, spectating: boolean): Vector2d {
-        return spectating ? camera.getCenter() : this.mainEntity.getPosition();
+        return spectating ? camera.getCenter() : this.requireMainEntity().getPosition();
     }
 
     /**
@@ -1082,10 +1105,11 @@ export class World {
      */
     private drawDebugHud(ctx: CanvasRenderingContext2D, camera: Camera, options: DebugHudOptions): void {
         const {spectating, spectatorVelocity, actualFps, targetFps} = options;
+        const mainEntity = this.requireMainEntity();
         const center = camera.getCenter();
-        const position = this.mainEntity.getPosition();
-        const velocity = spectating ? spectatorVelocity : this.mainEntity.getVelocity();
-        const velocityLabel = spectating ? "Spectator" : this.mainEntity.getDisplayName();
+        const position = mainEntity.getPosition();
+        const velocity = spectating ? spectatorVelocity : mainEntity.getVelocity();
+        const velocityLabel = spectating ? "Spectator" : mainEntity.getDisplayName();
         const speed = Math.hypot(velocity.x, velocity.y);
         const tileX = Math.floor(position.x / this.tileSize);
         const tileY = Math.floor(position.y / this.tileSize);
@@ -1096,7 +1120,7 @@ export class World {
             ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
             : undefined;
         const exactFeature = this.getFeatureTag(tileX, tileY);
-        const rect = this.mainEntity.getBoundingRect();
+        const rect = mainEntity.getBoundingRect();
         const nearbyFeature = this.getDominantFeatureLabel(rect.x, rect.y, rect.w, rect.h);
 
         const distanceToBiomeEdge = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
@@ -1122,7 +1146,7 @@ export class World {
             viewportHeight: camera.getHeight(),
             entityX: position.x,
             entityY: position.y,
-            entityFacing: this.mainEntity.getFacing(),
+            entityFacing: mainEntity.getFacing(),
             tileX,
             tileY,
             chunkX,

@@ -3,6 +3,8 @@ import {ChunkWorkerClient} from "./world/generation/chunk/chunk-worker-client";
 import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
 import {MovementController} from "./entities/movement-controller";
+import {Fox} from "./entities/fox";
+import {DashEffect} from "./effects/dash-effect";
 import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
 import {FrameLoopController} from "@frames";
@@ -63,10 +65,13 @@ export class WorldController {
         this.canvas = canvas;
         this.ctx = requireNonNull(canvas.getContext("2d"));
 
-        this.world = new World(WorldController.TILE_SIZE);
+        const mainEntity = new Fox();
+        this.world = new World(WorldController.TILE_SIZE).setMainEntity(mainEntity);
+        mainEntity.setDashEffectHandler((event) => this.world.registerEffect(new DashEffect(mainEntity, event.position)));
+
         this.camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
         new CameraDragController(canvas, this.camera);
-        this.movementController = new MovementController(keyboard, this.world.getMainEntity(), {camera: this.camera, mode: "edge"});
+        this.movementController = new MovementController(keyboard, mainEntity, {camera: this.camera, mode: "edge"});
         this.debugController = new DebugController(
             keyboard,
             () => this.world.reloadAllChunks(),
