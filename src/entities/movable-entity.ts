@@ -6,16 +6,6 @@ import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {KeyBinding} from "../help/key-binding";
 import {drawArrow} from "../geometry/arrow";
-import {EffectRequest} from "../effects/effect-request";
-
-/** A handler registered via {@link MovableEntity.addEffectHandler}. */
-export type EffectHandler = (request: EffectRequest) => void;
-
-/** One handler registered via {@link MovableEntity.addEffectHandler}, alongside the key it was registered under. */
-interface EffectHandlerRegistration {
-    key: string;
-    handler: EffectHandler;
-}
 
 /**
  * An {@link Entity} that can move: it has a facing direction and a
@@ -27,9 +17,6 @@ interface EffectHandlerRegistration {
  */
 export abstract class MovableEntity<TSpriteType extends string = string, TStatus extends string = string> extends Entity<TSpriteType, TStatus> {
     private velocity: Vector2d;
-
-    /** Handlers registered via {@link addEffectHandler}, each matched against a dispatched {@link EffectRequest} by its own key. */
-    private readonly effectHandlers: EffectHandlerRegistration[] = [];
 
     /**
      * @param spriteSheet - Sprite sheet this entity is rendered from.
@@ -205,53 +192,6 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * queued dash is cancelled (e.g. entering spectator mode, rebinding).
      */
     public onDashCancel?(): void;
-
-    /**
-     * Registers a handler that runs whenever this entity broadcasts (via an {@link EffectRequest})
-     * that {@link EffectRequest.matches} says yes for `key`.
-     *
-     * @param key - Effect kind to register for (e.g. `"dash"`).
-     * @param handler - Callback to invoke for every request matching `key`.
-     */
-    public addEffectHandler(key: string, handler: EffectHandler): void {
-        this.effectHandlers.push({key, handler});
-    }
-
-    /**
-     * Unregisters a previously-added handler (see {@link addEffectHandler}).
-     * A no-op if it isn't currently registered under `key`.
-     *
-     * @param key - Effect kind the handler was registered under.
-     * @param handler - The exact handler reference to remove.
-     */
-    public removeEffectHandler(key: string, handler: EffectHandler): void {
-        const index = this.effectHandlers.findIndex((registration) => registration.key === key && registration.handler === handler);
-        if (index !== -1) {
-            this.effectHandlers.splice(index, 1);
-        }
-    }
-
-    /**
-     * Unregisters every handler currently registered on this entity - e.g.
-     * when `World` destroys it.
-     */
-    public clearEffectHandlers(): void {
-        this.effectHandlers.length = 0;
-    }
-
-    /**
-     * Dispatches `request` to every registered handler whose key it
-     * {@link EffectRequest.matches}.
-     *
-     * @param request - The effect request to broadcast.
-     */
-    protected requestEffect(request: EffectRequest): void {
-        for (const registration of this.effectHandlers) {
-            if (request.matches(registration.key)) {
-                registration.handler(request);
-            }
-        }
-    }
 
     /**
      * Draws this entity's bounding box (via the base {@link Entity}

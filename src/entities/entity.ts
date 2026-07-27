@@ -3,6 +3,7 @@ import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {Rect} from "../geometry/rect";
+import {EffectDispatcher} from "../effects/effect-dispatcher";
 
 /**
  * Base class for a rendered thing in the world: something with an attached
@@ -17,6 +18,12 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
     private currentFrame: SpriteFrame;
     private currentBitmap: ImageBitmap | null = null;
     private animationElapsedMs = 0;
+
+    /**
+     * Lets this entity broadcast (or have handlers registered for) transient
+     * effect requests. Exposed directly on purpose.
+     */
+    public readonly effectDispatcher = new EffectDispatcher();
 
     /**
      * @param spriteSheet - Sprite sheet this entity is rendered from.
@@ -104,10 +111,7 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
     }
 
     /**
-     * Changes how long each animation frame is shown before advancing,
-     * e.g. for an animation whose phases don't fit the entity's usual
-     * frame rate (like a dash burst that must finish within a fixed
-     * duration).
+     * Changes how long each animation frame is shown before advancing.
      *
      * @param frameIntervalMs - New interval, in milliseconds.
      */

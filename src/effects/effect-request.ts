@@ -1,11 +1,7 @@
-/**
- * A generic trigger a `MovableEntity` broadcasts to ask for some transient
- * effect, dispatched by key to handlers registered via
- * `MovableEntity.addEffectHandler`.
- */
+/** A generic trigger an {@link Entity} broadcasts to ask for some transient effect. */
 export abstract class EffectRequest {
     /**
-     * @param key - Identifies which kind of effect this is (e.g. `"dash"`), matched against registered handlers via {@link matches}.
+     * @param key - Identifies which kind of effect this is, matched against registered handlers via {@link matches}.
      */
     protected constructor(public readonly key: string) {
     }
