@@ -49,7 +49,8 @@ export class StaticSpriteSheet<TType extends string = string> extends SpriteShee
      */
     public locateTile(type: TType): SpriteTile {
         const tile = this.findTile(type);
-        const {cellWidth: w, cellHeight: h} = this.descriptor;
+        const w = tile.width ?? this.descriptor.cellWidth;
+        const h = tile.height ?? this.descriptor.cellHeight;
         return {x: tile.x, y: tile.y, w, h, bounds: tile.bounds};
     }
 

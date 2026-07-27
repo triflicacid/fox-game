@@ -8,16 +8,17 @@ import { writePng } from "./png-writer.mjs";
  * @param {Buffer} sheet - destination rgba pixel buffer.
  * @param {number} sheetW - buffer width in pixels.
  * @param {(number[]|null)[]} gridColors - row-major grid of rgba colors; falsy entries are skipped.
- * @param {number} grid - number of cells per grid edge.
+ * @param {number} gridW - number of cells per grid row.
  * @param {number} block - pixels per grid cell.
  * @param {number} originX - destination x origin, in pixels.
  * @param {number} originY - destination y origin, in pixels.
+ * @param {number} [gridH] - number of cells per grid column, if the grid isn't square.
  * @returns {void}
  */
-export function blitGrid(sheet, sheetW, gridColors, grid, block, originX, originY) {
-    for (let gy = 0; gy < grid; gy++) {
-        for (let gx = 0; gx < grid; gx++) {
-            const color = gridColors[gy * grid + gx];
+export function blitGrid(sheet, sheetW, gridColors, gridW, block, originX, originY, gridH = gridW) {
+    for (let gy = 0; gy < gridH; gy++) {
+        for (let gx = 0; gx < gridW; gx++) {
+            const color = gridColors[gy * gridW + gx];
             if (!color) continue;
             const [r, g, b, a] = color;
             for (let by = 0; by < block; by++) {

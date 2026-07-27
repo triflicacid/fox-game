@@ -24,7 +24,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * @param facing - Initial facing direction.
      * @param initialFrame - Initial sprite frame to render.
      * @param frameIntervalMs - How long, in milliseconds, each animation frame is shown before advancing to the next.
-     * @param position - Initial position. Defaults to {@link Vector2d.ZERO}.
+     * @param position - Initial position (the sprite's centre point). Defaults to {@link Vector2d.ZERO}.
      * @param velocity - Initial velocity. Defaults to {@link Vector2d.ZERO}.
      */
     protected constructor(
@@ -140,7 +140,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * Moves this entity straight to `position`, bypassing normal
      * movement/collision.
      *
-     * @param position - New position.
+     * @param position - New position (the sprite's centre point).
      */
     public teleportTo(position: Vector2d): void {
         this.setPosition(position);
@@ -163,6 +163,37 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
     public getKeyBindings?(): KeyBinding[];
 
     /**
+     * Optional hook: implementing it marks an entity as dashable. Called by
+     * a bound {@link MovementController} on an `X` keydown.
+     *
+     * @param direction - Direction the dash was requested in.
+     * @param launch - Callback that actually starts the dash; the controller
+     * owns dash timing/velocity from the moment this is called.
+     */
+    public requestDash?(direction: CompassDirection, launch: () => void): void;
+
+    /**
+     * Optional hook: called by {@link MovementController} the moment a
+     * requested dash actually launches (i.e. when `launch` from
+     * {@link requestDash} is invoked).
+     *
+     * @param direction - Direction the dash launched in.
+     */
+    public onDashStart?(direction: CompassDirection): void;
+
+    /**
+     * Optional hook: called by {@link MovementController} once an active
+     * dash's duration has fully elapsed.
+     */
+    public onDashComplete?(): void;
+
+    /**
+     * Optional hook: called by {@link MovementController} when an active or
+     * queued dash is cancelled (e.g. entering spectator mode, rebinding).
+     */
+    public onDashCancel?(): void;
+
+    /**
      * Draws this entity's bounding box (via the base {@link Entity}
      * implementation), plus an arrow anchored to its centre pointing in
      * {@link facing}'s direction, for debug rendering mode.
@@ -175,10 +206,7 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
         super.drawDebugOverlay(ctx, viewX, viewY);
 
         const frame = this.getCurrentFrame();
-        const center = new Vector2d(
-            this.getPosition().x - viewX + frame.w / 2,
-            this.getPosition().y - viewY + frame.h / 2,
-        );
+        const center = new Vector2d(this.getPosition().x - viewX, this.getPosition().y - viewY);
         const facing = this.getFacingVector();
         const tip = new Vector2d(center.x + facing.x * (frame.w / 2), center.y + facing.y * (frame.h / 2));
 

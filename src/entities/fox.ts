@@ -4,9 +4,11 @@ import {CompassDirection} from "../geometry/direction";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
+import {DASH_CONSTANTS} from "./dash-constants";
+import {DashEffectRequest} from "../effects/dash-effect";
 
 /** Behavioural states a {@link Fox} entity can be in. */
-export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling";
+export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
 
 /** How long, in milliseconds, any of the fox's animations show each frame before advancing. */
 const WALK_FRAME_MS = 120;
@@ -41,6 +43,12 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     /** Phases left to step through before a triggered `sleepTurn` returns to a static `sleeping` hold. */
     private sleepTurnPhasesRemaining = 0;
 
+    /**
+     * A dash requested while resting, held until `uncurl` completes so it can
+     * launch then instead of immediately.
+     */
+    private pendingDash: {direction: CompassDirection; launch: () => void} | null = null;
+
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
         super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), WALK_FRAME_MS);
@@ -62,7 +70,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
             this.beginSleepTurn();
             return;
         }
-        if (this.isRestState()) {
+        if (this.isRestState() || this.status === "dashing") {
             return;
         }
         this.setVelocity(Vector2d.ZERO);
@@ -124,7 +132,8 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      * while stationary; `sleeping` itself is a static held pose.
      */
     protected override shouldAnimateWhileStationary(): boolean {
-        return this.status === "curling" || this.status === "uncurling" || this.status === "sleepTurning";
+        return this.status === "curling" || this.status === "uncurling" || this.status === "sleepTurning"
+            || this.status === "dashing";
     }
 
     protected override locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame {
@@ -215,9 +224,22 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
     /**
      * Applies whatever facing/velocity a movement key press requested while
-     * the fox was asleep/waking, now that `uncurl` has finished.
+     * the fox was asleep/waking, now that `uncurl` has finished. A queued
+     * dash (see {@link requestDash}) takes priority over a queued ordinary
+     * movement request.
      */
     private finishWaking(): void {
+        if (this.pendingDash) {
+            const {launch} = this.pendingDash;
+            this.pendingDash = null;
+            this.facing = this.pendingWakeFacing ?? this.facing;
+            this.pendingWakeFacing = null;
+            this.pendingWakeVelocity = null;
+            this.status = "idle";
+            launch();
+            return;
+        }
+
         const velocity = this.pendingWakeVelocity ?? Vector2d.ZERO;
         this.facing = this.pendingWakeFacing ?? this.facing;
         this.pendingWakeVelocity = null;
@@ -227,5 +249,71 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
         this.status = moving ? "walking" : "idle";
         this.setCurrentFrame(this.locateFrameForFacing(this.facing, moving));
         this.setVelocity(velocity);
+    }
+
+    /**
+     * A dash requested while awake launches immediately; one requested while
+     * `curling`/`sleeping`/`sleepTurning`/`uncurling` wakes the fox and is
+     * launched once `uncurl` finishes instead (replacing any dash already
+     * queued that way).
+     *
+     * @param direction - Direction the dash was requested in.
+     * @param launch - Callback the {@link MovementController} wants called
+     * once the dash should actually start.
+     */
+    public override requestDash(direction: CompassDirection, launch: () => void): void {
+        if (!this.isRestState()) {
+            launch();
+            return;
+        }
+        this.pendingDash = {direction, launch};
+        if (this.status !== "uncurling") {
+            this.beginWaking(Vector2d.ZERO);
+        }
+    }
+
+    /**
+     * Switches to the leap animation, timed to finish exactly as the dash
+     * itself does.
+     *
+     * @param direction - Direction the dash launched in.
+     */
+    public override onDashStart(direction: CompassDirection): void {
+        this.status = "dashing";
+        const frame = this.foxSpriteSheet.locateSprite(`dash${direction}`);
+        this.setFrameIntervalMs(DASH_CONSTANTS.durationMs / frame.frameCount);
+        this.setCurrentFrame(frame);
+        this.effectDispatcher.dispatch(new DashEffectRequest(this.getPosition(), Vector2d.fromDirection(direction)));
+    }
+
+    /**
+     * Returns to the correct walking/idle presentation once the dash's
+     * duration has elapsed - the resumed velocity is already applied by the
+     * time this fires.
+     */
+    public override onDashComplete(): void {
+        this.returnFromDash();
+    }
+
+    /**
+     * Returns to the correct walking/idle presentation if the dash was
+     * actively playing, or just drops the queued request if it hadn't
+     * launched yet.
+     */
+    public override onDashCancel(): void {
+        this.pendingDash = null;
+        if (this.status === "dashing") {
+            this.returnFromDash();
+        }
+    }
+
+    /**
+     * Restores the normal per-frame interval and switches to whatever
+     * walking/idle frame matches the fox's current facing/velocity.
+     */
+    private returnFromDash(): void {
+        this.status = this.isMoving() ? "walking" : "idle";
+        this.setFrameIntervalMs(WALK_FRAME_MS);
+        this.setCurrentFrame(this.locateFrameForFacing(this.facing, this.isMoving()));
     }
 }

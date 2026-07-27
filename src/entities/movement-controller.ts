@@ -5,6 +5,7 @@ import {Camera} from "../camera/camera";
 import {KeyBinding} from "../help/key-binding";
 import {Debouncer} from "../input/debouncer";
 import {Keyboard} from "@keyboard";
+import {DASH_CONSTANTS} from "./dash-constants";
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {
@@ -38,9 +39,7 @@ export interface CameraFollowOptions {
 
 /**
  * Drives a bound {@link MovableEntity}'s facing and velocity from the arrow
- * keys. Not tied to a single entity for its lifetime: {@link bind} can point
- * it at a different entity later, e.g. when the player switches control to
- * something else.
+ * keys.
  */
 export class MovementController {
     /** Speed a bound entity moves at, in world pixels per second. */
@@ -71,6 +70,18 @@ export class MovementController {
     /** Arrow keys currently held that were double-tapped, so movement in their direction runs. */
     private readonly runningKeys = new Set<string>();
 
+    /** Whether the bound entity is currently mid-dash. */
+    private dashActive = false;
+
+    /** {@link dashActive}'s locked travel vector, scaled to dash speed. Only meaningful while `dashActive`. */
+    private dashVelocity = Vector2d.ZERO;
+
+    /** Milliseconds left in the active dash. Only meaningful while `dashActive`. */
+    private dashRemainingMs = 0;
+
+    /** Milliseconds left before another dash may start, counted down once the previous one ends. */
+    private dashCooldownRemainingMs = 0;
+
     /**
      * @param keyboard - Shared keyboard state used for input queries and subscriptions.
      * @param entity - Entity to bind to initially. Defaults to unbound (`null`).
@@ -81,27 +92,28 @@ export class MovementController {
         private entity: MovableEntity | null = null,
         private readonly cameraFollow: CameraFollowOptions | null = null
     ) {
-        this.entity = entity;
         this.cameraFollow = cameraFollow;
         this.movementDebouncer = new Debouncer(MovementController.DEBOUNCE_MS, () => {
             this.applyMovement();
         });
         keyboard.onKeyDown(this.handleKeyDown);
         keyboard.onKeyUp(this.handleKeyUp);
+        if (this.entity) this.setMovableEntity(this.entity);
     }
 
     /**
-     * Binds this controller to a different entity, or unbinds it entirely.
-     * The previously bound entity keeps whatever velocity it last had -
-     * callers switching control away from it should stop it themselves if
-     * that's not the desired behaviour.
+     * Binds this controller to a different entity, or unbinds it entirely,
+     * returning `this` so setup can be chained.
      *
      * @param entity - Entity to bind to, or `null` to unbind.
+     * @returns `this`, for chaining.
      */
-    public bind(entity: MovableEntity | null): void {
+    public setMovableEntity(entity: MovableEntity | null): this {
+        this.cancelDash();
         this.entity = entity;
         this.applyMovement();
         this.update(0);
+        return this;
     }
 
     /**
@@ -162,6 +174,8 @@ export class MovementController {
                 {key: "F", description: "Focus camera on entity"},
                 {key: "O", description: "Move camera to world origin"},
             );
+        } else if (this.entity?.requestDash) {
+            bindings.push({key: "X", description: "Dash"});
         }
         return bindings;
     }
@@ -178,6 +192,8 @@ export class MovementController {
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
     public update(deltaMs: number): void {
+        this.tickDash(deltaMs);
+
         if (!this.cameraFollow) {
             return;
         }
@@ -197,11 +213,11 @@ export class MovementController {
      * @param entity - Entity to follow.
      */
     private followEntity(cameraFollow: CameraFollowOptions, entity: MovableEntity): void {
-        const entityCenter = this.getEntityCenter(entity);
+        const entityPosition = entity.getPosition();
         if (cameraFollow.mode === "center") {
-            cameraFollow.camera.setCenter(entityCenter);
+            cameraFollow.camera.setCenter(entityPosition);
         } else {
-            this.dragCameraToEdge(cameraFollow.camera, entityCenter);
+            this.dragCameraToEdge(cameraFollow.camera, entityPosition);
         }
     }
 
@@ -248,6 +264,7 @@ export class MovementController {
         this.runningKeys.clear();
         if (this.spectating) {
             this.entity?.setVelocity(Vector2d.ZERO);
+            this.cancelDash();
         }
     }
 
@@ -260,7 +277,7 @@ export class MovementController {
         if (!this.cameraFollow || !this.entity) {
             return;
         }
-        this.cameraFollow.camera.setCenter(this.getEntityCenter(this.entity));
+        this.cameraFollow.camera.setCenter(this.entity.getPosition());
     }
 
     /**
@@ -276,30 +293,17 @@ export class MovementController {
     }
 
     /**
-     * The world-space midpoint of an entity's current sprite, used as the
-     * point the camera tracks (rather than the entity's top-left {@link
-     * MovableEntity.getPosition}).
-     *
-     * @param entity - Entity to find the centre point of.
-     * @returns The entity's centre point, in world pixels.
-     */
-    private getEntityCenter(entity: MovableEntity): Vector2d {
-        const frame = entity.getCurrentFrame();
-        return entity.getPosition().add(new Vector2d(frame.w / 2, frame.h / 2));
-    }
-
-    /**
-     * Pans `camera` by the minimum amount needed to keep `entityCenter`
+     * Pans `camera` by the minimum amount needed to keep `entityPosition`
      * within {@link CameraFollowOptions.edgeMargin} of the viewport's edge,
      * leaving the camera untouched if the entity is already within margin.
      *
      * @param camera - Camera to drag.
-     * @param entityCenter - World-space point being tracked.
+     * @param entityPosition - World-space point being tracked.
      */
-    private dragCameraToEdge(camera: Camera, entityCenter: Vector2d): void {
+    private dragCameraToEdge(camera: Camera, entityPosition: Vector2d): void {
         const margin = this.cameraFollow?.edgeMargin ?? MovementController.DEFAULT_EDGE_MARGIN;
-        const screenX = entityCenter.x - camera.getViewX();
-        const screenY = entityCenter.y - camera.getViewY();
+        const screenX = entityPosition.x - camera.getViewX();
+        const screenY = entityPosition.y - camera.getViewY();
 
         let dx = 0;
         if (screenX < margin) {
@@ -331,6 +335,10 @@ export class MovementController {
         }
         if (this.spectating && (event.key === "o" || event.key === "O")) {
             this.moveCameraToOrigin();
+            return;
+        }
+        if ((event.key === "x" || event.key === "X") && !event.repeat) {
+            this.handleDashKeyDown();
             return;
         }
 
@@ -375,7 +383,7 @@ export class MovementController {
      * cardinal or diagonal.
      */
     private applyMovement(): void {
-        if (!this.entity) {
+        if (!this.entity || this.dashActive) {
             return;
         }
 
@@ -399,6 +407,104 @@ export class MovementController {
      */
     private applyRunMultiplier(speed: number): number {
         return this.runningKeys.size > 0 ? speed * MovementController.RUN_MULTIPLIER : speed;
+    }
+
+    /**
+     * Handles a fresh (non-repeat) `X` keydown: resolves the dash direction
+     * from currently held arrow keys (falling back to the entity's current
+     * facing), then asks the entity to dash - immediately if it can, or
+     * later if it needs to defer (see {@link MovableEntity.requestDash}). A
+     * no-op while spectating, unbound, cooling down, or already dashing, or
+     * if the bound entity isn't dashable at all.
+     */
+    private handleDashKeyDown(): void {
+        if (this.spectating || !this.entity?.requestDash) {
+            return;
+        }
+        if (this.dashActive || this.dashCooldownRemainingMs > 0) {
+            return;
+        }
+
+        const direction = this.resolveDirection() ?? this.entity.getFacing();
+        this.entity.setFacing(direction);
+        this.entity.requestDash(direction, () => this.launchDash(direction));
+    }
+
+    /**
+     * Actually starts a dash: locks in its travel vector and duration, zeroes
+     * the entity's velocity so {@link MovableEntity.update}'s own
+     * velocity-based movement doesn't also move it, then notifies the entity
+     * so it can switch to its dash presentation. Called either immediately
+     * from {@link handleDashKeyDown}, or later via the `launch` callback
+     * passed to {@link MovableEntity.requestDash}.
+     *
+     * @param direction - Direction to dash in.
+     */
+    private launchDash(direction: CompassDirection): void {
+        if (!this.entity) {
+            return;
+        }
+
+        this.dashActive = true;
+        this.dashRemainingMs = DASH_CONSTANTS.durationMs;
+        this.dashVelocity = Vector2d.fromDirection(direction).scale(MovementController.SPEED * DASH_CONSTANTS.speedMultiplier);
+        this.entity.setFacing(direction);
+        this.entity.setVelocity(Vector2d.ZERO);
+        this.entity.onDashStart?.(direction);
+    }
+
+    /**
+     * Advances the active dash (or its cooldown) by `deltaMs`. Moves the
+     * entity directly by {@link dashVelocity} rather than through its normal
+     * velocity-driven movement, clamping the elapsed time to whatever's left
+     * of the dash so an unusually long frame can't extend its travel
+     * distance beyond the configured burst.
+     *
+     * @param deltaMs - Time elapsed since the last update, in milliseconds.
+     */
+    private tickDash(deltaMs: number): void {
+        if (this.dashActive) {
+            const usedMs = Math.min(deltaMs, this.dashRemainingMs);
+            if (this.entity) {
+                this.entity.teleportTo(this.entity.getPosition().add(this.dashVelocity.scale(usedMs / 1000)));
+            }
+            this.dashRemainingMs -= usedMs;
+            if (this.dashRemainingMs <= 0) {
+                this.endDash();
+            }
+            return;
+        }
+
+        if (this.dashCooldownRemainingMs > 0) {
+            this.dashCooldownRemainingMs = Math.max(0, this.dashCooldownRemainingMs - deltaMs);
+        }
+    }
+
+    /**
+     * Ends the active dash once its duration has elapsed: starts the
+     * cooldown, immediately recomputes normal movement from currently held
+     * keys, then notifies the entity so it can return to its usual
+     * presentation.
+     */
+    private endDash(): void {
+        this.dashActive = false;
+        this.dashCooldownRemainingMs = DASH_CONSTANTS.cooldownMs;
+        this.applyMovement();
+        this.entity?.onDashComplete?.();
+    }
+
+    /**
+     * Cancels any active or queued dash (e.g. entering spectator mode,
+     * rebinding to another entity) and notifies the entity, clearing its own
+     * dash bookkeeping regardless of whether a dash was actually active, since
+     * the bound entity may itself be holding a queued dash the controller
+     * doesn't know about.
+     */
+    public cancelDash(): void {
+        this.dashActive = false;
+        this.dashRemainingMs = 0;
+        this.dashCooldownRemainingMs = 0;
+        this.entity?.onDashCancel?.();
     }
 
     /**
