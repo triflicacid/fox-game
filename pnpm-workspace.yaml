@@ -4,3 +4,4 @@ packages:
   - "lib/keyboard"
 allowBuilds:
   esbuild: true
+scriptShell: C:\Program Files\PowerShell\7\pwsh.exe

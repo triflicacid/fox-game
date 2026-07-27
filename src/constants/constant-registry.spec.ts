@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ConstantRegistry, ConstantRegistryError, constantRegistry, integerRange } from "./constant-registry";
-import { ConstantHolder, registerConstants } from "./constant-holder";
+import { ConstantRegistry, ConstantRegistryError, constantRegistry, integerRange, nonNegativeInteger, nonNegativeNumber, numberRange } from "./constant-registry";
+import { ConstantHolder } from "./constant-holder";
 
 /** A small fixture schema, standing in for `ConstantsSchema` in these tests. */
 interface FixtureSchema {
@@ -195,6 +195,85 @@ describe("integerRange", () => {
     });
 });
 
+describe("numberRange", () => {
+    it("rejects a value below the minimum", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: numberRange(0, 1) },
+        });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", -0.1)).toThrow(/below the minimum/);
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("rejects a value above the maximum", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: numberRange(0, 1) },
+        });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 1.1)).toThrow(/above the maximum/);
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("allows a non-integer value within range", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: numberRange(0, 1) },
+        });
+
+        registry.set<FixtureSchema>("dash.durationMs", 0.45);
+
+        expect(holder.durationMs).toBe(0.45);
+    });
+});
+
+describe("nonNegativeInteger / nonNegativeNumber", () => {
+    it("nonNegativeInteger rejects a negative integer", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: nonNegativeInteger() },
+        });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(/below the minimum/);
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("nonNegativeInteger allows zero and positive integers, with no upper bound", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: nonNegativeInteger() },
+        });
+
+        registry.set<FixtureSchema>("dash.durationMs", 0);
+        expect(holder.durationMs).toBe(0);
+
+        registry.set<FixtureSchema>("dash.durationMs", 1_000_000);
+        expect(holder.durationMs).toBe(1_000_000);
+    });
+
+    it("nonNegativeNumber rejects a negative non-integer", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: nonNegativeNumber() },
+        });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", -0.5)).toThrow(/below the minimum/);
+        expect(holder.durationMs).toBe(250);
+    });
+
+    it("nonNegativeNumber allows a non-integer value", () => {
+        const holder = { durationMs: 250 };
+        registry.registerHolder("dash", {
+            durationMs: { kind: "field", holder, key: "durationMs", capture: nonNegativeNumber() },
+        });
+
+        registry.set<FixtureSchema>("dash.durationMs", 4.2);
+
+        expect(holder.durationMs).toBe(4.2);
+    });
+});
+
 describe("reset", () => {
     it("restores a plain field to its value at registration time", () => {
         const holder = { durationMs: 250 };
@@ -319,12 +398,12 @@ describe("getAllPaths", () => {
 describe("registerConstants", () => {
     it("registers a plain object's own properties as fields", () => {
         const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registerConstants("dash", dashConstants);
+        registry.registerConstants("dash", dashConstants);
 
-        expect(constantRegistry.get<FixtureSchema>("dash.durationMs")).toBe(250);
-        expect(constantRegistry.get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
+        expect(registry.get<FixtureSchema>("dash.durationMs")).toBe(250);
+        expect(registry.get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
 
-        constantRegistry.set<FixtureSchema>("dash.durationMs", 300);
+        registry.set<FixtureSchema>("dash.durationMs", 300);
 
         expect(dashConstants.durationMs).toBe(300);
     });
@@ -333,7 +412,7 @@ describe("registerConstants", () => {
         let internal = 10;
         let setCalls = 0;
         const obj = { debounceMs: 10 };
-        registerConstants("movement", obj, {
+        registry.registerConstants("movement", obj, {
             debounceMs: {
                 get: () => internal,
                 set: (value) => {
@@ -343,7 +422,7 @@ describe("registerConstants", () => {
             },
         });
 
-        constantRegistry.set<FixtureSchema>("movement.debounceMs", 42);
+        registry.set<FixtureSchema>("movement.debounceMs", 42);
 
         expect(internal).toBe(42);
         expect(setCalls).toBe(1);
@@ -352,43 +431,56 @@ describe("registerConstants", () => {
 
     it("marks a field readonly via an override, without switching it to an accessor", () => {
         const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registerConstants("dash", dashConstants, {
+        registry.registerConstants("dash", dashConstants, {
             trailColor: { readonly: true },
         });
 
-        expect(constantRegistry.get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
-        expect(() => constantRegistry.set<FixtureSchema>("dash.trailColor", "#000000")).toThrow(ConstantRegistryError);
+        expect(registry.get<FixtureSchema>("dash.trailColor")).toBe("#ff00ff");
+        expect(() => registry.set<FixtureSchema>("dash.trailColor", "#000000")).toThrow(ConstantRegistryError);
         expect(dashConstants.trailColor).toBe("#ff00ff");
 
-        constantRegistry.set<FixtureSchema>("dash.durationMs", 300);
+        registry.set<FixtureSchema>("dash.durationMs", 300);
         expect(dashConstants.durationMs).toBe(300);
     });
 
     it("declares numeric bounds via an integerRange capture", () => {
         const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registerConstants("dash", dashConstants, {
+        registry.registerConstants("dash", dashConstants, {
             durationMs: { capture: integerRange(0, 1000) },
         });
 
-        expect(() => constantRegistry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(ConstantRegistryError);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", -1)).toThrow(ConstantRegistryError);
         expect(dashConstants.durationMs).toBe(250);
 
-        constantRegistry.set<FixtureSchema>("dash.durationMs", 999);
+        registry.set<FixtureSchema>("dash.durationMs", 999);
         expect(dashConstants.durationMs).toBe(999);
     });
 
     it("declares a capture validator via an override", () => {
         const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
-        registerConstants("dash", dashConstants, {
+        registry.registerConstants("dash", dashConstants, {
             durationMs: {
                 capture: (value) => (value === 0 ? "Cannot set to zero" : undefined),
             },
         });
 
-        expect(() => constantRegistry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(/Cannot set to zero/);
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(/Cannot set to zero/);
         expect(dashConstants.durationMs).toBe(250);
 
-        constantRegistry.set<FixtureSchema>("dash.durationMs", 500);
+        registry.set<FixtureSchema>("dash.durationMs", 500);
+        expect(dashConstants.durationMs).toBe(500);
+    });
+
+    it("accepts a bare capture function as shorthand for { capture }", () => {
+        const dashConstants = { durationMs: 250, trailColor: "#ff00ff" };
+        registry.registerConstants("dash", dashConstants, {
+            durationMs: (value) => (value === 0 ? "Cannot set to zero" : undefined),
+        });
+
+        expect(() => registry.set<FixtureSchema>("dash.durationMs", 0)).toThrow(/Cannot set to zero/);
+        expect(dashConstants.durationMs).toBe(250);
+
+        registry.set<FixtureSchema>("dash.durationMs", 500);
         expect(dashConstants.durationMs).toBe(500);
     });
 
@@ -397,16 +489,16 @@ describe("registerConstants", () => {
             dash: { durationMs: 250 },
             movement: { debounceMs: 10 },
         };
-        registerConstants("world.entities.fox", worldConstants);
+        registry.registerConstants("world.entities.fox", worldConstants);
 
-        expect(constantRegistry.get<FixtureSchema>("world.entities.fox.dash.durationMs")).toBe(250);
-        expect(constantRegistry.get<FixtureSchema>("world.entities.fox.movement.debounceMs")).toBe(10);
-        expect(constantRegistry.getAllPaths("world.entities.fox").sort()).toEqual([
+        expect(registry.get<FixtureSchema>("world.entities.fox.dash.durationMs")).toBe(250);
+        expect(registry.get<FixtureSchema>("world.entities.fox.movement.debounceMs")).toBe(10);
+        expect(registry.getAllPaths("world.entities.fox").sort()).toEqual([
             "world.entities.fox.dash.durationMs",
             "world.entities.fox.movement.debounceMs",
         ]);
 
-        constantRegistry.set<FixtureSchema>("world.entities.fox.dash.durationMs", 500);
+        registry.set<FixtureSchema>("world.entities.fox.dash.durationMs", 500);
 
         expect(worldConstants.dash.durationMs).toBe(500);
     });
@@ -416,18 +508,18 @@ describe("registerConstants", () => {
             dash: { durationMs: 250 },
             movement: { debounceMs: 10 },
         };
-        registerConstants("world.entities.fox", worldConstants, {
+        registry.registerConstants("world.entities.fox", worldConstants, {
             dash: {
                 durationMs: { readonly: true },
             },
         });
 
-        expect(() => constantRegistry.set<FixtureSchema>("world.entities.fox.dash.durationMs", 999)).toThrow(
+        expect(() => registry.set<FixtureSchema>("world.entities.fox.dash.durationMs", 999)).toThrow(
             ConstantRegistryError,
         );
         expect(worldConstants.dash.durationMs).toBe(250);
 
-        constantRegistry.set<FixtureSchema>("world.entities.fox.movement.debounceMs", 99);
+        registry.set<FixtureSchema>("world.entities.fox.movement.debounceMs", 99);
         expect(worldConstants.movement.debounceMs).toBe(99);
     });
 });

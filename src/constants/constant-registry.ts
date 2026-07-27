@@ -1,5 +1,108 @@
 import type { ConstantsSchema, DotPath, ValueAt } from "./constants-schema";
 
+/**
+ * An explicit getter/setter pair overriding a field's default direct-property
+ * registration, for a value that needs a side effect on write (or that's
+ * exposed read-only by omitting `set`).
+ */
+interface Accessor<T = unknown> {
+    /** Reads the field's current value. */
+    get(): T;
+    /** Writes a new value to the field. Omit to expose the field as read-only. */
+    set?(value: T): void;
+    /**
+     * Validates a value just before it's written, rejecting it with a string
+     * reason or allowing it by returning nothing (see {@link ConstantRegistry.set}).
+     */
+    capture?(value: T): string | undefined;
+}
+
+/**
+ * Options for a field kept as a direct reference to its own property, rather
+ * than switching it to an accessor.
+ */
+interface FieldOptionsOverride<T> {
+    readonly?: boolean;
+    capture?(value: T): string | undefined;
+}
+
+type FieldOverride<T> = Accessor<T> | FieldOptionsOverride<T> | ((value: T) => string | undefined);
+
+/**
+ * Per-field overrides, keyed by property name. A field with no override
+ * registers as a direct, writable reference to `T`'s own property. A field
+ * can instead be overridden with an explicit getter/setter pair, given
+ * `{ readonly, capture }` options to keep the direct reference while
+ * constraining writes through the registry, or - if only a `capture` is
+ * needed - a bare capture function as shorthand for `{ capture }`. A
+ * property that's itself a plain object can be given a nested overrides map
+ * instead, addressing its own properties one level down.
+ */
+export type AccessorOverrides<T> = {
+    [K in keyof T]?: T[K] extends Record<string, unknown>
+        ? FieldOverride<T[K]> | AccessorOverrides<T[K]>
+        : FieldOverride<T[K]>;
+};
+
+function isAccessorOverride(override: unknown): override is Accessor {
+    return typeof override === "object" && override !== null && typeof (override as { get?: unknown }).get === "function";
+}
+
+function isCaptureOverride(override: unknown): override is (value: unknown) => string | undefined {
+    return typeof override === "function";
+}
+
+function isFieldOptionsOverride(override: unknown): override is FieldOptionsOverride<unknown> {
+    if (typeof override !== "object" || override === null) {
+        return false;
+    }
+    const candidate = override as { readonly?: unknown; capture?: unknown };
+    return "readonly" in candidate || "capture" in candidate;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Builds one {@link ConstantField} per key of `holder` plus any override-only
+ * key in `overrides`, preferring an explicit accessor/readonly override when
+ * present. A key whose value is a plain object (and has no such override)
+ * recurses instead of becoming a single opaque field, so its own properties
+ * are addressable as `${key}.${nestedKey}`.
+ *
+ * @param holder - The object/class whose own properties become fields.
+ * @param overrides - Per-key overrides, possibly nested for object-valued keys.
+ * @returns The resulting fields, keyed by (possibly dotted) property path.
+ */
+function buildFields(
+    holder: Record<string, unknown>,
+    overrides: Record<string, unknown> | undefined,
+): Record<string, ConstantField<unknown>> {
+    const fields: Record<string, ConstantField<unknown>> = {};
+    const keys = new Set([...Object.keys(holder), ...Object.keys(overrides ?? {})]);
+    for (const key of keys) {
+        const override = overrides?.[key];
+        const value = holder[key];
+
+        if (isAccessorOverride(override)) {
+            fields[key] = { kind: "accessor", get: override.get, set: override.set, capture: override.capture };
+        } else if (isCaptureOverride(override)) {
+            fields[key] = { kind: "field", holder, key, capture: override };
+        } else if (isFieldOptionsOverride(override)) {
+            fields[key] = { kind: "field", holder, key, readonly: override.readonly, capture: override.capture };
+        } else if (isPlainObject(value)) {
+            const nestedOverrides = override as Record<string, unknown> | undefined;
+            for (const [nestedKey, nestedField] of Object.entries(buildFields(value, nestedOverrides))) {
+                fields[`${key}.${nestedKey}`] = nestedField;
+            }
+        } else {
+            fields[key] = { kind: "field", holder, key };
+        }
+    }
+    return fields;
+}
+
 /** Thrown for invalid operations against the tunable-constants registry, e.g. an unregistered path, a duplicate registration, or a write to a read-only field. */
 export class ConstantRegistryError extends Error {
     public constructor(message: string) {
@@ -33,18 +136,15 @@ export type ConstantField<T> =
       };
 
 /**
- * Builds a {@link ConstantField.capture} validator rejecting anything that
- * isn't an integer in `[min, max]`.
+ * Builds a {@link ConstantField.capture} validator rejecting anything outside
+ * `[min, max]`.
  *
  * @param min - The smallest allowed value, inclusive.
  * @param max - The largest allowed value, inclusive.
  * @returns A capture function for use as a field's `capture`.
  */
-export function integerRange(min: number, max: number): (value: number) => string | undefined {
+export function numberRange(min: number, max: number): (value: number) => string | undefined {
     return (value) => {
-        if (!Number.isInteger(value)) {
-            return `${value} is not an integer.`;
-        }
         if (value < min) {
             return `${value} is below the minimum of ${min}.`;
         }
@@ -53,6 +153,38 @@ export function integerRange(min: number, max: number): (value: number) => strin
         }
         return undefined;
     };
+}
+
+/**
+ * Builds a {@link ConstantField.capture} validator rejecting anything that
+ * isn't an integer in `[min, max]`.
+ *
+ * @param min - The smallest allowed value, inclusive.
+ * @param max - The largest allowed value, inclusive.
+ * @returns A capture function for use as a field's `capture`.
+ */
+export function integerRange(min: number, max: number): (value: number) => string | undefined {
+    const checkRange = numberRange(min, max);
+    return (value) => (Number.isInteger(value) ? checkRange(value) : `${value} is not an integer.`);
+}
+
+/**
+ * Builds a {@link ConstantField.capture} validator rejecting any negative
+ * integer.
+ *
+ * @returns A capture function for use as a field's `capture`.
+ */
+export function nonNegativeInteger(): (value: number) => string | undefined {
+    return integerRange(0, Infinity);
+}
+
+/**
+ * Builds a {@link ConstantField.capture} validator rejecting any negative number.
+ *
+ * @returns A capture function for use as a field's `capture`.
+ */
+export function nonNegativeNumber(): (value: number) => string | undefined {
+    return numberRange(0, Infinity);
 }
 
 /**
@@ -218,6 +350,27 @@ export class ConstantRegistry {
             return [...this.fieldsByPath.keys()];
         }
         return [...this.fieldsByPath.keys()].filter((path) => path === prefix || path.startsWith(`${prefix}.`));
+    }
+
+    /**
+     * Registers a plain object's own properties as tunable constants under
+     * `path`. Each key becomes addressable as `${path}.${key}`, reading and
+     * writing the exact same property `obj` already exposes - unless
+     * `overrides` supplies an explicit getter/setter for that key, in which
+     * case the override is used instead of a direct field reference. A key
+     * whose value is itself a plain object recurses, so its own properties
+     * are addressable one level down.
+     *
+     * @param path - The dotted path this object's fields live under.
+     * @param obj - The plain object whose own properties become tunable.
+     * @param overrides - Per-field getter/setter overrides, keyed by property name.
+     */
+    public registerConstants<T extends Record<string, unknown>>(
+        path: string,
+        obj: T,
+        overrides?: AccessorOverrides<T>,
+    ): void {
+        this.registerHolder(path, buildFields(obj, overrides as Record<string, unknown> | undefined));
     }
 
     /**

@@ -1,5 +1,29 @@
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- intentionally empty until constants are migrated onto it
-export interface ConstantsSchema {}
+/** The full set of tunable-constant paths, kept by hand alongside the holders each slice describes. */
+export interface ConstantsSchema {
+    world: {
+        entities: {
+            fox: {
+                dash: {
+                    durationMs: number;
+                    speedMultiplier: number;
+                    cooldownMs: number;
+                    trailColor: string;
+                    trailSnapshotCount: number;
+                    trailSnapshotFadeMs: number;
+                    trailSnapshotPeakAlpha: number;
+                    burstLifetimeMs: number;
+                    burstStartRadius: number;
+                    burstEndRadius: number;
+                    trailFadeTailMs: number;
+                };
+                movement: {
+                    SPEED: number;
+                    RUN_MULTIPLIER: number;
+                };
+            };
+        };
+    };
+}
 
 /**
  * Every dotted path reachable through `T`, e.g. `"a.b.c"` for
