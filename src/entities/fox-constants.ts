@@ -1,5 +1,4 @@
 import {fieldRegistry, nonNegativeInteger, nonNegativeNumber, numberRange} from '../fields/field-registry';
-import {Fox} from './fox';
 
 /** Configurable generic fox constants. */
 export const FOX_CONSTANTS = {
@@ -28,7 +27,7 @@ export const FOX_CONSTANTS = {
     },
 };
 
-fieldRegistry.registerFields(`world.entities.${Fox.ENTITY_TYPE_ID}`, FOX_CONSTANTS, {
+fieldRegistry.registerFields(`world.entities.fox`, FOX_CONSTANTS, {
     walkFrameMs: nonNegativeInteger(),
     speed: nonNegativeInteger(),
     runMultiplier: nonNegativeNumber(),

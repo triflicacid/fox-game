@@ -87,7 +87,7 @@ export class MovementController {
      */
     public setMovableEntity(entity: MovableEntity | null): this {
         if (this.entity?.canDash()) {
-            this.entity.stopDash(true);
+            this.entity.stopDash();
         }
         this.entity = entity;
         this.applyMovement();
@@ -183,7 +183,12 @@ export class MovementController {
      */
     public update(deltaMs: number): void {
         if (this.entity?.canDash()) {
+            const dashState = this.entity.getDashState();
+            const wasDashing = dashState.dashActive;
             this.entity.tickDash(deltaMs);
+            if (wasDashing && !dashState.dashActive && !this.spectating) {
+                this.applyMovement();
+            }
         }
 
         if (!this.cameraFollow) {
@@ -254,7 +259,7 @@ export class MovementController {
         if (this.spectating && this.entity) {
             this.entity.setVelocity(Vector2d.ZERO);
             if (this.entity.canDash()) {
-                this.entity.stopDash(true);
+                this.entity.stopDash();
             }
         }
     }
@@ -384,17 +389,13 @@ export class MovementController {
      * Handles a fresh `X` keydown.
      */
     private handleDashKeyDown(): void {
-        if (this.spectating || !this.entity?.canDash()) {
-            return;
-        }
-        const dashState = this.entity.getDashState();
-        if (dashState.dashActive || dashState.dashCooldownRemainingMs > 0) {
+        if (this.spectating || !this.entity?.canDash() || !this.entity.readyToDash()) {
             return;
         }
 
         const direction = this.resolveDirection() ?? this.entity.getFacing();
         this.entity.setFacing(direction);
-        this.entity.requestDash(direction, wasCompleted => wasCompleted && this.applyMovement());
+        this.entity.requestDash(direction);
     }
 
     /**
@@ -420,7 +421,7 @@ export class MovementController {
     /** Called just before a teleport event. */
     public prepareToTeleport(): void {
         if (this.entity?.canDash()) {
-            this.entity.stopDash(true);
+            this.entity.stopDash();
         }
     }
 }
