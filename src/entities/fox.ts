@@ -5,18 +5,11 @@ import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
 import {DashEffectRequest} from "../effects/dash-effect";
-import {MOVEMENT_CONSTANTS} from "./movement-constants";
+import {FOX_CONSTANTS} from './fox-constants';
+import type {DashableEntity} from './DashableEntity';
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
-
-/** How long, in milliseconds, any of the fox's animations show each frame before advancing. */
-const WALK_FRAME_MS = 120;
-
-/**
- * How long, in milliseconds, each walk frame is shown while running.
- */
-const RUN_FRAME_MS = WALK_FRAME_MS / MOVEMENT_CONSTANTS.runMultiplier;
 
 /** Direction a fox faces when spawned. */
 const INITIAL_FACING: CompassDirection = "N";
@@ -26,7 +19,10 @@ const CURL_ART_FACING: CompassDirection = "NW";
 const CURL_ART_ANGLE = Vector2d.fromDirection(CURL_ART_FACING).angleRadians();
 
 /** The fox entity: a {@link MovableEntity} that can be driven around by a {@link MovementController}. */
-export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
+export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements DashableEntity {
+    /** Internal entity ID. */
+    public static readonly ENTITY_TYPE_ID = "fox";
+
     /**
      * Same sheet instance as the base class's `spriteSheet` field, kept here
      * too so {@link locateFrameForFacing} can reach `FoxSpriteSheet`-specific
@@ -57,7 +53,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
 
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
-        super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), WALK_FRAME_MS);
+        super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), FOX_CONSTANTS.walkFrameMs);
         this.foxSpriteSheet = spriteSheet;
     }
 
@@ -100,7 +96,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
     }
 
     protected override getEntityTypeId(): string {
-        return "fox";
+        return Fox.ENTITY_TYPE_ID;
     }
 
     /**
@@ -137,12 +133,6 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
         super.setVelocity(velocity);
     }
 
-    /**
-     * Speeds up (or restores) the walk animation to match the
-     * {@link MovementController}'s run modifier.
-     *
-     * @param running - Whether movement is currently scaled by {@link MOVEMENT_CONSTANTS}'s `runMultiplier`.
-     */
     public override setRunning(running: boolean): void {
         this.running = running;
         if (this.isRestState() || this.status === "dashing") {
@@ -151,12 +141,20 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
         this.setFrameIntervalMs(this.walkFrameIntervalMs());
     }
 
+    public override getSpeed(): number {
+        return this.running
+            ? FOX_CONSTANTS.speed * FOX_CONSTANTS.runMultiplier
+            : FOX_CONSTANTS.speed;
+    }
+
     /**
      * The frame interval the walk animation should currently show at, per
      * {@link running}.
      */
     private walkFrameIntervalMs(): number {
-        return this.running ? RUN_FRAME_MS : WALK_FRAME_MS;
+        return this.running
+            ? FOX_CONSTANTS.walkFrameMs / FOX_CONSTANTS.runMultiplier
+            : FOX_CONSTANTS.walkFrameMs;
     }
 
     /**
@@ -294,7 +292,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      * @param launch - Callback the {@link MovementController} wants called
      * once the dash should actually start.
      */
-    public override requestDash(direction: CompassDirection, launch: () => void): void {
+    public requestDash(direction: CompassDirection, launch: () => void): void {
         if (!this.isRestState()) {
             launch();
             return;
@@ -311,10 +309,10 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      *
      * @param direction - Direction the dash launched in.
      */
-    public override onDashStart(direction: CompassDirection): void {
+    public onDashStart(direction: CompassDirection): void {
         this.status = "dashing";
         const frame = this.foxSpriteSheet.locateSprite(`dash${direction}`);
-        this.setFrameIntervalMs(MOVEMENT_CONSTANTS.dash.durationMs / frame.frameCount);
+        this.setFrameIntervalMs(FOX_CONSTANTS.dash.durationMs / frame.frameCount);
         this.setCurrentFrame(frame);
         this.effectDispatcher.dispatch(new DashEffectRequest(this.getPosition(), Vector2d.fromDirection(direction)));
     }
@@ -324,7 +322,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      * duration has elapsed - the resumed velocity is already applied by the
      * time this fires.
      */
-    public override onDashComplete(): void {
+    public onDashComplete(): void {
         this.returnFromDash();
     }
 
@@ -333,7 +331,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> {
      * actively playing, or just drops the queued request if it hadn't
      * launched yet.
      */
-    public override onDashCancel(): void {
+    public onDashCancel(): void {
         this.pendingDash = null;
         if (this.status === "dashing") {
             this.returnFromDash();

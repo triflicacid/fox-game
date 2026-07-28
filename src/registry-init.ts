@@ -7,11 +7,6 @@ import {EntityLookupHandler} from "./world/entity-lookup-handler";
  * Registers per-instance tunable fields that only exist once
  * `worldController` has constructed its object graph.
  *
- * Note that camera `x`/`y` only stay put while `spectating` is `true`: in
- * normal play, {@link MovementController.update} repositions the camera
- * around the bound entity every frame (per `mode`/`edgeMargin`), which would
- * otherwise fight a manual edit on the very next frame.
- *
  * @param worldController - The running game's controller.
  */
 export function registerDynamicFields(worldController: WorldController): void {
@@ -36,12 +31,6 @@ export function registerDynamicFields(worldController: WorldController): void {
         set edgeMargin(value: number) {
             cameraFollow.edgeMargin = value;
         },
-        get spectating(): boolean {
-            return movementController.isSpectating();
-        },
-        set spectating(value: boolean) {
-            movementController.setSpectating(value);
-        },
         get x(): number {
             return cameraFollow.camera.getCenter().x;
         },
@@ -57,5 +46,15 @@ export function registerDynamicFields(worldController: WorldController): void {
     };
     fieldRegistry.registerFields("camera", cameraOptions, {
         edgeMargin: nonNegativeInteger(),
+    });
+
+    // different from 'world.spectator.*' properties, see spectator-constants.ts.
+    fieldRegistry.registerFields("world", {
+        get spectating(): boolean {
+            return movementController.isSpectating();
+        },
+        set spectating(value: boolean) {
+            movementController.setSpectating(value);
+        },
     });
 }
