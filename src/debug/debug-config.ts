@@ -1,4 +1,5 @@
 import {COLORS} from "@display/colors";
+import {fieldRegistry, nonNegativeInteger} from "../fields/field-registry";
 
 /**
  * Colours, line widths, and layout used by the debug rendering overlay
@@ -63,4 +64,16 @@ export const DEBUG_CONFIG = {
     hudPadding: 8,
     /** Vertical gap placed between consecutive HUD lines, in canvas pixels. */
     hudLineSpacing: 6,
-} as const;
+};
+
+fieldRegistry.registerFields("debug", DEBUG_CONFIG, {
+    chunkOutlineWidth: nonNegativeInteger(),
+    chunkLabelPadding: nonNegativeInteger(),
+    featureOutlineWidth: nonNegativeInteger(),
+    biomeOutlineWidth: nonNegativeInteger(),
+    boundingBoxWidth: nonNegativeInteger(),
+    facingArrowWidth: nonNegativeInteger(),
+    hudFontSize: nonNegativeInteger(),
+    hudPadding: nonNegativeInteger(),
+    hudLineSpacing: nonNegativeInteger(),
+});
