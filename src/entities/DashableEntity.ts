@@ -1,4 +1,30 @@
 import type {CompassDirection} from '../geometry/direction';
+import {Vector2d} from '../geometry/vector2d';
+
+/** Data used during the dash. */
+export interface DashState {
+    /** Whether the entity is currently mid-dash. */
+    dashActive: boolean;
+    /** Velocity to be used when dash is active. */
+    dashVelocity: Vector2d;
+    /** Milliseconds left in the active dash. Only meaningful while `dashActive`. */
+    dashRemainingMs: number;
+    /** Milliseconds left before another dash may start, counted down once the previous one ends. */
+    dashCooldownRemainingMs: number;
+}
+
+/** Create a default/initial dash state */
+export function createInitialDashState(): DashState {
+    return {
+        dashActive: false,
+        dashVelocity: Vector2d.ZERO,
+        dashRemainingMs: 0,
+        dashCooldownRemainingMs: 0,
+    } as DashState;
+}
+
+/** Called when a dash is concluded, naturally or forcefully. */
+export type DashFinishedCallback = (wasCancelled: boolean) => void;
 
 /** If the entity supports a dash mechanic. */
 export interface DashableEntity {
@@ -6,29 +32,20 @@ export interface DashableEntity {
      * Called when a dash is requested.
      *
      * @param direction - Direction the dash was requested in.
-     * @param launch - Callback that actually starts the dash; the controller
-     * owns dash timing/velocity from the moment this is called.
+     * @param onDashEnd - Call this when the dash is finished, either naturally or forcefully.
      */
-    requestDash(direction: CompassDirection, launch: () => void): void;
+    requestDash(direction: CompassDirection, onDashEnd?: DashFinishedCallback): void;
 
     /**
-     * Optional hook: called by {@link MovementController} the moment a
-     * requested dash actually launches (i.e. when `launch` from
-     * {@link requestDash} is invoked).
+     * Advances the active dash (or its cooldown) by `deltaMs`.
      *
-     * @param direction - Direction the dash launched in.
+     * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
-    onDashStart(direction: CompassDirection): void;
+    tickDash(deltaMs: number): void;
 
-    /**
-     * Optional hook: called by {@link MovementController} once an active
-     * dash's duration has fully elapsed.
-     */
-    onDashComplete(): void;
+    /** Used to stop the dash. If silent, will not call the callback. */
+    stopDash(silent: boolean): void;
 
-    /**
-     * Optional hook: called by {@link MovementController} when an active or
-     * queued dash is cancelled.
-     */
-    onDashCancel(): void;
+    /** Get the current dash state. Mutability is up to the implementer. */
+    getDashState(): DashState;
 }

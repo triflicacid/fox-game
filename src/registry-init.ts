@@ -2,6 +2,7 @@ import {WorldController} from "./world-controller";
 import {CameraFollowMode} from "./entities/movement-controller";
 import {fieldRegistry, nonNegativeInteger} from "./fields/field-registry";
 import {EntityLookupHandler} from "./world/entity-lookup-handler";
+import {keyboard} from './input/keyboard-instance';
 
 /**
  * Registers per-instance tunable fields that only exist once
@@ -56,5 +57,23 @@ export function registerDynamicFields(worldController: WorldController): void {
         set spectating(value: boolean) {
             movementController.setSpectating(value);
         },
+    });
+
+    fieldRegistry.registerFields("input", {
+        get debounceMs(): number {
+            return movementController.getDebounceMs();
+        },
+        set debounceMs(value: number) {
+            movementController.setDebounceMs(value);
+        },
+        get doubleTapWindowMs(): number {
+            return keyboard.getConfig().doubleTapWindowMs;
+        },
+        set doubleTapWindowMs(value: number) {
+            keyboard.getConfig().doubleTapWindowMs = value;
+        }
+    }, {
+        debounceMs: nonNegativeInteger(),
+        doubleTapWindowMs: nonNegativeInteger(),
     });
 }

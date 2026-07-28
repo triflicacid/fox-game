@@ -7,7 +7,6 @@ import {Debouncer} from "../input/debouncer";
 import {Keyboard} from "@keyboard";
 import {requireNonNull} from "../util";
 import {SPECTATOR_CONSTANTS} from '../world/spectator-constants';
-import {FOX_CONSTANTS} from './fox-constants';
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {
@@ -50,18 +49,6 @@ export class MovementController {
     /** Arrow keys currently held that were double-tapped, so movement in their direction runs. */
     private readonly runningKeys = new Set<string>();
 
-    /** Whether the bound entity is currently mid-dash. */
-    private dashActive = false;
-
-    /** {@link dashActive}'s locked travel vector, scaled to dash speed. Only meaningful while `dashActive`. */
-    private dashVelocity = Vector2d.ZERO;
-
-    /** Milliseconds left in the active dash. Only meaningful while `dashActive`. */
-    private dashRemainingMs = 0;
-
-    /** Milliseconds left before another dash may start, counted down once the previous one ends. */
-    private dashCooldownRemainingMs = 0;
-
     /**
      * @param keyboard - Shared keyboard state used for input queries and subscriptions.
      * @param entity - Entity to bind to initially. Defaults to unbound (`null`).
@@ -99,7 +86,9 @@ export class MovementController {
      * @returns `this`, for chaining.
      */
     public setMovableEntity(entity: MovableEntity | null): this {
-        this.cancelDash();
+        if (this.entity?.canDash()) {
+            this.entity.stopDash(true);
+        }
         this.entity = entity;
         this.applyMovement();
         this.update(0);
@@ -193,7 +182,9 @@ export class MovementController {
      * @param deltaMs - Time elapsed since the last update, in milliseconds.
      */
     public update(deltaMs: number): void {
-        this.tickDash(deltaMs);
+        if (this.entity?.canDash()) {
+            this.entity.tickDash(deltaMs);
+        }
 
         if (!this.cameraFollow) {
             return;
@@ -254,26 +245,22 @@ export class MovementController {
     }
 
     /**
-     * Toggles spectator mode in response to the `s` key: detaches the
-     * camera from the bound entity (or reattaches it), and resets any
-     * in-flight arrow-key state so it isn't misread by the other mode. The
-     * bound entity is stopped when entering spectator mode, since arrow keys
-     * drive the camera instead of it while active.
+     * Toggles spectator mode in response to the `s` key.
      */
     private toggleSpectatorMode(): void {
         this.spectating = !this.spectating;
         this.movementDebouncer.cancel();
         this.runningKeys.clear();
-        if (this.spectating) {
-            this.entity?.setVelocity(Vector2d.ZERO);
-            this.cancelDash();
+        if (this.spectating && this.entity) {
+            this.entity.setVelocity(Vector2d.ZERO);
+            if (this.entity.canDash()) {
+                this.entity.stopDash(true);
+            }
         }
     }
 
     /**
-     * In spectator mode, snaps {@link CameraFollowOptions.camera} straight
-     * to the bound entity's centre, in response to the `f` key. A no-op if
-     * there's no bound entity or camera.
+     * Snaps the camera to the entity's position.
      */
     private focusOnEntity(): void {
         if (!this.cameraFollow || !this.entity) {
@@ -367,12 +354,7 @@ export class MovementController {
         }
     };
 
-    /**
-     * Restarts a {@link DEBOUNCE_MS} timer, so a burst of key events fired in
-     * quick succession settles to a single {@link applyMovement} call
-     * against the final key state, rather than also acting on whatever
-     * transient states occur in between them.
-     */
+    /** Restarts the debouncer. */
     private scheduleApplyMovement(): void {
         this.movementDebouncer.trigger();
     }
@@ -382,7 +364,7 @@ export class MovementController {
      * pressed arrow keys.
      */
     private applyMovement(): void {
-        if (!this.entity || this.dashActive) {
+        if (!this.entity || (this.entity.canDash() && this.entity.getDashState().dashActive)) {
             return;
         }
 
@@ -399,98 +381,20 @@ export class MovementController {
     }
 
     /**
-     * Handles a fresh (non-repeat) `X` keydown: resolves the dash direction
-     * from currently held arrow keys (falling back to the entity's current
-     * facing), then asks the entity to dash - immediately if it can, or
-     * later if it needs to defer (see {@link MovableEntity.requestDash}). A
-     * no-op while spectating, unbound, cooling down, or already dashing, or
-     * if the bound entity isn't dashable at all.
+     * Handles a fresh `X` keydown.
      */
     private handleDashKeyDown(): void {
         if (this.spectating || !this.entity?.canDash()) {
             return;
         }
-        if (this.dashActive || this.dashCooldownRemainingMs > 0) {
+        const dashState = this.entity.getDashState();
+        if (dashState.dashActive || dashState.dashCooldownRemainingMs > 0) {
             return;
         }
 
         const direction = this.resolveDirection() ?? this.entity.getFacing();
         this.entity.setFacing(direction);
-        this.entity.requestDash(direction, () => this.launchDash(direction));
-    }
-
-    /**
-     * Actually starts a dash: locks in its travel vector and duration, zeroes
-     * the entity's velocity so {@link MovableEntity.update}'s own
-     * velocity-based movement doesn't also move it, then notifies the entity
-     * so it can switch to its dash presentation. Called either immediately
-     * from {@link handleDashKeyDown}, or later via the `launch` callback
-     * passed to {@link MovableEntity.requestDash}.
-     *
-     * @param direction - Direction to dash in.
-     */
-    private launchDash(direction: CompassDirection): void {
-        if (!this.entity?.canDash()) {
-            return;
-        }
-
-        this.dashActive = true;
-        this.dashRemainingMs = FOX_CONSTANTS.dash.durationMs;
-        this.dashVelocity = Vector2d.fromDirection(direction).scale(FOX_CONSTANTS.speed * FOX_CONSTANTS.dash.speedMultiplier);
-        this.entity.setFacing(direction);
-        this.entity.setVelocity(Vector2d.ZERO);
-        this.entity.onDashStart(direction);
-    }
-
-    /**
-     * Advances the active dash (or its cooldown) by `deltaMs`. Moves the
-     * entity directly by {@link dashVelocity} rather than through its normal
-     * velocity-driven movement, clamping the elapsed time to whatever's left
-     * of the dash so an unusually long frame can't extend its travel
-     * distance beyond the configured burst.
-     *
-     * @param deltaMs - Time elapsed since the last update, in milliseconds.
-     */
-    private tickDash(deltaMs: number): void {
-        if (this.dashActive) {
-            const usedMs = Math.min(deltaMs, this.dashRemainingMs);
-            if (this.entity) {
-                this.entity.teleportTo(this.entity.getPosition().add(this.dashVelocity.scale(usedMs / 1000)));
-            }
-            this.dashRemainingMs -= usedMs;
-            if (this.dashRemainingMs <= 0) {
-                this.endDash();
-            }
-            return;
-        }
-
-        if (this.dashCooldownRemainingMs > 0) {
-            this.dashCooldownRemainingMs = Math.max(0, this.dashCooldownRemainingMs - deltaMs);
-        }
-    }
-
-    /** Ends the active dash once its duration has elapsed. */
-    private endDash(): void {
-        if (!this.entity?.canDash()) {
-            return;
-        }
-
-        this.dashActive = false;
-        this.dashCooldownRemainingMs = FOX_CONSTANTS.dash.cooldownMs;
-        this.applyMovement();
-        this.entity.onDashComplete();
-    }
-
-    /** Cancels any active or queued dash. */
-    public cancelDash(): void {
-        if (!this.entity?.canDash()) {
-            return;
-        }
-
-        this.dashActive = false;
-        this.dashRemainingMs = 0;
-        this.dashCooldownRemainingMs = 0;
-        this.entity.onDashCancel();
+        this.entity.requestDash(direction, wasCompleted => wasCompleted && this.applyMovement());
     }
 
     /**
@@ -511,5 +415,12 @@ export class MovementController {
         const combined = vertical + horizontal;
 
         return combined === "" ? undefined : (combined as CompassDirection);
+    }
+
+    /** Called just before a teleport event. */
+    public prepareToTeleport(): void {
+        if (this.entity?.canDash()) {
+            this.entity.stopDash(true);
+        }
     }
 }
