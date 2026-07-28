@@ -4,7 +4,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {Rect} from "../geometry/rect";
 import {EffectDispatcher} from "../effects/effect-dispatcher";
-import {Accessor} from "../fields/field-registry";
+import {Accessor, type FieldContainer} from "../fields/field-registry";
 
 /** Next unused instance number per {@link Entity.getEntityTypeId}, for {@link Entity.getRegistryId}. */
 const nextInstanceIdByTypeId = new Map<string, number>();
@@ -17,7 +17,7 @@ const nextInstanceIdByTypeId = new Map<string, number>();
  * @typeParam TSpriteType - Union of sprite type values this entity's sprite sheet's `locateSprite` accepts.
  * @typeParam TStatus - Union of behavioural states this entity can be in (e.g. `"walking"`, `"idle"`).
  */
-export abstract class Entity<TSpriteType extends string = string, TStatus extends string = string> {
+export abstract class Entity<TSpriteType extends string = string, TStatus extends string = string> implements FieldContainer {
     private position: Vector2d;
     private currentFrame: SpriteFrame;
     private currentBitmap: ImageBitmap | null = null;
@@ -70,11 +70,6 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
         return this.registryId;
     }
 
-    /**
-     * This entity's fields exposed through the field registry.
-     *
-     * @returns This entity's dynamically-resolved registry fields.
-     */
     public getRegistryFields(): Record<string, Accessor> {
         return {
             type: { get: () => this.getEntityTypeId() },
