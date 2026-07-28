@@ -173,13 +173,14 @@ export class WorldController {
         return this.world;
     }
 
-    /**
-     * The controller driving the player's movement and camera-follow, for
-     * wiring its per-instance fields into the field registry
-     * (see `registerDynamicFields`).
-     */
+    /** The controller driving the player's movement and camera-follow. */
     public getMovementController(): MovementController {
         return this.movementController;
+    }
+
+    /** The controller driving the debug functionality. */
+    public getDebugController(): DebugController {
+        return this.debugController;
     }
 
     private readonly resize = (): void => {
