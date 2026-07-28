@@ -6,7 +6,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
 import {DashEffectRequest} from "../effects/dash-effect";
 import {FOX_CONSTANTS} from './fox-constants';
-import {createInitialDashState, type DashableEntity, type DashState} from './DashableEntity';
+import type {DashableEntity} from './DashableEntity';
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -48,14 +48,19 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
      */
     private pendingDash: {direction: CompassDirection} | null = null;
 
-    /** State of the current dash. */
-    private readonly dashState: DashState;
+    /** Whether the fox is currently mid-dash. */
+    private dashActive = false;
+
+    /** Milliseconds left in the active dash. Only meaningful while {@link dashActive}. */
+    private dashRemainingMs = 0;
+
+    /** Milliseconds left before another dash may start, counted down once the previous one ends. */
+    private dashCooldownRemainingMs = 0;
 
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
         super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), FOX_CONSTANTS.walkFrameMs);
         this.foxSpriteSheet = spriteSheet;
-        this.dashState = createInitialDashState();
     }
 
     /**
@@ -288,7 +293,11 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
     }
 
     readyToDash(): boolean {
-        return !this.dashState.dashActive && this.dashState.dashCooldownRemainingMs <= 0;
+        return !this.dashActive && this.dashCooldownRemainingMs <= 0;
+    }
+
+    isDashing(): boolean {
+        return this.dashActive;
     }
 
     public requestDash(direction: CompassDirection): void {
@@ -303,12 +312,10 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
     }
 
     private startDash(direction: CompassDirection): void {
-        const dashState = this.getDashState();
-        dashState.dashActive = true;
-        dashState.dashRemainingMs = FOX_CONSTANTS.dash.durationMs;
-        dashState.dashVelocity = Vector2d.fromDirection(direction).scale(FOX_CONSTANTS.speed * FOX_CONSTANTS.dash.speedMultiplier);
+        this.dashActive = true;
+        this.dashRemainingMs = FOX_CONSTANTS.dash.durationMs;
         this.setFacing(direction);
-        this.setVelocity(Vector2d.ZERO);
+        this.setVelocity(Vector2d.fromDirection(direction).scale(FOX_CONSTANTS.speed * FOX_CONSTANTS.dash.speedMultiplier));
 
         this.status = "dashing";
         const frame = this.foxSpriteSheet.locateSprite(`dash${direction}`);
@@ -318,41 +325,34 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
     }
 
     public tickDash(deltaMs: number): void {
-        const dashState = this.getDashState();
-        if (dashState.dashActive) {
-            const usedMs = Math.min(deltaMs, dashState.dashRemainingMs);
-            this.teleportTo(this.getPosition().add(dashState.dashVelocity.scale(usedMs / 1000)));
-            dashState.dashRemainingMs -= usedMs;
-            if (dashState.dashRemainingMs <= 0) {
+        if (this.dashActive) {
+            this.dashRemainingMs -= deltaMs;
+            if (this.dashRemainingMs <= 0) {
                 this.stopDash();
             }
             return;
         }
 
-        if (dashState.dashCooldownRemainingMs > 0) {
-            dashState.dashCooldownRemainingMs = Math.max(0, dashState.dashCooldownRemainingMs - deltaMs);
+        if (this.dashCooldownRemainingMs > 0) {
+            this.dashCooldownRemainingMs = Math.max(0, this.dashCooldownRemainingMs - deltaMs);
         }
     }
 
     public stopDash(): void {
-        const dashState = this.getDashState();
         const isComplete = !this.pendingDash;
 
         this.pendingDash = null;
-        dashState.dashActive = false;
-        dashState.dashCooldownRemainingMs = isComplete
+        this.dashActive = false;
+        this.dashCooldownRemainingMs = isComplete
             ? FOX_CONSTANTS.dash.cooldownMs
             : 0;
-        dashState.dashRemainingMs = 0;
+        this.dashRemainingMs = 0;
+        this.setVelocity(Vector2d.ZERO);
 
         if (isComplete || this.status === "dashing") {
             this.status = this.isMoving() ? "walking" : "idle";
             this.setFrameIntervalMs(this.walkFrameIntervalMs());
             this.setCurrentFrame(this.locateFrameForFacing(this.facing, this.isMoving()));
         }
-    }
-
-    public getDashState(): DashState {
-        return this.dashState;
     }
 }
