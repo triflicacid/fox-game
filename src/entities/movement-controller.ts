@@ -183,10 +183,9 @@ export class MovementController {
      */
     public update(deltaMs: number): void {
         if (this.entity?.canDash()) {
-            const dashState = this.entity.getDashState();
-            const wasDashing = dashState.dashActive;
+            const wasDashing = this.entity.isDashing();
             this.entity.tickDash(deltaMs);
-            if (wasDashing && !dashState.dashActive && !this.spectating) {
+            if (wasDashing && !this.entity.isDashing() && !this.spectating) {
                 this.applyMovement();
             }
         }
@@ -369,7 +368,7 @@ export class MovementController {
      * pressed arrow keys.
      */
     private applyMovement(): void {
-        if (!this.entity || (this.entity.canDash() && this.entity.getDashState().dashActive)) {
+        if (!this.entity || (this.entity.canDash() && this.entity.isDashing())) {
             return;
         }
 
