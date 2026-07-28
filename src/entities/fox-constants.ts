@@ -12,42 +12,18 @@ export const FOX_CONSTANTS = {
     /** Factor a movement speed is scaled by while running (double-tapped). */
     runMultiplier: 1.6,
 
-    /** Tuning values for the dash mechanic and its cyan trail effect. */
+    /** Tuning values for the dash mechanic and its cyan trail effect. {@link DashConfiguration} */
     dash: {
-        /** How long, in milliseconds, an active dash lasts. */
         durationMs: 250,
-
-        /** Factor the base movement speed is scaled by during an active dash. */
         speedMultiplier: 4.2,
-
-        /** How long, in milliseconds, after a dash ends before another can start. */
         cooldownMs: 450,
-
-        /** Fill colour used to tint the launch burst and afterimage trail. Change this to retheme the whole effect. */
         trailColor: "#66e0ff",
-
-        /** How many afterimage snapshots the trail keeps at once; the oldest is dropped first. */
         trailSnapshotCount: 4,
-
-        /** How long, in milliseconds, a single captured afterimage snapshot stays visible before fully fading. */
         trailSnapshotFadeMs: 160,
-
-        /** Peak opacity of the most recently captured afterimage snapshot; older snapshots are dimmer still. */
         trailSnapshotPeakAlpha: 0.45,
-
-        /** How long, in milliseconds, the launch burst grows and fades before disappearing. */
         burstLifetimeMs: 120,
-
-        /** Launch burst's starting radius, in world pixels. */
         burstStartRadius: 4,
-
-        /** Launch burst's radius once fully grown, in world pixels. */
         burstEndRadius: 16,
-
-        /**
-         * Upper bound, in milliseconds after the dash's own travel ends, by
-         * which every trail visual must have fully faded.
-         */
         trailFadeTailMs: 100,
     },
 };

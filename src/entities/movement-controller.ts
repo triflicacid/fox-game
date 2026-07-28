@@ -44,16 +44,6 @@ export interface CameraFollowOptions {
  * keys.
  */
 export class MovementController {
-    /**
-     * How long, in milliseconds, to wait after a key event before actually
-     * recomputing movement. The browser delivers a physical multi-key
-     * release (e.g. letting go of both keys of a diagonal at once) as
-     * separate `keyup` events a few milliseconds apart, not simultaneously;
-     * without this delay, the moment in between them would be read as a
-     * single-key press and briefly resolve to the wrong direction.
-     */
-    private static readonly DEBOUNCE_MS = 10;
-
     private readonly movementDebouncer: Debouncer;
     private spectating = false;
 
@@ -83,12 +73,22 @@ export class MovementController {
         private readonly cameraFollow: CameraFollowOptions | null = null
     ) {
         this.cameraFollow = cameraFollow;
-        this.movementDebouncer = new Debouncer(MovementController.DEBOUNCE_MS, () => {
+        this.movementDebouncer = new Debouncer(10, () => {
             this.applyMovement();
         });
         keyboard.onKeyDown(this.handleKeyDown);
         keyboard.onKeyUp(this.handleKeyUp);
         if (this.entity) this.setMovableEntity(this.entity);
+    }
+
+    /** Get the debounce delay used for the keyboard input. */
+    public getDebounceMs(): number {
+        return this.movementDebouncer.getDelayMs();
+    }
+
+    /** Set the debounce delay for keyboard input. */
+    public setDebounceMs(delayMs: number): void {
+        this.movementDebouncer.setDelayMs(delayMs);
     }
 
     /**

@@ -17,10 +17,18 @@ export class Debouncer<TArgs extends unknown[] = []> {
      * @param delayMs - debounce window in milliseconds
      * @param callback - callback to run after a quiet period
      */
-    public constructor(private readonly delayMs: number, private readonly callback: (...args: TArgs) => void) {
+    public constructor(private delayMs: number, private readonly callback: (...args: TArgs) => void) {
         if (delayMs < 0) {
             throw new RangeError("delayMs must be >= 0");
         }
+    }
+
+    public getDelayMs(): number {
+        return this.delayMs;
+    }
+
+    public setDelayMs(delayMs: number): void {
+        this.delayMs = delayMs;
     }
 
     /**
