@@ -35,35 +35,55 @@ interface KeyDownSubscription {
 }
 
 /**
+ * Configuration used for a keyboard.
+ */
+export interface KeyboardConfig {
+    /**
+     * Maximum gap, in milliseconds, between a key's release and its next
+     * press for that press to count as a double-tap.
+     */
+    doubleTapWindowMs: number;
+}
+
+/**
  * Tracks keyboard state from window events and exposes query/subscription APIs.
  *
  * Key matching is case-sensitive by default. Consumers can opt into
  * case-insensitive single-character matching where needed.
  */
 export class Keyboard {
-    /**
-     * Maximum gap, in milliseconds, between a key's release and its next
-     * press for that press to count as a double-tap.
-     */
-    private static readonly DOUBLE_TAP_WINDOW_MS = 300;
-
     private readonly pressedKeys = new Set<string>();
     private readonly lastKeyUpTime = new Map<string, number>();
     private readonly keyDownListeners = new Set<KeyboardKeyDownListener>();
     private readonly keyUpListeners = new Set<KeyboardKeyUpListener>();
     private readonly keyDownSubscriptions = new Set<KeyDownSubscription>();
-    private readonly eventSource: KeyboardEventSource;
+    private readonly config: KeyboardConfig;
 
     /**
      * creates a keyboard tracker and starts listening to window key events
      *
      * @param eventSource - event source to attach listeners to; defaults to global window
+     * @param config - configuration options when setting up a new keyboard
      */
-    public constructor(eventSource: KeyboardEventSource) {
+    public constructor(
+        private readonly eventSource: KeyboardEventSource,
+        config?: Partial<KeyboardConfig>,
+    ) {
         this.eventSource = eventSource;
         this.eventSource.addEventListener("keydown", this.handleWindowKeyDown);
         this.eventSource.addEventListener("keyup", this.handleWindowKeyUp);
         this.eventSource.addEventListener("blur", this.handleWindowBlur);
+
+        this.config = {
+            doubleTapWindowMs: config?.doubleTapWindowMs ?? 300,
+        } as KeyboardConfig;
+    }
+
+    /**
+     * @return this keyboard's configuration options.
+     */
+    public getConfig(): KeyboardConfig {
+        return this.config;
     }
 
     /**
@@ -168,7 +188,7 @@ export class Keyboard {
     private readonly handleWindowKeyDown = (event: KeyboardEvent): void => {
         const key = event.key;
         const lastUp = this.lastKeyUpTime.get(key);
-        const doubleTap = !event.repeat && lastUp !== undefined && performance.now() - lastUp < Keyboard.DOUBLE_TAP_WINDOW_MS;
+        const doubleTap = !event.repeat && lastUp !== undefined && performance.now() - lastUp < this.config.doubleTapWindowMs;
         this.pressedKeys.add(key);
 
         for (const listener of this.keyDownListeners) {

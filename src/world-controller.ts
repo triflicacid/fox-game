@@ -15,6 +15,7 @@ import {SettingsController} from "./settings/settings-controller";
 import {PopupController} from "@lib/popup/popup-controller";
 import {KeyBindingPopupController} from "./popup/key-binding-popup-controller";
 import {keyboard} from "./input/keyboard-instance";
+import {FOX_CONSTANTS} from './entities/fox-constants';
 
 /**
  * Owns everything needed to run the game against a canvas.
@@ -69,18 +70,18 @@ export class WorldController {
         this.world = new World(WorldController.TILE_SIZE).setMainEntity(mainEntity);
         mainEntity.effectDispatcher.add("dash", (request) => {
             if (request instanceof DashEffectRequest) {
-                this.world.registerEffect(new DashEffect(mainEntity, request.position));
+                this.world.registerEffect(new DashEffect(mainEntity, request.position, FOX_CONSTANTS.dash));
             }
         });
 
         this.camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
         new CameraDragController(canvas, this.camera);
-        this.movementController = new MovementController(keyboard, mainEntity, {camera: this.camera, mode: "edge"});
+        this.movementController = new MovementController(keyboard, mainEntity, {camera: this.camera, mode: "edge", edgeMargin: 200});
         this.debugController = new DebugController(
             keyboard,
             () => this.world.reloadAllChunks(),
             () => {
-                this.movementController.cancelDash();
+                this.movementController.prepareToTeleport();
                 this.world.teleportMainEntityTo(this.camera.getCenter());
             },
             () => this.movementController.isSpectating(),
@@ -170,6 +171,16 @@ export class WorldController {
      */
     public getWorld(): World {
         return this.world;
+    }
+
+    /** The controller driving the player's movement and camera-follow. */
+    public getMovementController(): MovementController {
+        return this.movementController;
+    }
+
+    /** The controller driving the debug functionality. */
+    public getDebugController(): DebugController {
+        return this.debugController;
     }
 
     private readonly resize = (): void => {

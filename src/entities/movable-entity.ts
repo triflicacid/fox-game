@@ -6,6 +6,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {KeyBinding} from "../help/key-binding";
 import {drawArrow} from "../geometry/arrow";
+import type {DashableEntity} from './DashableEntity';
 
 /**
  * An {@link Entity} that can move: it has a facing direction and a
@@ -168,40 +169,14 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * entity speed up its walk animation to match.
      *
      * @param running - Whether movement is currently scaled by
-     * {@link MovementController.RUN_MULTIPLIER}.
+     * `MOVEMENT_CONSTANTS`'s `runMultiplier`.
      */
     public setRunning?(running: boolean): void;
 
     /**
-     * Optional hook: implementing it marks an entity as dashable. Called by
-     * a bound {@link MovementController} on an `X` keydown.
-     *
-     * @param direction - Direction the dash was requested in.
-     * @param launch - Callback that actually starts the dash; the controller
-     * owns dash timing/velocity from the moment this is called.
+     * Get the current movement speed of the entity.
      */
-    public requestDash?(direction: CompassDirection, launch: () => void): void;
-
-    /**
-     * Optional hook: called by {@link MovementController} the moment a
-     * requested dash actually launches (i.e. when `launch` from
-     * {@link requestDash} is invoked).
-     *
-     * @param direction - Direction the dash launched in.
-     */
-    public onDashStart?(direction: CompassDirection): void;
-
-    /**
-     * Optional hook: called by {@link MovementController} once an active
-     * dash's duration has fully elapsed.
-     */
-    public onDashComplete?(): void;
-
-    /**
-     * Optional hook: called by {@link MovementController} when an active or
-     * queued dash is cancelled (e.g. entering spectator mode, rebinding).
-     */
-    public onDashCancel?(): void;
+    public abstract getSpeed(): number;
 
     /**
      * Draws this entity's bounding box (via the base {@link Entity}
@@ -237,5 +212,12 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
         if (this.isMoving() || this.shouldAnimateWhileStationary()) {
             super.update(deltaMs);
         }
+    }
+
+    /**
+     * Can this entity dash? If yes, we extend a {@link DashableEntity}.
+     */
+    public canDash(): this is DashableEntity {
+        return false;
     }
 }

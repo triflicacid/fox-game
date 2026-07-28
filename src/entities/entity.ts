@@ -4,6 +4,10 @@ import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {Rect} from "../geometry/rect";
 import {EffectDispatcher} from "../effects/effect-dispatcher";
+import {Accessor, type FieldContainer} from "../fields/field-registry";
+
+/** Next unused instance number per {@link Entity.getEntityTypeId}, for {@link Entity.getRegistryId}. */
+const nextInstanceIdByTypeId = new Map<string, number>();
 
 /**
  * Base class for a rendered thing in the world: something with an attached
@@ -13,11 +17,14 @@ import {EffectDispatcher} from "../effects/effect-dispatcher";
  * @typeParam TSpriteType - Union of sprite type values this entity's sprite sheet's `locateSprite` accepts.
  * @typeParam TStatus - Union of behavioural states this entity can be in (e.g. `"walking"`, `"idle"`).
  */
-export abstract class Entity<TSpriteType extends string = string, TStatus extends string = string> {
+export abstract class Entity<TSpriteType extends string = string, TStatus extends string = string> implements FieldContainer {
     private position: Vector2d;
     private currentFrame: SpriteFrame;
     private currentBitmap: ImageBitmap | null = null;
     private animationElapsedMs = 0;
+
+    /** This entity's stable id in the field registry (`world.entities.<id>`) - see {@link getRegistryId}. */
+    private readonly registryId: string;
 
     /**
      * Lets this entity broadcast (or have handlers registered for) transient
@@ -42,6 +49,35 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
         this.currentFrame = initialFrame;
         this.position = position;
         this.refreshBitmap();
+
+        const typeId = this.getEntityTypeId();
+        const instanceId = nextInstanceIdByTypeId.get(typeId) ?? 0;
+        nextInstanceIdByTypeId.set(typeId, instanceId + 1);
+        this.registryId = `${typeId}#${instanceId}`;
+    }
+
+    /**
+     * Hardcoded type discriminator for this entity's class.
+     */
+    protected abstract getEntityTypeId(): string;
+
+    /**
+     * This entity's stable id.
+     *
+     * @returns This entity's field-registry id.
+     */
+    public getRegistryId(): string {
+        return this.registryId;
+    }
+
+    public getRegistryFields(): Record<string, Accessor> {
+        return {
+            type: { get: () => this.getEntityTypeId() },
+            status: { get: () => this.getStatus() },
+            frameIntervalMs: { get: () => this.frameIntervalMs, set: (value: number) => this.setFrameIntervalMs(value) },
+            x: { get: () => this.getPosition().x, set: (value: number) => this.setX(value) },
+            y: { get: () => this.getPosition().y, set: (value: number) => this.setY(value) },
+        };
     }
 
     /**
@@ -70,6 +106,24 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
      */
     protected setPosition(position: Vector2d): void {
         this.position = position;
+    }
+
+    /**
+     * Sets this entity's x-coordinate directly, leaving y unchanged.
+     *
+     * @param x - New x-coordinate.
+     */
+    public setX(x: number): void {
+        this.position = new Vector2d(x, this.position.y);
+    }
+
+    /**
+     * Sets this entity's y-coordinate directly, leaving x unchanged.
+     *
+     * @param y - New y-coordinate.
+     */
+    public setY(y: number): void {
+        this.position = new Vector2d(this.position.x, y);
     }
 
     /**
