@@ -194,6 +194,12 @@ export abstract class FieldLookupHandler {
     public abstract get(segment: string): Field<unknown> | FieldLookupHandler | Record<string, unknown>;
 }
 
+/** An object which receives lookups from a {@link FieldLookupHandler}. */
+export interface FieldContainer {
+    /** This object's fields exposed through the field registry. */
+    getRegistryFields(): Record<string, Accessor>;
+}
+
 type DynamicNode = FieldLookupHandler | Record<string, unknown>;
 
 /**
