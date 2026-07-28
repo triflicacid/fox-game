@@ -1,6 +1,7 @@
-import {Field, FieldLookupHandler, FieldRegistryError} from "../fields/field-registry";
+import {Accessor, Field, FieldLookupHandler, FieldRegistryError} from "../fields/field-registry";
 import {Entity} from "../entities/entity";
 import {World} from "./world";
+import {pixelToTile, tileToPixel} from "./tile-coordinates";
 
 /**
  * Exposes every live entity in `world` under the field registry at
@@ -23,7 +24,26 @@ export class EntityLookupHandler extends FieldLookupHandler {
     }
 
     public get(segment: string): Field<unknown> | Record<string, unknown> {
-        return this.resolveEntity(segment).getRegistryFields();
+        const fields = this.resolveEntity(segment).getRegistryFields();
+        const tileSize = this.world.tileSize;
+        return {
+            ...fields,
+            x: this.toTileAccessor(fields.x as Accessor<number>, tileSize),
+            y: this.toTileAccessor(fields.y as Accessor<number>, tileSize),
+        };
+    }
+
+    /**
+     * Wraps a pixel-unit position {@link Accessor}.
+     *
+     * @param pixelField - The entity's own `x`/`y` accessor, in world pixels.
+     * @param tileSize - The world's current tile size, in pixels.
+     */
+    private toTileAccessor(pixelField: Accessor<number>, tileSize: number): Accessor<number> {
+        return {
+            get: () => pixelToTile(pixelField.get(), tileSize),
+            set: pixelField.set && ((value: number) => pixelField.set!(tileToPixel(value, tileSize))),
+        };
     }
 
     private resolveEntity(id: string): Entity {

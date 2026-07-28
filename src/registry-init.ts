@@ -3,6 +3,7 @@ import {CameraFollowMode} from "./entities/movement-controller";
 import {fieldRegistry, nonNegativeInteger} from "./fields/field-registry";
 import {EntityLookupHandler} from "./world/entity-lookup-handler";
 import {keyboard} from './input/keyboard-instance';
+import {pixelToTile, tileToPixel} from "./world/tile-coordinates";
 
 /**
  * Registers per-instance tunable fields that only exist once
@@ -29,6 +30,7 @@ export function registerDynamicFields(worldController: WorldController): void {
         return;
     }
 
+    const tileSize = worldController.getWorld().tileSize;
     const cameraOptions = {
         get mode(): CameraFollowMode {
             return cameraFollow.mode;
@@ -43,16 +45,16 @@ export function registerDynamicFields(worldController: WorldController): void {
             cameraFollow.edgeMargin = value;
         },
         get x(): number {
-            return cameraFollow.camera.getCenter().x;
+            return pixelToTile(cameraFollow.camera.getCenter().x, tileSize);
         },
         set x(value: number) {
-            cameraFollow.camera.setX(value);
+            cameraFollow.camera.setX(tileToPixel(value, tileSize));
         },
         get y(): number {
-            return cameraFollow.camera.getCenter().y;
+            return pixelToTile(cameraFollow.camera.getCenter().y, tileSize);
         },
         set y(value: number) {
-            cameraFollow.camera.setY(value);
+            cameraFollow.camera.setY(tileToPixel(value, tileSize));
         },
     };
     fieldRegistry.registerFields("camera", cameraOptions, {
