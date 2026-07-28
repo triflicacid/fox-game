@@ -1,12 +1,12 @@
-import {fieldRegistry, nonNegativeInteger, nonNegativeNumber, numberRange} from "../fields/field-registry";
+import {fieldRegistry, nonNegativeInteger, nonNegativeNumber, numberRange} from '../fields/field-registry';
+import {Fox} from './fox';
 
-/**
- * Tuning values for movement speed and the dash mechanic's timing/trail
- * effect. Registered under `world.movement` (see `tunable-constants-plan.md`),
- * so every field here is live-editable through the field registry.
- */
-export const MOVEMENT_CONSTANTS = {
-    /** Speed a bound entity moves at, in world pixels per second. */
+/** Configurable generic fox constants. */
+export const FOX_CONSTANTS = {
+    /** How long, in milliseconds, any of the fox's animations show each frame before advancing. */
+    walkFrameMs: 120,
+
+    /** Speed a fox moves at, in world pixels per second. */
     speed: 250,
 
     /** Factor a movement speed is scaled by while running (double-tapped). */
@@ -52,7 +52,8 @@ export const MOVEMENT_CONSTANTS = {
     },
 };
 
-fieldRegistry.registerFields("movement", MOVEMENT_CONSTANTS, {
+fieldRegistry.registerFields(`world.entities.${Fox.ENTITY_TYPE_ID}`, FOX_CONSTANTS, {
+    walkFrameMs: nonNegativeInteger(),
     speed: nonNegativeInteger(),
     runMultiplier: nonNegativeNumber(),
     dash: {

@@ -371,6 +371,15 @@ export function nonNegativeNumber(): (value: number) => string | undefined {
 }
 
 /**
+ * Builds a {@link Field.capture} validator rejecting any non-positive number.
+ *
+ * @returns A capture function for use as a field's `capture`.
+ */
+export function positiveNumber(): (value: number) => string | undefined {
+    return numberRange(1, Infinity);
+}
+
+/**
  * A flat, path-addressed registry of tunable fields. Every holder
  * registers its fields directly under its own dotted path.
  */
