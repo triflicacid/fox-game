@@ -6,7 +6,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
 import {DashEffectRequest} from "../effects/dash-effect";
 import {FOX_CONSTANTS} from './fox-constants';
-import type {DashableEntity} from './DashableEntity';
+import {createInitialDashState, type DashableEntity, type DashFinishedCallback, type DashState} from './DashableEntity';
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -49,12 +49,19 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
      * A dash requested while resting, held until `uncurl` completes so it can
      * launch then instead of immediately.
      */
-    private pendingDash: {direction: CompassDirection; launch: () => void} | null = null;
+    private pendingDash: {direction: CompassDirection} | null = null;
+
+    /** State of the current dash. */
+    private readonly dashState: DashState;
+
+    /** Queue of dash callbacks, front is most recent. */
+    private readonly dashCallbackQueue: (DashFinishedCallback | null)[] = [];
 
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
         super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), FOX_CONSTANTS.walkFrameMs);
         this.foxSpriteSheet = spriteSheet;
+        this.dashState = createInitialDashState();
     }
 
     /**
@@ -260,13 +267,13 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
      */
     private finishWaking(): void {
         if (this.pendingDash) {
-            const {launch} = this.pendingDash;
+            const {direction} = this.pendingDash;
             this.pendingDash = null;
             this.facing = this.pendingWakeFacing ?? this.facing;
             this.pendingWakeFacing = null;
             this.pendingWakeVelocity = null;
             this.status = "idle";
-            launch();
+            this.startDash(direction);
             return;
         }
 
@@ -289,27 +296,28 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
      * queued that way).
      *
      * @param direction - Direction the dash was requested in.
-     * @param launch - Callback the {@link MovementController} wants called
-     * once the dash should actually start.
+     * @param callback
      */
-    public requestDash(direction: CompassDirection, launch: () => void): void {
+    public requestDash(direction: CompassDirection, callback?: DashFinishedCallback): void {
+        this.dashCallbackQueue.push(callback ?? null);
         if (!this.isRestState()) {
-            launch();
+            this.startDash(direction);
             return;
         }
-        this.pendingDash = {direction, launch};
+        this.pendingDash = {direction};
         if (this.status !== "uncurling") {
             this.beginWaking(Vector2d.ZERO);
         }
     }
 
-    /**
-     * Switches to the leap animation, timed to finish exactly as the dash
-     * itself does.
-     *
-     * @param direction - Direction the dash launched in.
-     */
-    public onDashStart(direction: CompassDirection): void {
+    private startDash(direction: CompassDirection): void {
+        const dashState = this.getDashState();
+        dashState.dashActive = true;
+        dashState.dashRemainingMs = FOX_CONSTANTS.dash.durationMs;
+        dashState.dashVelocity = Vector2d.fromDirection(direction).scale(FOX_CONSTANTS.speed * FOX_CONSTANTS.dash.speedMultiplier);
+        this.setFacing(direction);
+        this.setVelocity(Vector2d.ZERO);
+
         this.status = "dashing";
         const frame = this.foxSpriteSheet.locateSprite(`dash${direction}`);
         this.setFrameIntervalMs(FOX_CONSTANTS.dash.durationMs / frame.frameCount);
@@ -317,34 +325,47 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
         this.effectDispatcher.dispatch(new DashEffectRequest(this.getPosition(), Vector2d.fromDirection(direction)));
     }
 
-    /**
-     * Returns to the correct walking/idle presentation once the dash's
-     * duration has elapsed - the resumed velocity is already applied by the
-     * time this fires.
-     */
-    public onDashComplete(): void {
-        this.returnFromDash();
-    }
+    public tickDash(deltaMs: number): void {
+        const dashState = this.getDashState();
+        if (dashState.dashActive) {
+            const usedMs = Math.min(deltaMs, dashState.dashRemainingMs);
+            this.teleportTo(this.getPosition().add(dashState.dashVelocity.scale(usedMs / 1000)));
+            dashState.dashRemainingMs -= usedMs;
+            if (dashState.dashRemainingMs <= 0) {
+                this.stopDash();
+            }
+            return;
+        }
 
-    /**
-     * Returns to the correct walking/idle presentation if the dash was
-     * actively playing, or just drops the queued request if it hadn't
-     * launched yet.
-     */
-    public onDashCancel(): void {
-        this.pendingDash = null;
-        if (this.status === "dashing") {
-            this.returnFromDash();
+        if (dashState.dashCooldownRemainingMs > 0) {
+            dashState.dashCooldownRemainingMs = Math.max(0, dashState.dashCooldownRemainingMs - deltaMs);
         }
     }
 
-    /**
-     * Restores the normal per-frame interval and switches to whatever
-     * walking/idle frame matches the fox's current facing/velocity.
-     */
-    private returnFromDash(): void {
-        this.status = this.isMoving() ? "walking" : "idle";
-        this.setFrameIntervalMs(this.walkFrameIntervalMs());
-        this.setCurrentFrame(this.locateFrameForFacing(this.facing, this.isMoving()));
+    public stopDash(silent = false): void {
+        const dashState = this.getDashState();
+        const isComplete = !this.pendingDash;
+
+        this.pendingDash = null;
+        dashState.dashActive = false;
+        dashState.dashCooldownRemainingMs = isComplete
+            ? FOX_CONSTANTS.dash.cooldownMs
+            : 0;
+        dashState.dashRemainingMs = 0;
+
+        const callback = this.dashCallbackQueue.shift();
+        if (callback && !silent) {
+            callback(isComplete);
+        }
+
+        if (isComplete || this.status === "dashing") {
+            this.status = this.isMoving() ? "walking" : "idle";
+            this.setFrameIntervalMs(this.walkFrameIntervalMs());
+            this.setCurrentFrame(this.locateFrameForFacing(this.facing, this.isMoving()));
+        }
+    }
+
+    public getDashState(): DashState {
+        return this.dashState;
     }
 }

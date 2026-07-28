@@ -81,7 +81,7 @@ export class WorldController {
             keyboard,
             () => this.world.reloadAllChunks(),
             () => {
-                this.movementController.cancelDash();
+                this.movementController.prepareToTeleport();
                 this.world.teleportMainEntityTo(this.camera.getCenter());
             },
             () => this.movementController.isSpectating(),
