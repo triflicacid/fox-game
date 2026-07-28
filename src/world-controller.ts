@@ -15,6 +15,7 @@ import {SettingsController} from "./settings/settings-controller";
 import {PopupController} from "@lib/popup/popup-controller";
 import {KeyBindingPopupController} from "./popup/key-binding-popup-controller";
 import {keyboard} from "./input/keyboard-instance";
+import {FOX_CONSTANTS} from './entities/fox-constants';
 
 /**
  * Owns everything needed to run the game against a canvas.
@@ -69,7 +70,7 @@ export class WorldController {
         this.world = new World(WorldController.TILE_SIZE).setMainEntity(mainEntity);
         mainEntity.effectDispatcher.add("dash", (request) => {
             if (request instanceof DashEffectRequest) {
-                this.world.registerEffect(new DashEffect(mainEntity, request.position));
+                this.world.registerEffect(new DashEffect(mainEntity, request.position, FOX_CONSTANTS.dash));
             }
         });
 
