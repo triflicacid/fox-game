@@ -11,6 +11,16 @@ import {keyboard} from './input/keyboard-instance';
  * @param worldController - The running game's controller.
  */
 export function registerDynamicFields(worldController: WorldController): void {
+    const debugController = worldController.getDebugController();
+    fieldRegistry.registerFields("debug", {
+        get enabled(): boolean {
+            return debugController.isEnabled();
+        },
+        set enabled(value: boolean) {
+            debugController.setEnabled(value);
+        }
+    });
+
     fieldRegistry.registerHandler("world.entities", new EntityLookupHandler(worldController.getWorld()));
 
     const movementController = worldController.getMovementController();
