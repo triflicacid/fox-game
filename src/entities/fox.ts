@@ -6,7 +6,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
 import {DashEffectRequest} from "../effects/dash-effect";
 import {FOX_CONSTANTS} from './fox-constants';
-import {createInitialDashState, type DashableEntity, type DashFinishedCallback, type DashState} from './DashableEntity';
+import {createInitialDashState, type DashableEntity, type DashState} from './DashableEntity';
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -20,9 +20,6 @@ const CURL_ART_ANGLE = Vector2d.fromDirection(CURL_ART_FACING).angleRadians();
 
 /** The fox entity: a {@link MovableEntity} that can be driven around by a {@link MovementController}. */
 export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements DashableEntity {
-    /** Internal entity ID. */
-    public static readonly ENTITY_TYPE_ID = "fox";
-
     /**
      * Same sheet instance as the base class's `spriteSheet` field, kept here
      * too so {@link locateFrameForFacing} can reach `FoxSpriteSheet`-specific
@@ -53,9 +50,6 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
 
     /** State of the current dash. */
     private readonly dashState: DashState;
-
-    /** Queue of dash callbacks, front is most recent. */
-    private readonly dashCallbackQueue: (DashFinishedCallback | null)[] = [];
 
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
@@ -103,7 +97,11 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
     }
 
     protected override getEntityTypeId(): string {
-        return Fox.ENTITY_TYPE_ID;
+        return "fox";
+    }
+
+    override canDash(): this is DashableEntity {
+        return true;
     }
 
     /**
@@ -289,17 +287,11 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
         this.setVelocity(velocity);
     }
 
-    /**
-     * A dash requested while awake launches immediately; one requested while
-     * `curling`/`sleeping`/`sleepTurning`/`uncurling` wakes the fox and is
-     * launched once `uncurl` finishes instead (replacing any dash already
-     * queued that way).
-     *
-     * @param direction - Direction the dash was requested in.
-     * @param callback
-     */
-    public requestDash(direction: CompassDirection, callback?: DashFinishedCallback): void {
-        this.dashCallbackQueue.push(callback ?? null);
+    readyToDash(): boolean {
+        return !this.dashState.dashActive && this.dashState.dashCooldownRemainingMs <= 0;
+    }
+
+    public requestDash(direction: CompassDirection): void {
         if (!this.isRestState()) {
             this.startDash(direction);
             return;
@@ -342,7 +334,7 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
         }
     }
 
-    public stopDash(silent = false): void {
+    public stopDash(): void {
         const dashState = this.getDashState();
         const isComplete = !this.pendingDash;
 
@@ -352,11 +344,6 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
             ? FOX_CONSTANTS.dash.cooldownMs
             : 0;
         dashState.dashRemainingMs = 0;
-
-        const callback = this.dashCallbackQueue.shift();
-        if (callback && !silent) {
-            callback(isComplete);
-        }
 
         if (isComplete || this.status === "dashing") {
             this.status = this.isMoving() ? "walking" : "idle";

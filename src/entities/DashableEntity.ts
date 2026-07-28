@@ -23,18 +23,17 @@ export function createInitialDashState(): DashState {
     } as DashState;
 }
 
-/** Called when a dash is concluded, naturally or forcefully. */
-export type DashFinishedCallback = (wasCancelled: boolean) => void;
-
 /** If the entity supports a dash mechanic. */
 export interface DashableEntity {
+    /** Can we commence a dash right now? */
+    readyToDash(): boolean;
+
     /**
      * Called when a dash is requested.
      *
      * @param direction - Direction the dash was requested in.
-     * @param onDashEnd - Call this when the dash is finished, either naturally or forcefully.
      */
-    requestDash(direction: CompassDirection, onDashEnd?: DashFinishedCallback): void;
+    requestDash(direction: CompassDirection): void;
 
     /**
      * Advances the active dash (or its cooldown) by `deltaMs`.
@@ -43,8 +42,8 @@ export interface DashableEntity {
      */
     tickDash(deltaMs: number): void;
 
-    /** Used to stop the dash. If silent, will not call the callback. */
-    stopDash(silent: boolean): void;
+    /** Stops the dash, whether it finished naturally or was interrupted. */
+    stopDash(): void;
 
     /** Get the current dash state. Mutability is up to the implementer. */
     getDashState(): DashState;
