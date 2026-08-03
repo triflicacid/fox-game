@@ -16,6 +16,7 @@ export interface DebugHudData {
     cameraCenterY: number;
     viewportWidth: number;
     viewportHeight: number;
+    zoom: number;
     entityX: number;
     entityY: number;
     entityFacing: string;
@@ -112,6 +113,7 @@ export class DebugHud {
             [
                 this.text("cam: ("), this.numberValue(data.cameraCenterX.toFixed(1)), this.text(", "), this.numberValue(data.cameraCenterY.toFixed(1)),
                 this.text(")  view: "), this.numberValue(data.viewportWidth.toFixed(0)), this.text("x"), this.numberValue(data.viewportHeight.toFixed(0)),
+                this.text("  zoom: "), this.numberValue(`${data.zoom.toFixed(2)}x`),
             ],
             // Position: tile (grid-aligned), pixel (exact), facing
             [

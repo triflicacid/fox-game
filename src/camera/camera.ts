@@ -7,12 +7,20 @@ import {Rect} from "../geometry/rect";
  * which part of the world is visible.
  */
 export class Camera {
+    /** Lower bound for {@link setZoom}/{@link zoomBy} - furthest the camera can zoom out. */
+    private static readonly MIN_ZOOM = 0.1;
+
+    /** Upper bound for {@link setZoom}/{@link zoomBy} - furthest the camera can zoom in. */
+    private static readonly MAX_ZOOM = 10;
+
+    private zoom = 1;
+
     /**
      * @param center - World-space point the camera is centred on.
-     * @param width - Viewport width, in canvas pixels.
-     * @param height - Viewport height, in canvas pixels.
+     * @param canvasWidth - Canvas width, in canvas pixels.
+     * @param canvasHeight - Canvas height, in canvas pixels.
      */
-    public constructor(private center: Vector2d, private width: number, private height: number) {
+    public constructor(private center: Vector2d, private canvasWidth: number, private canvasHeight: number) {
     }
 
     /**
@@ -61,32 +69,64 @@ export class Camera {
     }
 
     /**
-     * Viewport width.
+     * Viewport width, adjusted for the current zoom level.
      *
-     * @returns The width, in canvas pixels.
+     * @returns The width, in world pixels.
      */
     public getWidth(): number {
-        return this.width;
+        return this.canvasWidth / this.zoom;
     }
 
     /**
-     * Viewport height.
+     * Viewport height, adjusted for the current zoom level.
      *
-     * @returns The height, in canvas pixels.
+     * @returns The height, in world pixels.
      */
     public getHeight(): number {
-        return this.height;
+        return this.canvasHeight / this.zoom;
     }
 
     /**
      * Resizes this camera's viewport, e.g. to follow a canvas resize.
      *
-     * @param width - New viewport width, in canvas pixels.
-     * @param height - New viewport height, in canvas pixels.
+     * @param width - New canvas width, in canvas pixels.
+     * @param height - New canvas height, in canvas pixels.
      */
     public setViewportSize(width: number, height: number): void {
-        this.width = width;
-        this.height = height;
+        this.canvasWidth = width;
+        this.canvasHeight = height;
+    }
+
+    /**
+     * This camera's current zoom level, where `1` shows the world at native
+     * pixel scale, greater than `1` zooms in, and less than `1` zooms out.
+     *
+     * @returns The current zoom level.
+     */
+    public getZoom(): number {
+        return this.zoom;
+    }
+
+    /**
+     * Sets this camera's zoom level directly, clamped to
+     * [{@link MIN_ZOOM}, {@link MAX_ZOOM}].
+     *
+     * @param zoom - The zoom level to set.
+     */
+    public setZoom(zoom: number): void {
+        this.zoom = Math.min(Camera.MAX_ZOOM, Math.max(Camera.MIN_ZOOM, zoom));
+    }
+
+    /**
+     * Multiplies this camera's zoom level by `factor`, clamped to
+     * [{@link MIN_ZOOM}, {@link MAX_ZOOM}]. Since the view is always centred
+     * on {@link center}, this zooms in/out around the camera's own position.
+     *
+     * @param factor - Multiplier to apply to the current zoom level, e.g.
+     * `1.05` to zoom in 5% or `1 / 1.05` to zoom out 5%.
+     */
+    public zoomBy(factor: number): void {
+        this.setZoom(this.zoom * factor);
     }
 
     /**
@@ -95,7 +135,7 @@ export class Camera {
      * @returns The left edge's X position, in world pixels.
      */
     public getViewX(): number {
-        return this.center.x - this.width / 2;
+        return this.center.x - this.getWidth() / 2;
     }
 
     /**
@@ -104,7 +144,7 @@ export class Camera {
      * @returns The top edge's Y position, in world pixels.
      */
     public getViewY(): number {
-        return this.center.y - this.height / 2;
+        return this.center.y - this.getHeight() / 2;
     }
 
     /**
@@ -115,7 +155,7 @@ export class Camera {
      * @returns `true` if any part of the rectangle overlaps the view.
      */
     public isRectVisible(rect: Rect): boolean {
-        return rect.x + rect.w > this.getViewX() && rect.x < this.getViewX() + this.width
-            && rect.y + rect.h > this.getViewY() && rect.y < this.getViewY() + this.height;
+        return rect.x + rect.w > this.getViewX() && rect.x < this.getViewX() + this.getWidth()
+            && rect.y + rect.h > this.getViewY() && rect.y < this.getViewY() + this.getHeight();
     }
 }

@@ -294,7 +294,10 @@ export class MovementController {
      * @param entityPosition - World-space point being tracked.
      */
     private dragCameraToEdge(camera: Camera, entityPosition: Vector2d): void {
-        const margin = requireNonNull(this.cameraFollow?.edgeMargin);
+        // edgeMargin is specified in screen pixels; getWidth/getHeight/getViewX/getViewY
+        // are in world pixels, so convert by the current zoom to keep the margin's
+        // on-screen size constant as the camera zooms in/out.
+        const margin = requireNonNull(this.cameraFollow?.edgeMargin) / camera.getZoom();
         const screenX = entityPosition.x - camera.getViewX();
         const screenY = entityPosition.y - camera.getViewY();
 

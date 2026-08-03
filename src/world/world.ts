@@ -982,6 +982,10 @@ export class World {
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
         const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
 
+        ctx.save();
+        ctx.scale(camera.getZoom(), camera.getZoom());
+        ctx.imageSmoothingEnabled = false;
+
         this.lastVisibleChunkCount = 0;
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
@@ -1018,6 +1022,8 @@ export class World {
         }
         this.drawEntities(ctx, camera, debugEnabled);
         this.drawStructureProps(ctx, camera);
+
+        ctx.restore();
 
         if (debugEnabled) {
             this.drawDebugHud(ctx, camera, {spectating, spectatorVelocity, actualFps, targetFps});
@@ -1231,6 +1237,7 @@ export class World {
             cameraCenterY: center.y,
             viewportWidth: camera.getWidth(),
             viewportHeight: camera.getHeight(),
+            zoom: camera.getZoom(),
             entityX: position.x,
             entityY: position.y,
             entityFacing: mainEntity.getFacing(),
