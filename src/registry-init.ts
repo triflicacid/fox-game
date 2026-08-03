@@ -1,6 +1,6 @@
 import {WorldController} from "./world-controller";
 import {CameraFollowMode} from "./entities/movement-controller";
-import {fieldRegistry, nonNegativeInteger} from "./fields/field-registry";
+import {fieldRegistry, integerRange, nonNegativeInteger} from "./fields/field-registry";
 import {EntityLookupHandler} from "./world/entity-lookup-handler";
 import {keyboard} from './input/keyboard-instance';
 import {pixelToTile, tileToPixel} from "./world/tile-coordinates";
@@ -61,6 +61,8 @@ export function registerDynamicFields(worldController: WorldController): void {
         edgeMargin: nonNegativeInteger(),
     });
 
+    const world = worldController.getWorld();
+
     // different from 'world.spectator.*' properties, see spectator-constants.ts.
     fieldRegistry.registerFields("world", {
         get spectating(): boolean {
@@ -69,6 +71,14 @@ export function registerDynamicFields(worldController: WorldController): void {
         set spectating(value: boolean) {
             movementController.setSpectating(value);
         },
+        get seed(): number {
+            return world.getWorldSeed();
+        },
+        set seed(value: number) {
+            world.setWorldSeed(value);
+        },
+    }, {
+        seed: integerRange(-Infinity, Infinity),
     });
 
     fieldRegistry.registerFields("input", {
