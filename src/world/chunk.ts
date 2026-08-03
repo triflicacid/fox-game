@@ -6,7 +6,7 @@ import {ChunkGenerationResult} from "./generation/chunk/chunk-worker-protocol";
 import {BiomeSummary} from "./generation/biome/biome";
 import {StructurePieceInstance} from "./generation/structure/structure";
 import {StructureLayer} from "./generation/structure/structure-manifest";
-import {CoordSet} from "./coord-set";
+import {CoordMap} from "./coord-set";
 import {requireNonNull} from "../util";
 
 export type {ChunkSpriteSheets};
@@ -37,8 +37,8 @@ export class Chunk {
     /** Bitmap per distinct structure sprite type this chunk uses - populated once in {@link hydrate}, before either cache is built. */
     private readonly structureBitmaps = new Map<string, ImageBitmap>();
 
-    /** World positions covered by any structure piece - see {@link drawStructureOutlines}. Populated once in {@link hydrate}. */
-    private readonly structureOccupancy = new CoordSet();
+    /** Structure piece at each occupied world position - see {@link drawStructureOutlines} and {@link getStructurePieceAt}. Populated once in {@link hydrate}. */
+    private readonly structureOccupancy = new CoordMap<StructurePieceInstance>();
 
     /** Dominant biome or `mixed`, for debugging only. Empty until {@link isReady}. */
     public biomeSummary: BiomeSummary | "" = "";
@@ -86,7 +86,7 @@ export class Chunk {
         this.tiles = result.tiles.map((row) => row.map((data) => new Tile(data, spriteSheets)));
         this.structurePieces = result.props;
         for (const piece of this.structurePieces) {
-            this.structureOccupancy.add(piece.worldX, piece.worldY);
+            this.structureOccupancy.set(piece.worldX, piece.worldY, piece);
         }
 
         const distinctSprites = [...new Set(this.structurePieces.map((piece) => piece.sprite))];
@@ -189,6 +189,20 @@ export class Chunk {
             throw new Error(`Chunk (${this.chunkX}, ${this.chunkY}) hasn't finished generating yet`);
         }
         return this.tiles[localY][localX];
+    }
+
+    /**
+     * Looks up the structure piece anchored at the given world position, if
+     * any. Unlike {@link getTile}, takes world (not local) coordinates, since
+     * {@link structureOccupancy} already includes halo-sourced pieces
+     * anchored in a neighbouring chunk.
+     *
+     * @param worldX - Tile's X position, in tiles from the world origin.
+     * @param worldY - Tile's Y position, in tiles from the world origin.
+     * @returns The structure piece at that position, or `undefined` if none.
+     */
+    public getStructurePieceAt(worldX: number, worldY: number): StructurePieceInstance | undefined {
+        return this.structureOccupancy.get(worldX, worldY);
     }
 
     /**
