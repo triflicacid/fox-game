@@ -38,6 +38,26 @@ export abstract class Feature {
     public abstract getPermittedBiomes(): readonly BiomeTag[];
 
     /**
+     * Whether this feature's own fields consider `(worldX, worldY)` a
+     * candidate site, independent of component discovery/acceptance - a
+     * cheap, per-tile, always-consistent over-approximation (a candidate
+     * tile isn't guaranteed to end up part of an accepted component, but
+     * every accepted component's tiles are always candidates). Lets other
+     * systems (e.g. `Structure`) conservatively avoid tiles this feature
+     * might turn into water, without redoing full component discovery.
+     * Defaults to never a candidate.
+     *
+     * @param worldX - Tile's X position, in tiles from the world origin.
+     * @param worldY - Tile's Y position, in tiles from the world origin.
+     * @returns Whether this feature considers the position a candidate site.
+     */
+    public isCandidateSite(worldX: number, worldY: number): boolean {
+        void worldX;
+        void worldY;
+        return false;
+    }
+
+    /**
      * Applies this feature onto `tiles`, mutating whichever local tiles it
      * covers within the chunk at `(chunkX, chunkY)`.
      *

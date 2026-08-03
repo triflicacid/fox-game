@@ -7,6 +7,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {DebugHud, ChunkState} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
+import {TreeSpriteSheet, TreeSpriteType} from "../sprites/TreeSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
@@ -57,8 +58,10 @@ export class World {
 
     private readonly chunks = new CoordMap<Chunk>();
     private readonly entities: Entity[] = [];
+    private readonly treeSpriteSheet = new TreeSpriteSheet();
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
+        getStructureSpriteBitmap: (sprite) => this.treeSpriteSheet.getTileBitmap(sprite as TreeSpriteType),
     };
     /** Used only for {@link getNoiseFieldNames}/{@link drawNoiseFieldOverlay} - actual chunk generation runs on {@link chunkWorkerClient}. */
     private chunkGenerator: ChunkGenerator;
@@ -959,9 +962,36 @@ export class World {
             effect.draw(ctx, viewX, viewY);
         }
         this.drawEntities(ctx, camera, debugEnabled);
+        this.drawStructureProps(ctx, camera);
 
         if (debugEnabled) {
             this.drawDebugHud(ctx, camera, {spectating, spectatorVelocity, actualFps, targetFps});
+        }
+    }
+
+    /**
+     * Draws every loaded visible chunk's foreground-layer structure pieces
+     * (e.g. tree trunks/canopies), on top of every entity just drawn by
+     * {@link drawEntities} - see {@link Chunk.drawProps}.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param camera - Camera to render the world through.
+     */
+    private drawStructureProps(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
+
+        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
+            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+                if (!this.isChunkLoaded(chunkX, chunkY)) {
+                    continue;
+                }
+                const originX = chunkX * chunkPixelSize - viewX;
+                const originY = chunkY * chunkPixelSize - viewY;
+                this.getChunk(chunkX, chunkY).drawProps(ctx, originX, originY, this.tileSize);
+            }
         }
     }
 

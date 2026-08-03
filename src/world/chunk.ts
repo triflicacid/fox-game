@@ -4,6 +4,9 @@ import {DEBUG_CONFIG} from "../debug/debug-config";
 import {CHUNK_SIZE} from "./chunk-size";
 import {ChunkGenerationResult} from "./generation/chunk/chunk-worker-protocol";
 import {BiomeSummary} from "./generation/biome/biome";
+import {StructurePieceInstance} from "./generation/structure/structure";
+import {StructureLayer} from "./generation/structure/structure-manifest";
+import {CoordSet} from "./coord-set";
 import {requireNonNull} from "../util";
 
 export type {ChunkSpriteSheets};
@@ -24,6 +27,18 @@ export class Chunk {
 
     /** Rendered once every tile's sprite has loaded. `null` until then, during which {@link draw} falls back to a per-tile loop. */
     private cachedBitmap: ImageBitmap | null = null;
+
+    /** Decorative structure pieces (e.g. tree trunks/leaves) touching this chunk. Empty until {@link hydrate} resolves. */
+    private structurePieces: StructurePieceInstance[] = [];
+
+    /** Rendered once every foreground-layer piece's sprite has loaded. `null` until then (or while there are none), during which {@link drawProps} draws nothing. */
+    private cachedPropsBitmap: ImageBitmap | null = null;
+
+    /** Bitmap per distinct structure sprite type this chunk uses - populated once in {@link hydrate}, before either cache is built. */
+    private readonly structureBitmaps = new Map<string, ImageBitmap>();
+
+    /** World positions covered by any structure piece - see {@link drawStructureOutlines}. Populated once in {@link hydrate}. */
+    private readonly structureOccupancy = new CoordSet();
 
     /** Dominant biome or `mixed`, for debugging only. Empty until {@link isReady}. */
     public biomeSummary: BiomeSummary | "" = "";
@@ -69,8 +84,17 @@ export class Chunk {
         this.biomeSummary = result.biomeSummary;
         this.generationTimeMs = result.generationTimeMs;
         this.tiles = result.tiles.map((row) => row.map((data) => new Tile(data, spriteSheets)));
+        this.structurePieces = result.props;
+        for (const piece of this.structurePieces) {
+            this.structureOccupancy.add(piece.worldX, piece.worldY);
+        }
 
-        await this.cacheBitmap(tileSize);
+        const distinctSprites = [...new Set(this.structurePieces.map((piece) => piece.sprite))];
+        await Promise.all(distinctSprites.map(async (sprite) => {
+            this.structureBitmaps.set(sprite, await spriteSheets.getStructureSpriteBitmap(sprite));
+        }));
+
+        await Promise.all([this.cacheBitmap(tileSize), this.cachePropsBitmap(tileSize)]);
     }
 
     /**
@@ -84,7 +108,9 @@ export class Chunk {
 
     /**
      * Renders this chunk once to an offscreen bitmap so {@link draw} can blit
-     * it instead of redrawing every tile every frame.
+     * it instead of redrawing every tile every frame. Background-layer
+     * structure pieces are painted on top of the ground tiles within this
+     * same cache, so they merge into it rather than needing their own pass.
      *
      * @param tileSize - Width/height a tile renders at, in canvas pixels.
      */
@@ -99,7 +125,52 @@ export class Chunk {
                 this.tiles[y][x].draw(ctx, x * tileSize, y * tileSize, tileSize);
             }
         }
+        this.drawStructureLayer(ctx, tileSize, "background");
         this.cachedBitmap = offscreen.transferToImageBitmap();
+    }
+
+    /**
+     * Renders this chunk's foreground-layer structure pieces (e.g. a tree's
+     * trunk and canopy alike) onto a transparent offscreen bitmap so
+     * {@link drawProps} can blit it instead of redrawing every piece every
+     * frame. Left `null` if there are none to draw.
+     *
+     * @param tileSize - Width/height a tile renders at, in canvas pixels.
+     */
+    private async cachePropsBitmap(tileSize: number): Promise<void> {
+        if (!this.structurePieces.some((piece) => piece.layer === "foreground")) {
+            return;
+        }
+
+        const pixelSize = CHUNK_SIZE * tileSize;
+        const offscreen = new OffscreenCanvas(pixelSize, pixelSize);
+        const ctx = requireNonNull(offscreen.getContext("2d"));
+        this.drawStructureLayer(ctx, tileSize, "foreground");
+        this.cachedPropsBitmap = offscreen.transferToImageBitmap();
+    }
+
+    /**
+     * Draws every structure piece on the given layer at its local pixel
+     * position, one tile in size. Piece bitmaps are preloaded into
+     * {@link structureBitmaps} by {@link hydrate} before either cache is
+     * built, so this never has to await anything.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param tileSize - Width/height a tile renders at, in canvas pixels.
+     * @param layer - Which layer to draw.
+     */
+    private drawStructureLayer(ctx: OffscreenCanvasRenderingContext2D, tileSize: number, layer: StructureLayer): void {
+        const chunkOriginX = this.chunkX * CHUNK_SIZE;
+        const chunkOriginY = this.chunkY * CHUNK_SIZE;
+        for (const piece of this.structurePieces) {
+            if (piece.layer !== layer) {
+                continue;
+            }
+            const bitmap = requireNonNull(this.structureBitmaps.get(piece.sprite));
+            const localX = (piece.worldX - chunkOriginX) * tileSize;
+            const localY = (piece.worldY - chunkOriginY) * tileSize;
+            ctx.drawImage(bitmap, localX, localY, tileSize, tileSize);
+        }
     }
 
     /**
@@ -151,6 +222,27 @@ export class Chunk {
     }
 
     /**
+     * Draws this chunk's foreground-layer structure pieces (e.g. a tree's
+     * trunk and canopy alike), on top of everything drawn so far - ground
+     * and entities alike, see `World.draw` - so a tree always occludes the
+     * player rather than being occluded by it. Draws nothing while not
+     * ready or while this chunk has no foreground pieces; decorative, so a
+     * piece popping in a frame late is fine, unlike {@link draw}'s
+     * placeholder-backed fallback.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X position of this chunk's top-left corner.
+     * @param originY - Canvas Y position of this chunk's top-left corner.
+     * @param tileSize - Width/height of each tile, in canvas pixels.
+     */
+    public drawProps(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
+        if (!this.cachedPropsBitmap) {
+            return;
+        }
+        ctx.drawImage(this.cachedPropsBitmap, originX, originY, CHUNK_SIZE * tileSize, CHUNK_SIZE * tileSize);
+    }
+
+    /**
      * Draws this chunk's outline and coordinate label, for debug rendering
      * mode. While this chunk hasn't finished generating, also draws its
      * position in the generation queue, centred in the chunk, if known.
@@ -184,6 +276,7 @@ export class Chunk {
 
         if (this.isReady()) {
             this.drawFeatureOutlines(ctx, originX, originY, tileSize);
+            this.drawStructureOutlines(ctx, originX, originY, tileSize);
         }
     }
 
@@ -223,6 +316,55 @@ export class Chunk {
                     this.strokeLine(ctx, left, top, right, top);
                 }
                 if (y < CHUNK_SIZE - 1 && this.tiles[y + 1][x].featureTag !== tag) {
+                    this.strokeLine(ctx, left, bottom, right, bottom);
+                }
+            }
+        }
+    }
+
+    /**
+     * Outlines every tile edge where structure-piece occupancy differs from
+     * the neighbouring tile. Unlike {@link drawFeatureOutlines}, this also
+     * covers the chunk's own outer edge: {@link structureOccupancy} already
+     * includes halo-sourced pieces anchored in a neighbouring chunk, so a
+     * tree spilling across the boundary still outlines correctly here.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X position of this chunk's top-left corner.
+     * @param originY - Canvas Y position of this chunk's top-left corner.
+     * @param tileSize - Width/height of each tile, in canvas pixels.
+     */
+    private drawStructureOutlines(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
+        ctx.strokeStyle = DEBUG_CONFIG.structureOutlineColor;
+        ctx.lineWidth = DEBUG_CONFIG.structureOutlineWidth;
+
+        const chunkOriginX = this.chunkX * CHUNK_SIZE;
+        const chunkOriginY = this.chunkY * CHUNK_SIZE;
+        const occupied = (worldX: number, worldY: number): boolean => this.structureOccupancy.has(worldX, worldY);
+
+        for (let y = 0; y < CHUNK_SIZE; y++) {
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+                const worldX = chunkOriginX + x;
+                const worldY = chunkOriginY + y;
+                if (!occupied(worldX, worldY)) {
+                    continue;
+                }
+
+                const left = originX + x * tileSize;
+                const top = originY + y * tileSize;
+                const right = left + tileSize;
+                const bottom = top + tileSize;
+
+                if (!occupied(worldX - 1, worldY)) {
+                    this.strokeLine(ctx, left, top, left, bottom);
+                }
+                if (!occupied(worldX + 1, worldY)) {
+                    this.strokeLine(ctx, right, top, right, bottom);
+                }
+                if (!occupied(worldX, worldY - 1)) {
+                    this.strokeLine(ctx, left, top, right, top);
+                }
+                if (!occupied(worldX, worldY + 1)) {
                     this.strokeLine(ctx, left, bottom, right, bottom);
                 }
             }
