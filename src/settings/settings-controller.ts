@@ -160,7 +160,7 @@ export class SettingsController extends KeyBindingPopupController {
                         onSelect: (key) => this.setNoiseFieldName(key === "" ? undefined : key),
                         options: [
                             {key: "", content: "None"},
-                            ...this.getNoiseFieldNames().map((name) => ({key: name, content: name})),
+                            ...[...this.getNoiseFieldNames()].sort((a, b) => a.localeCompare(b)).map((name) => ({key: name, content: name})),
                         ],
                     })),
             );

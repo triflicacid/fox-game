@@ -8,6 +8,8 @@ import {StructurePieceInstance} from "./generation/structure/structure";
 import {StructureLayer} from "./generation/structure/structure-manifest";
 import {CoordMap} from "./coord-set";
 import {requireNonNull} from "../util";
+import {NoiseField} from "./generation/noise-field";
+import {GradientStop, sampleGradient} from "./generation/noise-field-colors";
 
 export type {ChunkSpriteSheets};
 export {CHUNK_SIZE};
@@ -42,6 +44,12 @@ export class Chunk {
 
     /** Queue position {@link cachedPendingDebugBitmap} was last built for - compared against the latest value on every {@link drawDebug} call to decide whether a rebuild is needed. */
     private cachedPendingQueuePosition: number | undefined = undefined;
+
+    /** Rendered lazily the first time {@link drawNoiseOverlay} is called for a given field - see {@link buildNoiseOverlayBitmap}. `null` until then. */
+    private cachedNoiseOverlayBitmap: ImageBitmap | null = null;
+
+    /** Field name {@link cachedNoiseOverlayBitmap} was last built for - compared against the requested field on every {@link drawNoiseOverlay} call to decide whether a rebuild is needed. `undefined` until first drawn. */
+    private cachedNoiseOverlayField: string | undefined = undefined;
 
     /** Bitmap per distinct structure sprite type this chunk uses - populated once in {@link hydrate}, before either cache is built. */
     private readonly structureBitmaps = new Map<string, ImageBitmap>();
@@ -364,6 +372,56 @@ export class Chunk {
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(String(queuePosition), pixelSize / 2, pixelSize / 2);
+        }
+
+        return offscreen.transferToImageBitmap();
+    }
+
+    /**
+     * Draws this chunk's noise-field debug overlay: one coloured tile per
+     * `field` sample, coloured via `gradient` (see `noise-field-colors.ts`).
+     * Rendered once to {@link cachedNoiseOverlayBitmap} and blitted from then
+     * on instead of resampling every tile every frame; rebuilt only when a
+     * different field is selected (see {@link cachedNoiseOverlayField}) - not
+     * on regeneration, since a `NoiseField` samples pure world-space
+     * coordinates independent of this chunk's own tile data.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X position of this chunk's top-left corner.
+     * @param originY - Canvas Y position of this chunk's top-left corner.
+     * @param tileSize - Width/height of each tile, in canvas pixels.
+     * @param field - The noise field to sample.
+     * @param gradient - Colour gradient to render `field`'s samples with.
+     */
+    public drawNoiseOverlay(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, field: NoiseField, gradient: readonly GradientStop[]): void {
+        if (!this.cachedNoiseOverlayBitmap || this.cachedNoiseOverlayField !== field.name) {
+            this.cachedNoiseOverlayBitmap = this.buildNoiseOverlayBitmap(tileSize, field, gradient);
+            this.cachedNoiseOverlayField = field.name;
+        }
+        ctx.drawImage(this.cachedNoiseOverlayBitmap, originX, originY, CHUNK_SIZE * tileSize, CHUNK_SIZE * tileSize);
+    }
+
+    /**
+     * Renders `field`'s sample at every tile in this chunk, coloured via
+     * `gradient`, to an offscreen bitmap - see {@link drawNoiseOverlay}.
+     *
+     * @param tileSize - Width/height of each tile, in canvas pixels.
+     * @param field - The noise field to sample.
+     * @param gradient - Colour gradient to render `field`'s samples with.
+     */
+    private buildNoiseOverlayBitmap(tileSize: number, field: NoiseField, gradient: readonly GradientStop[]): ImageBitmap {
+        const pixelSize = CHUNK_SIZE * tileSize;
+        const offscreen = new OffscreenCanvas(pixelSize, pixelSize);
+        const ctx = requireNonNull(offscreen.getContext("2d"));
+
+        const chunkOriginX = this.chunkX * CHUNK_SIZE;
+        const chunkOriginY = this.chunkY * CHUNK_SIZE;
+        for (let y = 0; y < CHUNK_SIZE; y++) {
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+                const [r, g, b] = sampleGradient(gradient, field.sample(chunkOriginX + x, chunkOriginY + y));
+                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            }
         }
 
         return offscreen.transferToImageBitmap();
