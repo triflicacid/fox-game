@@ -255,6 +255,8 @@ export class WorldController {
             this.ctx,
             this.camera,
             this.debugController.isEnabled(),
+            this.debugController.isBordersEnabled(),
+            this.debugController.isHitboxesEnabled(),
             this.movementController.isSpectating(),
             this.movementController.getSpectatorVelocity(),
             this.frameLoop.getActualFps(),

@@ -7,6 +7,12 @@ import {Keyboard} from "@keyboard";
 export class DebugController {
     private enabled = false;
 
+    /** Whether chunk/biome/feature/structure border outlines are drawn - toggled with `b`, only while {@link enabled}. Off by default even when debug mode is on. */
+    private bordersEnabled = false;
+
+    /** Whether entity hitboxes (bounding box + facing arrow) are drawn - toggled with `h`, only while {@link enabled}. Off by default even when debug mode is on. */
+    private hitboxesEnabled = false;
+
     /**
      * @param keyboard - Shared keyboard state used to observe debug hotkeys.
      * @param onReloadChunks - Called when the `r` key is pressed while debug mode is enabled.
@@ -20,6 +26,8 @@ export class DebugController {
         private readonly isSpectating: () => boolean,
     ) {
         keyboard.onKeyDownForKey("d", this.toggleDebugOverlay, {caseInsensitive: true});
+        keyboard.onKeyDownForKey("b", this.toggleBorders, {caseInsensitive: true});
+        keyboard.onKeyDownForKey("h", this.toggleHitboxes, {caseInsensitive: true});
         keyboard.onKeyDownForKey("r", this.handleReloadChunks, {caseInsensitive: true});
         keyboard.onKeyDownForKey("t", this.handleTeleportToCamera, {caseInsensitive: true});
     }
@@ -43,6 +51,28 @@ export class DebugController {
     }
 
     /**
+     * Whether chunk/biome/feature/structure border outlines are currently
+     * drawn. The `b` toggle persists independently of debug mode, but this
+     * always reads `false` while debug mode itself is off.
+     *
+     * @returns `true` if borders are enabled.
+     */
+    public isBordersEnabled(): boolean {
+        return this.enabled && this.bordersEnabled;
+    }
+
+    /**
+     * Whether entity hitboxes are currently drawn. The `h` toggle persists
+     * independently of debug mode, but this always reads `false` while debug
+     * mode itself is off.
+     *
+     * @returns `true` if hitboxes are enabled.
+     */
+    public isHitboxesEnabled(): boolean {
+        return this.enabled && this.hitboxesEnabled;
+    }
+
+    /**
      * This controller's key bindings.
      *
      * @returns This controller's key bindings.
@@ -50,7 +80,11 @@ export class DebugController {
     public getKeyBindings(): KeyBinding[] {
         const bindings: KeyBinding[] = [{key: "D", description: "Toggle debug overlay"}];
         if (this.enabled) {
-            bindings.push({key: "R", description: "Reload all chunks"});
+            bindings.push(
+                {key: "B", description: "Toggle chunk/biome/feature/structure borders"},
+                {key: "H", description: "Toggle entity hitboxes"},
+                {key: "R", description: "Reload all chunks"},
+            );
             if (this.isSpectating()) {
                 bindings.push({key: "T", description: "Teleport to camera"});
             }
@@ -60,6 +94,18 @@ export class DebugController {
 
     private readonly toggleDebugOverlay = (): void => {
         this.enabled = !this.enabled;
+    };
+
+    private readonly toggleBorders = (): void => {
+        if (this.enabled) {
+            this.bordersEnabled = !this.bordersEnabled;
+        }
+    };
+
+    private readonly toggleHitboxes = (): void => {
+        if (this.enabled) {
+            this.hitboxesEnabled = !this.hitboxesEnabled;
+        }
     };
 
     private readonly handleReloadChunks = (): void => {

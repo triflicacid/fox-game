@@ -961,7 +961,9 @@ export class World {
      *
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera to render the world through.
-     * @param debugEnabled - Whether to also draw the debug overlay (chunk/tile outlines, entity bounding boxes/facing arrows, and the camera/entity HUD). Defaults to `false`.
+     * @param debugEnabled - Whether to draw the debug HUD (the camera/entity readout). Defaults to `false`.
+     * @param bordersEnabled - Whether to also draw chunk/tile/biome/feature/structure border outlines. Defaults to `false`.
+     * @param hitboxesEnabled - Whether to also draw entity bounding boxes/facing arrows. Defaults to `false`.
      * @param spectating - Whether spectator mode is currently active, shown as an indicator in the debug HUD. Defaults to `false`.
      * @param actualFps - Currently measured rendering FPS, shown in the debug HUD. Defaults to `0`.
      * @param targetFps - Configured FPS cap, shown alongside `actualFps` in the debug HUD, or `undefined` when uncapped.
@@ -971,6 +973,8 @@ export class World {
         ctx: CanvasRenderingContext2D,
         camera: Camera,
         debugEnabled = false,
+        bordersEnabled = false,
+        hitboxesEnabled = false,
         spectating = false,
         spectatorVelocity: Vector2d = Vector2d.ZERO,
         actualFps = 0,
@@ -1002,14 +1006,14 @@ export class World {
                 chunk.draw(ctx, originX, originY, this.tileSize);
                 this.lastVisibleChunkCount++;
 
-                if (debugEnabled) {
+                if (bordersEnabled) {
                     const queuePosition = chunk.isReady() ? undefined : this.chunkWorkerClient.getQueuePosition(chunkX, chunkY);
                     chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
                 }
             }
         }
 
-        if (debugEnabled) {
+        if (bordersEnabled) {
             this.drawBiomeOutlines(ctx, camera);
         }
 
@@ -1020,7 +1024,7 @@ export class World {
         for (const effect of this.effects) {
             effect.draw(ctx, viewX, viewY);
         }
-        this.drawEntities(ctx, camera, debugEnabled);
+        this.drawEntities(ctx, camera, hitboxesEnabled);
         this.drawStructureProps(ctx, camera);
 
         ctx.restore();
@@ -1147,9 +1151,9 @@ export class World {
      *
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera to render entities through.
-     * @param debugEnabled - Whether to draw debug info on each entity.
+     * @param hitboxesEnabled - Whether to draw each entity's bounding box/facing arrow.
      */
-    private drawEntities(ctx: CanvasRenderingContext2D, camera: Camera, debugEnabled = false): void {
+    private drawEntities(ctx: CanvasRenderingContext2D, camera: Camera, hitboxesEnabled = false): void {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
 
@@ -1171,13 +1175,13 @@ export class World {
                 ctx.translate(position.x - viewX, position.y - viewY);
                 ctx.rotate(frame.rotation);
                 ctx.drawImage(bitmap, -rect.w / 2, -rect.h / 2, rect.w, rect.h);
-                if (debugEnabled) {
+                if (hitboxesEnabled) {
                     entity.drawDebugOverlay(ctx, viewX, viewY);
                 }
                 ctx.restore();
             } else {
                 ctx.drawImage(bitmap, rect.x - viewX, rect.y - viewY, rect.w, rect.h);
-                if (debugEnabled) {
+                if (hitboxesEnabled) {
                     entity.drawDebugOverlay(ctx, viewX, viewY);
                 }
             }
