@@ -135,6 +135,38 @@ const OASIS_WATER_DARK = {
     ],
 };
 
+// darker, cooler-toned than plains grass so forest floor reads as denser cover
+const FOREST_TEXTURE_SEED = 8081;
+const FOREST_VARIANTS = [
+    {
+        seed: FOREST_TEXTURE_SEED,
+        palette: [
+            { color: [52, 94, 42, 255], weight: 78 },  // base
+            { color: [40, 78, 32, 255], weight: 12 },  // shaded blade
+            { color: [66, 110, 50, 255], weight: 8 },  // sunlit blade
+            { color: [86, 120, 58, 255], weight: 2 },  // subdued fleck
+        ],
+    },
+    {
+        seed: FOREST_TEXTURE_SEED,
+        palette: [
+            { color: [64, 112, 52, 255], weight: 78 },
+            { color: [50, 94, 42, 255], weight: 12 },
+            { color: [80, 128, 62, 255], weight: 8 },
+            { color: [100, 138, 72, 255], weight: 2 },
+        ],
+    },
+    {
+        seed: FOREST_TEXTURE_SEED,
+        palette: [
+            { color: [38, 70, 30, 255], weight: 78 },
+            { color: [28, 56, 22, 255], weight: 12 },
+            { color: [50, 86, 40, 255], weight: 8 },
+            { color: [70, 96, 48, 255], weight: 2 },
+        ],
+    },
+];
+
 const SAND_VARIANTS = [
     {
         seed: 5001,
@@ -165,7 +197,7 @@ const SAND_VARIANTS = [
     },
 ];
 
-// row 0: plains terrain and lake water; row 1: desert terrain and oasis water
+// row 0: plains terrain and lake water; row 1: desert terrain and oasis water; row 2: forest terrain
 const TILE_ROWS = [
     [
         { type: "grass1", ...GRASS_VARIANTS[0] },
@@ -182,6 +214,11 @@ const TILE_ROWS = [
         { type: "sand3", ...SAND_VARIANTS[2] },
         { type: "oasisWaterLight", ...OASIS_WATER_LIGHT },
         { type: "oasisWaterDark", ...OASIS_WATER_DARK },
+    ],
+    [
+        { type: "forest1", ...FOREST_VARIANTS[0] },
+        { type: "forest2", ...FOREST_VARIANTS[1] },
+        { type: "forest3", ...FOREST_VARIANTS[2] },
     ],
 ];
 
