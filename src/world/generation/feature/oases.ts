@@ -80,6 +80,10 @@ export class OasisFeature extends Feature {
         return OASIS_CONFIG.requiredBiome;
     }
 
+    public override isCandidateSite(worldX: number, worldY: number): boolean {
+        return this.isCandidate(worldX, worldY);
+    }
+
     public override apply(
         tiles: TileData[][],
         chunkX: number,

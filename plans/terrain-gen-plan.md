@@ -12,6 +12,10 @@ The next milestone is **rare Desert oases**. Desert classification, terrain,
 and biome-interior terrain depth are complete. Oases should now add rare,
 Desert-specific water without weakening the shared climate model.
 
+A ground-only **Forest** biome was added alongside this work (see §3.10):
+cool, moist terrain classified from the shared climate fields exactly like
+Desert, with no tree objects or new collision.
+
 ---
 
 ## 1. Goals and invariants
@@ -294,6 +298,37 @@ so one component may touch many chunks. Large connected Deserts should normally
 contain at least one oasis, while small Desert patches may have none. Record the
 seed set, sampled area, component sizes, and large-Desert misses whenever
 thresholds are changed.
+
+### 3.10 Forest is a ground-only third climate biome
+
+Forest was added as a third `Biome` alongside Desert and Plains, following the
+same climate-driven design as Desert rather than a decorative overlay or a
+Phase 8 flora feature.
+
+- Forest occupies the opposite corner of the climate space from Desert: cool
+  and moist, matched by `temperature <= 0.52` and `moisture >= 0.58`
+  (first-guess thresholds, not yet tuned against the debug field visualiser).
+- Biome resolution order is `Desert -> Forest -> Plains`, with Plains
+  remaining the unconditional catch-all. Desert requires low moisture and
+  Forest requires high moisture, so the two can never both match; any climate
+  neither claims falls through to Plains, so the three-way partition has no
+  gaps.
+- Forest owns its own world-space `tree_variant` field (a `ValueNoiseField`,
+  the same shape as `grass_variant`/`sand_variant`) and reuses the shared
+  terrain-depth machinery unchanged. `forest2`/`forest1`/`forest3` are the
+  audited light/medium/dark ordering, matching the numbering convention
+  grass and sand already established.
+- This addition is deliberately ground-only: no tree objects, no
+  overlay/decoration layer, and no new collision. `LakeFeature` still votes
+  only `plains` cores and `OasisFeature` still requires `desert` cores, so
+  forest ground does not yet interact with water features. Whether lakes or
+  ponds should also accept a Forest-majority core is an open question for a
+  later pass, not decided here.
+
+New sprites `forest1`, `forest2`, `forest3` were added to
+`scripts/gen-background-tile-sprites.mjs` (row 2 of the background sheet)
+with a darker, cooler-toned palette than Plains grass, and
+`static/background-tile-sprites.png`/`.json` were regenerated.
 
 ---
 

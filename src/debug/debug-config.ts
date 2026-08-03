@@ -27,6 +27,11 @@ export const DEBUG_CONFIG = {
     /** Stroke width for feature-tag boundary outlines, in canvas pixels. */
     featureOutlineWidth: 1,
 
+    /** Stroke colour for structure-piece boundary outlines (e.g. tree footprints). */
+    structureOutlineColor: "#00e5ff",
+    /** Stroke width for structure-piece boundary outlines, in canvas pixels. */
+    structureOutlineWidth: 1,
+
     /** Stroke colour for biome-tag boundary outlines. */
     biomeOutlineColor: "#d946ef",
     /** Stroke width for biome-tag boundary outlines, in canvas pixels. */
@@ -70,6 +75,7 @@ fieldRegistry.registerFields("debug", DEBUG_CONFIG, {
     chunkOutlineWidth: nonNegativeInteger(),
     chunkLabelPadding: nonNegativeInteger(),
     featureOutlineWidth: nonNegativeInteger(),
+    structureOutlineWidth: nonNegativeInteger(),
     biomeOutlineWidth: nonNegativeInteger(),
     boundingBoxWidth: nonNegativeInteger(),
     facingArrowWidth: nonNegativeInteger(),
