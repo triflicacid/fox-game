@@ -17,6 +17,7 @@ import {SpriteFrame} from "../sprites/sprite";
 import {CoordMap, CoordSet} from "./coord-set";
 import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
+import {getFieldGradient} from "./generation/noise-field-colors";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -967,7 +968,7 @@ export class World {
      * @param spectating - Whether spectator mode is currently active, shown as an indicator in the debug HUD. Defaults to `false`.
      * @param actualFps - Currently measured rendering FPS, shown in the debug HUD. Defaults to `0`.
      * @param targetFps - Configured FPS cap, shown alongside `actualFps` in the debug HUD, or `undefined` when uncapped.
-     * @param noiseFieldName - Name of a registered `NoiseField` to render as a greyscale heatmap over the visible area, or `undefined` for none. Only drawn while `debugEnabled`.
+     * @param noiseFieldName - Name of a registered `NoiseField` to render as a heatmap (with a colour-scale key) over the visible area, or `undefined` for none. Only drawn while `debugEnabled`.
      */
     public draw(
         ctx: CanvasRenderingContext2D,
@@ -1031,6 +1032,9 @@ export class World {
 
         if (debugEnabled) {
             this.drawDebugHud(ctx, camera, {spectating, spectatorVelocity, actualFps, targetFps});
+            if (noiseFieldName) {
+                this.drawNoiseFieldLegend(ctx, ctx.canvas.width, noiseFieldName);
+            }
         }
     }
 
@@ -1116,8 +1120,9 @@ export class World {
     }
 
     /**
-     * Renders one registered `NoiseField` as a greyscale heatmap (black = 0,
-     * white = close to 1).
+     * Renders one registered `NoiseField` as a heatmap, using its themed
+     * colour gradient (see `noise-field-colors.ts`) if it has one, or
+     * greyscale (black = 0, white = close to 1) otherwise.
      *
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera whose view to cover.
@@ -1129,19 +1134,86 @@ export class World {
             return;
         }
 
+        const gradient = getFieldGradient(fieldName);
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
-        const startTileX = Math.floor(viewX / this.tileSize);
-        const startTileY = Math.floor(viewY / this.tileSize);
-        const endTileX = Math.floor((viewX + camera.getWidth()) / this.tileSize);
-        const endTileY = Math.floor((viewY + camera.getHeight()) / this.tileSize);
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
 
-        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
-            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const grey = Math.round(Math.min(1, Math.max(0, field.sample(tileX, tileY))) * 255);
-                ctx.fillStyle = `rgb(${grey}, ${grey}, ${grey})`;
-                ctx.fillRect(tileX * this.tileSize - viewX, tileY * this.tileSize - viewY, this.tileSize, this.tileSize);
+        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
+            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+                if (!this.isChunkLoaded(chunkX, chunkY)) {
+                    continue;
+                }
+                const originX = chunkX * chunkPixelSize - viewX;
+                const originY = chunkY * chunkPixelSize - viewY;
+                this.getChunk(chunkX, chunkY).drawNoiseOverlay(ctx, originX, originY, this.tileSize, field, gradient);
             }
+        }
+    }
+
+    /**
+     * Draws a vertical colour-scale key for the currently visualised noise
+     * field in the canvas's top-right corner: a bar spanning the field's
+     * gradient (see {@link drawNoiseFieldOverlay}) from `1` at the top to
+     * `0` at the bottom, with tick labels at 0, 0.25, 0.5, 0.75, and 1.
+     *
+     * @param ctx - Canvas context to draw into, already outside any camera transform.
+     * @param canvasWidth - Canvas width, in canvas pixels, for right-alignment.
+     * @param fieldName - Name of the currently visualised field.
+     */
+    private drawNoiseFieldLegend(ctx: CanvasRenderingContext2D, canvasWidth: number, fieldName: string): void {
+        const {
+            noiseLegendBarWidth: barWidth,
+            noiseLegendBarHeight: barHeight,
+            noiseLegendMargin: margin,
+            noiseLegendPadding: padding,
+            noiseLegendTickLength: tickLength,
+            noiseLegendLabelGap: labelGap,
+        } = DEBUG_CONFIG;
+        const ticks: {value: number; label: string}[] = [
+            {value: 1, label: "MAX (1)"},
+            {value: 0.75, label: "0.75"},
+            {value: 0.5, label: "0.5"},
+            {value: 0.25, label: "0.25"},
+            {value: 0, label: "MIN (0)"},
+        ];
+
+        ctx.font = DEBUG_CONFIG.noiseLegendFont;
+        const labelWidth = Math.max(...ticks.map((tick) => ctx.measureText(tick.label).width));
+
+        const boxWidth = padding * 2 + barWidth + tickLength + labelGap + labelWidth;
+        const boxHeight = padding * 2 + barHeight;
+        const boxLeft = canvasWidth - margin - boxWidth;
+        const boxTop = margin;
+        const barLeft = boxLeft + padding;
+        const barTop = boxTop + padding;
+
+        ctx.fillStyle = DEBUG_CONFIG.noiseLegendBackgroundColor;
+        ctx.fillRect(boxLeft, boxTop, boxWidth, boxHeight);
+
+        const gradient = ctx.createLinearGradient(barLeft, barTop, barLeft, barTop + barHeight);
+        for (const stop of getFieldGradient(fieldName)) {
+            const [r, g, b] = stop.rgb;
+            gradient.addColorStop(1 - stop.value, `rgb(${r}, ${g}, ${b})`);
+        }
+        ctx.fillStyle = gradient;
+        ctx.fillRect(barLeft, barTop, barWidth, barHeight);
+
+        ctx.strokeStyle = DEBUG_CONFIG.noiseLegendLineColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barLeft + 0.5, barTop + 0.5, barWidth - 1, barHeight - 1);
+
+        ctx.fillStyle = DEBUG_CONFIG.noiseLegendTextColor;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        for (const tick of ticks) {
+            const y = barTop + (1 - tick.value) * barHeight;
+            ctx.beginPath();
+            ctx.moveTo(barLeft + barWidth, y);
+            ctx.lineTo(barLeft + barWidth + tickLength, y);
+            ctx.stroke();
+            ctx.fillText(tick.label, barLeft + barWidth + tickLength + labelGap, y);
         }
     }
 
