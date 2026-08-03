@@ -2,6 +2,7 @@ import {World} from "./world/world";
 import {ChunkWorkerClient} from "./world/generation/chunk/chunk-worker-client";
 import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
+import {CameraZoomController} from "./camera/camera-zoom-controller";
 import {MovementController} from "./entities/movement-controller";
 import {Fox} from "./entities/fox";
 import {DashEffect, DashEffectRequest} from "./effects/dash-effect";
@@ -34,6 +35,7 @@ export class WorldController {
     private readonly ctx: CanvasRenderingContext2D;
     private readonly world: World;
     private readonly camera: Camera;
+    private readonly cameraZoomController: CameraZoomController;
     private readonly movementController: MovementController;
     private readonly debugController: DebugController;
     private readonly helpController: HelpController;
@@ -76,6 +78,7 @@ export class WorldController {
 
         this.camera = new Camera(Vector2d.ZERO, window.innerWidth, window.innerHeight);
         new CameraDragController(canvas, this.camera);
+        this.cameraZoomController = new CameraZoomController(canvas, this.camera);
         this.movementController = new MovementController(keyboard, mainEntity, {camera: this.camera, mode: "edge", edgeMargin: 200});
         this.debugController = new DebugController(
             keyboard,
@@ -266,6 +269,7 @@ export class WorldController {
      */
     private getKeyBindings(): KeyBinding[] {
         const all = [
+            ...this.cameraZoomController.getKeyBindings(),
             ...this.movementController.getKeyBindings(),
             ...this.debugController.getKeyBindings(),
             ...this.keyBindingPopupControllers.flatMap((source) => source.getKeyBindings()),
