@@ -39,6 +39,8 @@ export interface DebugHudData {
     averageChunkGenerationTimeMs: number;
     exactFeature: string;
     nearbyFeature: string;
+    exactStructure: string;
+    nearbyStructure: string;
     velocityLabel: string;
     velocityX: number;
     velocityY: number;
@@ -137,6 +139,13 @@ export class DebugHud {
                 this.text("  feature: "), this.stringValue(data.exactFeature),
                 ...(data.nearbyFeature !== "none" && data.nearbyFeature !== data.exactFeature
                     ? [this.text(" (nearby: "), this.stringValue(data.nearbyFeature), this.text(")")]
+                    : []),
+            ],
+            // Structure (e.g. a tree's trunk/leaf sprite)
+            [
+                this.text("structure: "), this.stringValue(data.exactStructure),
+                ...(data.nearbyStructure !== "none" && data.nearbyStructure !== data.exactStructure
+                    ? [this.text(" (nearby: "), this.stringValue(data.nearbyStructure), this.text(")")]
                     : []),
             ],
             // Chunk counts

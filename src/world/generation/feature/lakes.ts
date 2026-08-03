@@ -97,6 +97,10 @@ export class LakeFeature extends Feature {
         return LAKE_CONFIG.allowedBiomes;
     }
 
+    public override isCandidateSite(worldX: number, worldY: number): boolean {
+        return this.isCandidate(worldX, worldY);
+    }
+
     public override apply(tiles: TileData[][], chunkX: number, chunkY: number, resolveBiomeTagAt: BiomeTagResolver, resampleTerrainAt: TerrainResampler): void {
         const components = this.discoverComponents(resolveBiomeTagAt, chunkX, chunkY);
 
