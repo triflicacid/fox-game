@@ -69,6 +69,27 @@ export const DEBUG_CONFIG = {
     hudPadding: 8,
     /** Vertical gap placed between consecutive HUD lines, in canvas pixels. */
     hudLineSpacing: 6,
+
+    /** Width of the noise-field legend's colour bar, in canvas pixels. */
+    noiseLegendBarWidth: 20,
+    /** Height of the noise-field legend's colour bar, in canvas pixels. */
+    noiseLegendBarHeight: 160,
+    /** Gap between the noise-field legend and the canvas's top/right edges, in canvas pixels. */
+    noiseLegendMargin: 12,
+    /** Padding between the noise-field legend's background and its bar/labels, in canvas pixels. */
+    noiseLegendPadding: 8,
+    /** Length of each tick mark on the noise-field legend's bar, in canvas pixels. */
+    noiseLegendTickLength: 6,
+    /** Gap between a noise-field legend tick mark and its label, in canvas pixels. */
+    noiseLegendLabelGap: 4,
+    /** Stroke colour for the noise-field legend's bar border and tick marks. */
+    noiseLegendLineColor: "#ffffff",
+    /** Text colour for the noise-field legend's labels. */
+    noiseLegendTextColor: "#ffffff",
+    /** Background colour behind the noise-field legend. */
+    noiseLegendBackgroundColor: "rgba(0, 0, 0, 0.5)",
+    /** Font for the noise-field legend's labels. */
+    noiseLegendFont: "12px monospace",
 };
 
 fieldRegistry.registerFields("debug", DEBUG_CONFIG, {
@@ -82,4 +103,10 @@ fieldRegistry.registerFields("debug", DEBUG_CONFIG, {
     hudFontSize: nonNegativeInteger(),
     hudPadding: nonNegativeInteger(),
     hudLineSpacing: nonNegativeInteger(),
+    noiseLegendBarWidth: nonNegativeInteger(),
+    noiseLegendBarHeight: nonNegativeInteger(),
+    noiseLegendMargin: nonNegativeInteger(),
+    noiseLegendPadding: nonNegativeInteger(),
+    noiseLegendTickLength: nonNegativeInteger(),
+    noiseLegendLabelGap: nonNegativeInteger(),
 });
