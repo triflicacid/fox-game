@@ -1,0 +1,42 @@
+{
+  "cellWidth": 32,
+  "cellHeight": 32,
+  "rows": [
+    {
+      "type": "oakLogSquare",
+      "x": 0,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "oakLogRound",
+      "x": 32,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "oakLeaves",
+      "x": 64,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "birchLogSquare",
+      "x": 0,
+      "y": 32,
+      "interactable": false
+    },
+    {
+      "type": "birchLogRound",
+      "x": 32,
+      "y": 32,
+      "interactable": false
+    },
+    {
+      "type": "birchLeaves",
+      "x": 64,
+      "y": 32,
+      "interactable": false
+    }
+  ]
+}

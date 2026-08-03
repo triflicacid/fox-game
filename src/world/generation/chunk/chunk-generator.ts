@@ -7,10 +7,13 @@ import {DesertBiome} from "../biome/desert-biome";
 import {ForestBiome} from "../biome/forest-biome";
 import {PlainsBiome} from "../biome/plains-biome";
 import {Feature, FeatureProvider} from "../feature/feature";
+import {TreeStructure} from "../structure/tree-structure";
+import {StructurePieceInstance} from "../structure/structure";
 import {CoordMap} from "../../coord-set";
 import {ClimateFields} from "../biome/climate-fields";
 import {GenerationContext} from "../generation-context";
 import {computeCappedRegionDepths} from "../grid-algorithms";
+import {TreeSpriteType} from "../../../sprites/TreeSpriteSheet";
 import {
     TERRAIN_DEPTH_CONFIG,
     TerrainDepthConfig,
@@ -20,10 +23,11 @@ import {
 /** Fraction of a chunk that one biome must occupy to be its debug summary. */
 const DOMINANT_BIOME_FRACTION = 2 / 3;
 
-/** One chunk's generated tile grid and non-authoritative biome summary. */
+/** One chunk's generated tile grid, decorative structure pieces, and non-authoritative biome summary. */
 export interface GeneratedChunk {
     biomeSummary: BiomeSummary;
     tiles: TileData[][];
+    props: StructurePieceInstance<TreeSpriteType>[];
 }
 
 /**
@@ -36,6 +40,7 @@ export class ChunkGenerator {
     private features: readonly Feature[] = [];
     private readonly biomeCache = new CoordMap<Biome>();
     private readonly terrainDepthConfig: TerrainDepthConfig;
+    private treeStructure!: TreeStructure;
 
     /**
      * @param worldSeed - The world's seed.
@@ -66,9 +71,10 @@ export class ChunkGenerator {
             this.fields.register(field);
         }
 
+        const forestBiome = new ForestBiome(worldSeed, this.terrainDepthConfig);
         this.biomes = [
             new DesertBiome(worldSeed, this.terrainDepthConfig),
-            new ForestBiome(worldSeed, this.terrainDepthConfig),
+            forestBiome,
             new PlainsBiome(worldSeed, this.terrainDepthConfig),
         ];
         for (const biome of this.biomes) {
@@ -83,6 +89,13 @@ export class ChunkGenerator {
             for (const field of feature.getFields()) {
                 this.fields.register(field);
             }
+        }
+
+        const isFeatureSite = (worldX: number, worldY: number): boolean =>
+            this.features.some((feature) => feature.isCandidateSite(worldX, worldY));
+        this.treeStructure = new TreeStructure(worldSeed, isFeatureSite, forestBiome);
+        for (const field of this.treeStructure.getFields()) {
+            this.fields.register(field);
         }
     }
 
@@ -170,7 +183,9 @@ export class ChunkGenerator {
             feature.apply(tiles, chunkX, chunkY, resolveBiomeTagAt, resampleTerrainAt);
         }
 
-        return {biomeSummary: this.summariseBiomes(biomeCounts), tiles};
+        const props = this.treeStructure.generate(chunkX, chunkY, paddedBiomeTags, paddedBiomeDepths, halo);
+
+        return {biomeSummary: this.summariseBiomes(biomeCounts), tiles, props};
     }
 
     /**

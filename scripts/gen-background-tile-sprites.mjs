@@ -135,34 +135,35 @@ const OASIS_WATER_DARK = {
     ],
 };
 
-// darker, cooler-toned than plains grass so forest floor reads as denser cover
+// cooler-toned than plains grass (more blue-green/teal) so forest floor reads as distinct
+// cover without being too dark
 const FOREST_TEXTURE_SEED = 8081;
 const FOREST_VARIANTS = [
     {
         seed: FOREST_TEXTURE_SEED,
         palette: [
-            { color: [52, 94, 42, 255], weight: 78 },  // base
-            { color: [40, 78, 32, 255], weight: 12 },  // shaded blade
-            { color: [66, 110, 50, 255], weight: 8 },  // sunlit blade
-            { color: [86, 120, 58, 255], weight: 2 },  // subdued fleck
+            { color: [70, 124, 74, 255], weight: 78 },   // base
+            { color: [56, 104, 60, 255], weight: 12 },   // shaded blade
+            { color: [88, 144, 90, 255], weight: 8 },    // sunlit blade
+            { color: [104, 154, 100, 255], weight: 2 },  // subdued fleck
         ],
     },
     {
         seed: FOREST_TEXTURE_SEED,
         palette: [
-            { color: [64, 112, 52, 255], weight: 78 },
-            { color: [50, 94, 42, 255], weight: 12 },
-            { color: [80, 128, 62, 255], weight: 8 },
-            { color: [100, 138, 72, 255], weight: 2 },
+            { color: [86, 142, 90, 255], weight: 78 },
+            { color: [70, 120, 74, 255], weight: 12 },
+            { color: [104, 164, 108, 255], weight: 8 },
+            { color: [122, 176, 122, 255], weight: 2 },
         ],
     },
     {
         seed: FOREST_TEXTURE_SEED,
         palette: [
-            { color: [38, 70, 30, 255], weight: 78 },
-            { color: [28, 56, 22, 255], weight: 12 },
-            { color: [50, 86, 40, 255], weight: 8 },
-            { color: [70, 96, 48, 255], weight: 2 },
+            { color: [54, 98, 58, 255], weight: 78 },
+            { color: [42, 82, 46, 255], weight: 12 },
+            { color: [70, 116, 74, 255], weight: 8 },
+            { color: [88, 128, 84, 255], weight: 2 },
         ],
     },
 ];

@@ -51,6 +51,7 @@ function generateChunk(chunkX: number, chunkY: number): void {
         chunkY,
         biomeSummary: generated.biomeSummary,
         tiles: generated.tiles,
+        props: generated.props,
         generationTimeMs,
     });
 }
