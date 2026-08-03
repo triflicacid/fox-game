@@ -4,6 +4,7 @@ import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {NoiseFieldRegistry} from "../field-registry";
 import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "../biome/biome";
 import {DesertBiome} from "../biome/desert-biome";
+import {ForestBiome} from "../biome/forest-biome";
 import {PlainsBiome} from "../biome/plains-biome";
 import {Feature, FeatureProvider} from "../feature/feature";
 import {CoordMap} from "../../coord-set";
@@ -67,6 +68,7 @@ export class ChunkGenerator {
 
         this.biomes = [
             new DesertBiome(worldSeed, this.terrainDepthConfig),
+            new ForestBiome(worldSeed, this.terrainDepthConfig),
             new PlainsBiome(worldSeed, this.terrainDepthConfig),
         ];
         for (const biome of this.biomes) {

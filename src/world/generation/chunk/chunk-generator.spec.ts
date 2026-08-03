@@ -30,6 +30,17 @@ function controlledGenerator() {
     return {generator, moistureSample, temperatureSample};
 }
 
+/** Creates a generator with a vertical Plains/Forest border at world x=-1/0. */
+function controlledForestGenerator() {
+    const generator = new ChunkGenerator(1234, [], TEST_DEPTH_CONFIG);
+    vi.spyOn(requireField(generator, "temperature"), "sample").mockReturnValue(0);
+    vi.spyOn(requireField(generator, "moisture"), "sample").mockImplementation((worldX) => worldX >= 0 ? 1 : 0);
+    for (const name of ["grass_variant", "tree_variant"]) {
+        vi.spyOn(requireField(generator, name), "sample").mockImplementation((_worldX, worldY) => worldY < 8 ? 0.25 : 0.75);
+    }
+    return generator;
+}
+
 describe("ChunkGenerator biome-interior terrain depth", () => {
     it("selects explicit depth bands on both sides of a chunk boundary", () => {
         const {generator} = controlledGenerator();
@@ -46,6 +57,24 @@ describe("ChunkGenerator biome-interior terrain depth", () => {
             expect(desert[localY][0]).toMatchObject({biomeTag: "desert", groundType: "sand2"});
             expect(desert[localY][1].groundType).toBe(lowNoise ? "sand1" : "sand2");
             expect(desert[localY][2].groundType).toBe(lowNoise ? "sand1" : "sand3");
+        }
+    });
+
+    it("selects explicit depth bands across a Plains/Forest boundary", () => {
+        const generator = controlledForestGenerator();
+        const plains = generator.generate(-1, 0).tiles;
+        const forest = generator.generate(0, 0).tiles;
+
+        for (let localY = 0; localY < 16; localY++) {
+            const lowNoise = localY < 8;
+
+            expect(plains[localY][15]).toMatchObject({biomeTag: "plains", groundType: "grass2"});
+            expect(plains[localY][14].groundType).toBe(lowNoise ? "grass1" : "grass2");
+            expect(plains[localY][13].groundType).toBe(lowNoise ? "grass1" : "grass3");
+
+            expect(forest[localY][0]).toMatchObject({biomeTag: "forest", groundType: "forest2"});
+            expect(forest[localY][1].groundType).toBe(lowNoise ? "forest1" : "forest2");
+            expect(forest[localY][2].groundType).toBe(lowNoise ? "forest1" : "forest3");
         }
     });
 
