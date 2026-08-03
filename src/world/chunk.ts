@@ -1,4 +1,4 @@
-import {Tile} from "./tile";
+import {DrawContext, Tile} from "./tile";
 import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {CHUNK_SIZE} from "./chunk-size";
@@ -33,6 +33,15 @@ export class Chunk {
 
     /** Rendered once every foreground-layer piece's sprite has loaded. `null` until then (or while there are none), during which {@link drawProps} draws nothing. */
     private cachedPropsBitmap: ImageBitmap | null = null;
+
+    /** Rendered once, lazily, the first time {@link drawDebug} is called on a ready chunk - see {@link buildDebugBitmap}. `null` until then. */
+    private cachedDebugBitmap: ImageBitmap | null = null;
+
+    /** Rendered lazily while this chunk is still generating - see {@link buildPendingDebugBitmap}. Rebuilt only when {@link cachedPendingQueuePosition} goes stale. `null` until first drawn. */
+    private cachedPendingDebugBitmap: ImageBitmap | null = null;
+
+    /** Queue position {@link cachedPendingDebugBitmap} was last built for - compared against the latest value on every {@link drawDebug} call to decide whether a rebuild is needed. */
+    private cachedPendingQueuePosition: number | undefined = undefined;
 
     /** Bitmap per distinct structure sprite type this chunk uses - populated once in {@link hydrate}, before either cache is built. */
     private readonly structureBitmaps = new Map<string, ImageBitmap>();
@@ -261,6 +270,15 @@ export class Chunk {
      * mode. While this chunk hasn't finished generating, also draws its
      * position in the generation queue, centred in the chunk, if known.
      *
+     * Once ready, everything drawn here (outline, label, feature/structure
+     * outlines) is static for this chunk's lifetime, so it's rendered once
+     * to {@link cachedDebugBitmap} and blitted from then on instead of being
+     * recomputed - tile-by-tile outline stroking is expensive - every frame
+     * debug mode is enabled. While still generating, `queuePosition` is the
+     * only thing that can change between calls, so the pending render is
+     * cached too and only rebuilt when it moves - see
+     * {@link cachedPendingQueuePosition}.
+     *
      * @param ctx - Canvas context to draw into.
      * @param originX - Canvas X position of this chunk's top-left corner.
      * @param originY - Canvas Y position of this chunk's top-left corner.
@@ -270,28 +288,85 @@ export class Chunk {
     public drawDebug(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, queuePosition?: number): void {
         const pixelSize = CHUNK_SIZE * tileSize;
 
-        ctx.strokeStyle = this.isReady() ? DEBUG_CONFIG.chunkOutlineColor : DEBUG_CONFIG.chunkPendingOutlineColor;
+        if (!this.isReady()) {
+            if (!this.cachedPendingDebugBitmap || this.cachedPendingQueuePosition !== queuePosition) {
+                this.cachedPendingDebugBitmap = this.buildPendingDebugBitmap(tileSize, queuePosition);
+                this.cachedPendingQueuePosition = queuePosition;
+            }
+            ctx.drawImage(this.cachedPendingDebugBitmap, originX, originY, pixelSize, pixelSize);
+            return;
+        }
+
+        if (!this.cachedDebugBitmap) {
+            this.cachedDebugBitmap = this.buildDebugBitmap(tileSize);
+        }
+        ctx.drawImage(this.cachedDebugBitmap, originX, originY, pixelSize, pixelSize);
+    }
+
+    /**
+     * Renders this chunk's debug overlay (outline, coordinate/biome label,
+     * feature outlines, structure outlines) once to an offscreen bitmap, in
+     * local chunk-space, so {@link drawDebug} can blit it every frame
+     * instead of re-stroking every tile edge. Only called once ready, so the
+     * label always shows the final biome summary rather than "generating...".
+     *
+     * @param tileSize - Width/height of each tile, in canvas pixels.
+     */
+    private buildDebugBitmap(tileSize: number): ImageBitmap {
+        const pixelSize = CHUNK_SIZE * tileSize;
+        const offscreen = new OffscreenCanvas(pixelSize, pixelSize);
+        const ctx = requireNonNull(offscreen.getContext("2d"));
+
+        ctx.strokeStyle = DEBUG_CONFIG.chunkOutlineColor;
         ctx.lineWidth = DEBUG_CONFIG.chunkOutlineWidth;
-        ctx.strokeRect(originX, originY, pixelSize, pixelSize);
+        ctx.strokeRect(0, 0, pixelSize, pixelSize);
 
         ctx.fillStyle = DEBUG_CONFIG.chunkLabelColor;
         ctx.font = DEBUG_CONFIG.chunkLabelFont;
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
-        ctx.fillText(`(${this.chunkX}, ${this.chunkY}), ${this.isReady() ? this.biomeSummary : "generating..."}`, originX + DEBUG_CONFIG.chunkLabelPadding, originY + DEBUG_CONFIG.chunkLabelPadding);
+        ctx.fillText(`(${this.chunkX}, ${this.chunkY}), ${this.biomeSummary}`, DEBUG_CONFIG.chunkLabelPadding, DEBUG_CONFIG.chunkLabelPadding);
+
+        this.drawFeatureOutlines(ctx, 0, 0, tileSize);
+        this.drawStructureOutlines(ctx, 0, 0, tileSize);
+
+        return offscreen.transferToImageBitmap();
+    }
+
+    /**
+     * Renders this still-generating chunk's outline, label, and (if queued)
+     * queue-position marker to an offscreen bitmap, in local chunk-space, so
+     * {@link drawDebug} can blit it instead of re-stroking/re-filling text
+     * every frame. Called again only when `queuePosition` changes - see
+     * {@link cachedPendingQueuePosition}.
+     *
+     * @param tileSize - Width/height of each tile, in canvas pixels.
+     * @param queuePosition - This chunk's position in the generation queue, or `undefined` if it isn't queued yet.
+     */
+    private buildPendingDebugBitmap(tileSize: number, queuePosition: number | undefined): ImageBitmap {
+        const pixelSize = CHUNK_SIZE * tileSize;
+        const offscreen = new OffscreenCanvas(pixelSize, pixelSize);
+        const ctx = requireNonNull(offscreen.getContext("2d"));
+
+        ctx.strokeStyle = DEBUG_CONFIG.chunkPendingOutlineColor;
+        ctx.lineWidth = DEBUG_CONFIG.chunkOutlineWidth;
+        ctx.strokeRect(0, 0, pixelSize, pixelSize);
+
+        ctx.fillStyle = DEBUG_CONFIG.chunkLabelColor;
+        ctx.font = DEBUG_CONFIG.chunkLabelFont;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillText(`(${this.chunkX}, ${this.chunkY}), generating...`, DEBUG_CONFIG.chunkLabelPadding, DEBUG_CONFIG.chunkLabelPadding);
 
         if (queuePosition !== undefined) {
             ctx.fillStyle = DEBUG_CONFIG.chunkPendingOutlineColor;
             ctx.font = DEBUG_CONFIG.chunkQueuePositionFont;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(String(queuePosition), originX + pixelSize / 2, originY + pixelSize / 2);
+            ctx.fillText(String(queuePosition), pixelSize / 2, pixelSize / 2);
         }
 
-        if (this.isReady()) {
-            this.drawFeatureOutlines(ctx, originX, originY, tileSize);
-            this.drawStructureOutlines(ctx, originX, originY, tileSize);
-        }
+        return offscreen.transferToImageBitmap();
     }
 
     /**
@@ -304,7 +379,7 @@ export class Chunk {
      * @param originY - Canvas Y position of this chunk's top-left corner.
      * @param tileSize - Width/height of each tile, in canvas pixels.
      */
-    private drawFeatureOutlines(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
+    private drawFeatureOutlines(ctx: DrawContext, originX: number, originY: number, tileSize: number): void {
         ctx.strokeStyle = DEBUG_CONFIG.featureOutlineColor;
         ctx.lineWidth = DEBUG_CONFIG.featureOutlineWidth;
 
@@ -348,7 +423,7 @@ export class Chunk {
      * @param originY - Canvas Y position of this chunk's top-left corner.
      * @param tileSize - Width/height of each tile, in canvas pixels.
      */
-    private drawStructureOutlines(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
+    private drawStructureOutlines(ctx: DrawContext, originX: number, originY: number, tileSize: number): void {
         ctx.strokeStyle = DEBUG_CONFIG.structureOutlineColor;
         ctx.lineWidth = DEBUG_CONFIG.structureOutlineWidth;
 
@@ -392,7 +467,7 @@ export class Chunk {
      * @param x2 - End X, in canvas pixels.
      * @param y2 - End Y, in canvas pixels.
      */
-    private strokeLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number): void {
+    private strokeLine(ctx: DrawContext, x1: number, y1: number, x2: number, y2: number): void {
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
