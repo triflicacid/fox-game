@@ -34,6 +34,25 @@ const NAMED_GRADIENTS: Record<string, readonly GradientStop[]> = {
         {value: 8 / 9, rgb: [255, 137, 18]}, // 2000K - tungsten light
         {value: 1, rgb: [255, 56, 0]}, // 1000K - candlelight
     ],
+    // Watercolour paper-wetness ramp (dry-to-wet), dry white through
+    // increasingly saturated cyan-blue: see
+    // https://www.handprint.com/HP/WCL/IMG/wetstep1.gif
+    wetness: [
+        {value: 0 / 5, rgb: [255, 255, 255]}, // 0 - dry
+        {value: 1 / 5, rgb: [224, 246, 252]}, // 1 - damp
+        {value: 2 / 5, rgb: [179, 235, 250]}, // 2 - moist
+        {value: 3 / 5, rgb: [102, 217, 247]}, // 3 - satin
+        {value: 4 / 5, rgb: [0, 189, 242]}, // 4 - shiny
+        {value: 5 / 5, rgb: [0, 165, 233]}, // 5 - wet
+    ],
+    // Arid-to-lush climate ramp, sandy tan through olive to deep green.
+    moisture: [
+        {value: 0, rgb: [230, 199, 148]}, // arid
+        {value: 0.25, rgb: [214, 209, 129]},
+        {value: 0.5, rgb: [156, 176, 87]},
+        {value: 0.75, rgb: [86, 149, 79]},
+        {value: 1, rgb: [33, 102, 62]}, // humid
+    ],
 };
 
 /**
