@@ -663,6 +663,61 @@ export class World {
     }
 
     /**
+     * Looks up the structure sprite at the given world tile position,
+     * generating its containing chunk first if necessary. Safe to call on a
+     * chunk that's still generating - returns `"none"` instead of throwing.
+     *
+     * @param tileX - Tile's X position, in tiles from the world origin.
+     * @param tileY - Tile's Y position, in tiles from the world origin.
+     * @returns The structure piece's sprite name at that position, or `"none"` if there's no piece there (or the containing chunk isn't ready yet).
+     */
+    private getStructureTag(tileX: number, tileY: number): string {
+        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
+        const chunk = this.getChunk(chunkX, chunkY);
+        if (!chunk.isReady()) {
+            return "none";
+        }
+        return chunk.getStructurePieceAt(tileX, tileY)?.sprite ?? "none";
+    }
+
+    /**
+     * The most common structure sprite among every tile touched by the given
+     * pixel rectangle - see {@link getDominantFeatureLabel}, which this mirrors.
+     *
+     * @param x - Left edge of the rectangle, in world pixels.
+     * @param y - Top edge of the rectangle, in world pixels.
+     * @param w - Rectangle width, in world pixels.
+     * @param h - Rectangle height, in world pixels.
+     * @returns The most-represented structure sprite among the tiles the rectangle overlaps, breaking ties in favour of whichever qualifying sprite is encountered first (reading tiles left-to-right, top-to-bottom).
+     */
+    public getDominantStructureLabel(x: number, y: number, w: number, h: number): string {
+        const startTileX = Math.floor(x / this.tileSize);
+        const startTileY = Math.floor(y / this.tileSize);
+        const endTileX = Math.floor((x + w - 1) / this.tileSize);
+        const endTileY = Math.floor((y + h - 1) / this.tileSize);
+
+        const counts = new Map<string, number>();
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                const tag = this.getStructureTag(tileX, tileY);
+                if (tag != 'none') {
+                    counts.set(tag, (counts.get(tag) ?? 0) + 1);
+                }
+            }
+        }
+
+        let dominantLabel = "none";
+        let dominantCount = 0;
+        for (const [label, count] of counts) {
+            if (count > dominantCount) {
+                dominantLabel = label;
+                dominantCount = count;
+            }
+        }
+        return dominantLabel;
+    }
+
+    /**
      * Every entity currently in the world.
      *
      * @returns The world's entities.
@@ -1152,6 +1207,8 @@ export class World {
         const exactFeature = this.getFeatureTag(tileX, tileY);
         const rect = mainEntity.getBoundingRect();
         const nearbyFeature = this.getDominantFeatureLabel(rect.x, rect.y, rect.w, rect.h);
+        const exactStructure = this.getStructureTag(tileX, tileY);
+        const nearbyStructure = this.getDominantStructureLabel(rect.x, rect.y, rect.w, rect.h);
 
         const distanceToBiomeEdge = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
             ? this.getDistanceToBiomeEdge(chunkX, chunkY, chunk.biomeSummary)
@@ -1193,6 +1250,8 @@ export class World {
             averageChunkGenerationTimeMs: this.getAverageChunkGenerationTimeMs(),
             exactFeature,
             nearbyFeature,
+            exactStructure,
+            nearbyStructure,
             velocityLabel,
             velocityX: velocity.x,
             velocityY: velocity.y,
