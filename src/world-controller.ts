@@ -8,6 +8,7 @@ import {Fox} from "./entities/fox";
 import {DashEffect, DashEffectRequest} from "./effects/dash-effect";
 import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
+import {HoverTooltip} from "./debug/hover-tooltip";
 import {FrameLoopController} from "@frames";
 import {requireNonNull} from "./util";
 import {HelpController} from "./help/help-controller";
@@ -38,6 +39,7 @@ export class WorldController {
     private readonly cameraZoomController: CameraZoomController;
     private readonly movementController: MovementController;
     private readonly debugController: DebugController;
+    private readonly hoverTooltip: HoverTooltip;
     private readonly helpController: HelpController;
     private readonly settingsController: SettingsController;
     private readonly popupControllers: PopupController[];
@@ -59,6 +61,9 @@ export class WorldController {
 
     /** Name of the `NoiseField` currently rendered as a debug heatmap, or `undefined` for none. */
     private noiseFieldName: string | undefined;
+
+    /** Cursor's last known position, in canvas pixels, or `null` while it's outside the canvas - see {@link handleMouseMove}/{@link handleMouseLeave}. Drives the debug hover tooltip. */
+    private mousePosition: Vector2d | null = null;
 
     /**
      * @param canvas - Canvas to render the world into.
@@ -110,11 +115,14 @@ export class WorldController {
             (seed) => this.world.setWorldSeed(seed),
             () => this.world.refreshWorldSeed(),
         );
+        this.hoverTooltip = new HoverTooltip();
         this.popupControllers = [this.helpController, this.settingsController];
         this.keyBindingPopupControllers = [this.helpController, this.settingsController];
         this.userTargetFps = targetFps;
         this.frameLoop = new FrameLoopController(this.onFrame, targetFps);
 
+        canvas.addEventListener("mousemove", this.handleMouseMove);
+        canvas.addEventListener("mouseleave", this.handleMouseLeave);
         window.addEventListener("resize", this.resize);
         this.resize();
     }
@@ -185,6 +193,14 @@ export class WorldController {
     public getDebugController(): DebugController {
         return this.debugController;
     }
+
+    private readonly handleMouseMove = (event: MouseEvent): void => {
+        this.mousePosition = new Vector2d(event.clientX, event.clientY);
+    };
+
+    private readonly handleMouseLeave = (): void => {
+        this.mousePosition = null;
+    };
 
     private readonly resize = (): void => {
         this.canvas.width = window.innerWidth;
@@ -263,6 +279,28 @@ export class WorldController {
             this.frameLoop.getTargetFps(),
             this.noiseFieldName,
         );
+        this.drawHoverTooltip();
+    }
+
+    /**
+     * Draws the cursor-hover tooltip, if debug mode's hover-info toggle is on
+     * and the cursor is currently over the canvas.
+     */
+    private drawHoverTooltip(): void {
+        if (!this.debugController.isHoverInfoEnabled() || !this.mousePosition) {
+            return;
+        }
+        const worldPoint = this.camera.screenToWorld(this.mousePosition.x, this.mousePosition.y);
+        const tileX = Math.floor(worldPoint.x / WorldController.TILE_SIZE);
+        const tileY = Math.floor(worldPoint.y / WorldController.TILE_SIZE);
+        const noiseFieldValue = this.noiseFieldName ? this.world.getNoiseFieldSample(this.noiseFieldName, tileX, tileY) : undefined;
+        this.hoverTooltip.draw(this.ctx, this.mousePosition.x, this.mousePosition.y, this.canvas.width, this.canvas.height, {
+            worldX: worldPoint.x,
+            worldY: worldPoint.y,
+            tile: this.world.getTileHoverInfo(tileX, tileY),
+            entity: this.world.getEntityHoverInfo(worldPoint.x, worldPoint.y),
+            noiseField: this.noiseFieldName && noiseFieldValue !== undefined ? {name: this.noiseFieldName, value: noiseFieldValue} : undefined,
+        });
     }
 
     /**
