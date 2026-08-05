@@ -1,7 +1,6 @@
 import {TileData} from "../../tile";
 import {BiomeSummary} from "../biome/biome";
 import {StructurePieceInstance} from "../structure/structure";
-import {TreeSpriteType} from "../../../sprites/TreeSpriteSheet";
 
 /** A message sent from the main thread to the chunk generation worker. */
 export type ChunkGenerationRequest =
@@ -16,7 +15,7 @@ export interface ChunkGenerationResult {
     chunkY: number;
     biomeSummary: BiomeSummary;
     tiles: TileData[][];
-    props: StructurePieceInstance<TreeSpriteType>[];
+    props: StructurePieceInstance[];
     generationTimeMs: number;
 }
 

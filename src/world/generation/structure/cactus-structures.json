@@ -1,0 +1,18 @@
+{
+  "saguaro": [
+    {
+      "id": "saguaro",
+      "pieces": [
+        {"x": 0, "y": 0, "role": "cactus", "layer": "foreground", "collidable": true}
+      ]
+    }
+  ],
+  "barrel": [
+    {
+      "id": "barrel",
+      "pieces": [
+        {"x": 0, "y": 0, "role": "cactus", "layer": "foreground", "collidable": true}
+      ]
+    }
+  ]
+}

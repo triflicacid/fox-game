@@ -36,13 +36,13 @@ const TREE_CONFIG = {
     hashSeedOffset: 9091,
     /** Roll salt for this structure's own trunk-style choice - distinct from `Structure`'s reserved spawn/shape salts. */
     trunkStyleSalt: 1,
-    /** Roll salts for a cell's jittered candidate position - see {@link TreeStructure.cellAnchor}. */
+    /** Roll salts for a cell's jittered candidate position - see {@link Structure.isSoleCellCandidate}. */
     cellJitterXSalt: 2,
     cellJitterYSalt: 3,
 
     /**
      * Only one tile per `cellSizeTiles`-square cell can ever become a
-     * candidate anchor (see {@link TreeStructure.cellAnchor}), so trunks
+     * candidate anchor (see {@link Structure.isSoleCellCandidate}), so trunks
      * can't crowd arbitrarily close together. `cellMarginTiles` keeps that
      * candidate away from the cell's own edge, so even in the worst case
      * (two adjacent cells both jitter toward each other) two anchors are at
@@ -129,34 +129,17 @@ export class TreeStructure extends Structure<TreeSpriteType> {
     protected override getSpawnChance(worldX: number, worldY: number, biomeTag: BiomeTag, biomeDepth: number): number {
         void biomeTag;
 
-        // Only this cell's own single jittered candidate tile can ever spawn a tree -
-        // every other tile in the cell is rejected outright, guaranteeing minimum spacing.
-        const cellX = Math.floor(worldX / TREE_CONFIG.cellSizeTiles);
-        const cellY = Math.floor(worldY / TREE_CONFIG.cellSizeTiles);
-        const anchor = this.cellAnchor(cellX, cellY);
-        if (worldX !== anchor.x || worldY !== anchor.y) {
+        const isCandidate = this.isSoleCellCandidate(
+            worldX, worldY,
+            TREE_CONFIG.cellSizeTiles, TREE_CONFIG.cellMarginTiles,
+            TREE_CONFIG.cellJitterXSalt, TREE_CONFIG.cellJitterYSalt,
+        );
+        if (!isCandidate) {
             return 0;
         }
 
         const groundType = this.forestBiome.sampleBaseTerrain(worldX, worldY, biomeDepth);
         return TREE_CONFIG.spawnChanceByGroundType[groundType] ?? 0;
-    }
-
-    /**
-     * The one tile within cell `(cellX, cellY)` that's eligible to spawn a
-     * tree, jittered within the cell's centre (see `TREE_CONFIG.cellMarginTiles`).
-     *
-     * @param cellX - Cell X coordinate (world tile position divided by `cellSizeTiles`).
-     * @param cellY - Cell Y coordinate.
-     */
-    private cellAnchor(cellX: number, cellY: number): {x: number; y: number} {
-        const span = TREE_CONFIG.cellSizeTiles - 2 * TREE_CONFIG.cellMarginTiles;
-        const jitterX = Math.floor(this.roll(cellX, cellY, TREE_CONFIG.cellJitterXSalt) * span);
-        const jitterY = Math.floor(this.roll(cellX, cellY, TREE_CONFIG.cellJitterYSalt) * span);
-        return {
-            x: cellX * TREE_CONFIG.cellSizeTiles + TREE_CONFIG.cellMarginTiles + jitterX,
-            y: cellY * TREE_CONFIG.cellSizeTiles + TREE_CONFIG.cellMarginTiles + jitterY,
-        };
     }
 
     protected override pickFamily(worldX: number, worldY: number): string {

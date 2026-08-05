@@ -3,7 +3,7 @@ import { blitGrid, parseCliArgs, writeSpriteSheet } from "./lib/sprite-sheet.mjs
 const GRID = 16; // logical cells per tile edge - matches the ground tile grid, so cactus tiles align 1:1 with it
 const BLOCK = 2; // real pixels per grid cell -> 32x32 per tile
 const CELL_PX = GRID * BLOCK;
-const CENTER = (GRID - 1) / 2;
+const CENTER = GRID / 2;
 
 /**
  * returns a deterministic pseudo-random value for a grid cell.
@@ -86,7 +86,7 @@ const BARREL_GREEN = {
 };
 
 /** Real saguaro blossoms are white with a yellow throat - one accurate bloom, centered on the crown regardless of which arms are present. */
-const SAGUARO_FLOWER = { seed: 9131, radius: 1.5, palette: [
+const SAGUARO_FLOWER = { seed: 9131, radius: 2.1, palette: [
     { color: [246, 241, 228, 255], weight: 60 },
     { color: [222, 214, 196, 255], weight: 20 },
     { color: [235, 196, 60, 255], weight: 20 }, // stamen fleck
@@ -113,8 +113,6 @@ const FLOWER_PALETTES = {
 const RING_WIDTH = 1.15; // concentric rib banding, viewed from above - same idea as tree logs' RING_WIDTH
 const PITH_RADIUS = 0.9;
 
-/** Cell-index-unit coordinate of the tile's true centre - matches the space blob `cx`/`cy` (and grid cells' own `gx + 0.5` centres) are expressed in. */
-const CELL_CENTER = GRID / 2;
 /** Points sampled around each blob's circumference before hulling - enough to read as round once several blobs merge into one polygon. */
 const BOUNDS_SAMPLES = 10;
 
@@ -168,8 +166,8 @@ function convexHull(points) {
 function buildBounds(blobs) {
     const samples = [];
     for (const blob of blobs) {
-        const pxCx = (blob.cx - CELL_CENTER) * BLOCK;
-        const pxCy = (blob.cy - CELL_CENTER) * BLOCK;
+        const pxCx = (blob.cx - CENTER) * BLOCK;
+        const pxCy = (blob.cy - CENTER) * BLOCK;
         const pxR = blob.radius * BLOCK;
         for (let k = 0; k < BOUNDS_SAMPLES; k++) {
             const angle = (2 * Math.PI * k) / BOUNDS_SAMPLES;
@@ -230,10 +228,13 @@ function buildRadialBlobGrid(blobs, green, flower) {
  * lobes - sized and offset so they clearly bulge past the crown's own
  * outline (not just barely poke out of an otherwise-circular silhouette),
  * while still overlapping it enough to read as fused to the same plant.
+ * Arm variants reach further toward the tile's edge than the bare crown -
+ * both a legibility win (fills most of the tile) and, conveniently, true to
+ * how real saguaros grow: armless ones are younger and smaller.
  */
-const SAGUARO_MAIN = { cx: CENTER, cy: CENTER, radius: 3.3 };
-const SAGUARO_LEFT_ARM = { cx: CENTER - 3.6, cy: CENTER - 0.8, radius: 2.3 };
-const SAGUARO_RIGHT_ARM = { cx: CENTER + 3.6, cy: CENTER - 0.8, radius: 2.3 };
+const SAGUARO_MAIN = { cx: CENTER, cy: CENTER, radius: 4.6 };
+const SAGUARO_LEFT_ARM = { cx: CENTER - 3.8, cy: CENTER - 1.2, radius: 3.0 };
+const SAGUARO_RIGHT_ARM = { cx: CENTER + 3.8, cy: CENTER - 1.2, radius: 3.0 };
 
 /**
  * the blobs making up a saguaro's silhouette for a given arm
@@ -264,9 +265,9 @@ function buildSaguaroGrid(blobs, flowering) {
 }
 
 /** Barrel body: a single round blob, true-circular from above (unlike the saguaro's fused crown+arms) - every barrel variant shares this one footprint. */
-const BARREL_BODY = { cx: CENTER, cy: CENTER, radius: 4.6 };
+const BARREL_BODY = { cx: CENTER, cy: CENTER, radius: 6.4 };
 const BARREL_BLOBS = [BARREL_BODY];
-const BARREL_FLOWER_RADIUS = 1.6;
+const BARREL_FLOWER_RADIUS = 2.2;
 const BARREL_BOUNDS = buildBounds(BARREL_BLOBS);
 
 /**
