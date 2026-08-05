@@ -168,24 +168,23 @@ const FOREST_VARIANTS = [
     },
 ];
 
-// not in light-to-dark order - TILE_ROWS below assigns them to sand1/2/3 by actual brightness
 const SAND_VARIANTS = [
-    {
-        seed: 5001,
-        palette: [
-            { color: [218, 190, 118, 255], weight: 68 }, // base
-            { color: [195, 163, 91, 255], weight: 18 },  // shaded grain
-            { color: [235, 211, 145, 255], weight: 10 }, // sunlit grain
-            { color: [166, 132, 72, 255], weight: 4 },   // dark fleck
-        ],
-    },
     {
         seed: 5002,
         palette: [
-            { color: [225, 199, 128, 255], weight: 68 },
-            { color: [204, 174, 100, 255], weight: 18 },
-            { color: [241, 219, 154, 255], weight: 10 },
-            { color: [177, 142, 77, 255], weight: 4 },
+            { color: [225, 199, 128, 255], weight: 68 }, // base
+            { color: [204, 174, 100, 255], weight: 18 }, // shaded grain
+            { color: [241, 219, 154, 255], weight: 10 }, // sunlit grain
+            { color: [177, 142, 77, 255], weight: 4 },   // dark fleck
+        ],
+    },
+    {
+        seed: 5001,
+        palette: [
+            { color: [218, 190, 118, 255], weight: 68 },
+            { color: [195, 163, 91, 255], weight: 18 },
+            { color: [235, 211, 145, 255], weight: 10 },
+            { color: [166, 132, 72, 255], weight: 4 },
         ],
     },
     {
