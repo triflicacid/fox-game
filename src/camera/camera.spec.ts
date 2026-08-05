@@ -146,4 +146,22 @@ describe("Camera", () => {
             expect(camera.getHeight()).toBe(384);
         });
     });
+
+    describe("screenToWorld", () => {
+        it("maps the canvas origin to the view's top-left corner", () => {
+            const camera = new Camera(new Vector2d(100, 200), 400, 300);
+            expect(camera.screenToWorld(0, 0)).toEqual(new Vector2d(camera.getViewX(), camera.getViewY()));
+        });
+
+        it("maps the canvas centre to the camera's own centre", () => {
+            const camera = new Camera(new Vector2d(100, 200), 400, 300);
+            expect(camera.screenToWorld(200, 150)).toEqual(new Vector2d(100, 200));
+        });
+
+        it("scales down by the current zoom level", () => {
+            const camera = new Camera(Vector2d.ZERO, 800, 600);
+            camera.setZoom(2);
+            expect(camera.screenToWorld(20, 10)).toEqual(new Vector2d(camera.getViewX() + 10, camera.getViewY() + 5));
+        });
+    });
 });

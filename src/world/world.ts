@@ -23,6 +23,7 @@ import {Structure, StructurePieceInstance} from "./generation/structure/structur
 import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
 import {applyCollisionResponse, CollisionContext} from "./collision";
+import {EntityHoverInfo, TileHoverInfo} from "./hover-info";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -506,6 +507,69 @@ export class World {
             return undefined;
         }
         return chunk.getStructurePieceAt(tileX, tileY);
+    }
+
+    /**
+     * Everything the debug hover tooltip (see `HoverTooltip`) shows about the
+     * tile at a world tile position - ground/biome/feature, its own
+     * collidability, and any structure piece occupying it. Never triggers
+     * generation - see {@link getReadyTile}/{@link getReadyStructurePieceAt} -
+     * since the tooltip only reads from chunks already loaded/rendered.
+     *
+     * @param tileX - Tile's X position, in tiles from the world origin.
+     * @param tileY - Tile's Y position, in tiles from the world origin.
+     * @returns The tile's hover info, or `undefined` if its containing chunk isn't ready yet.
+     */
+    public getTileHoverInfo(tileX: number, tileY: number): TileHoverInfo | undefined {
+        const tile = this.getReadyTile(tileX, tileY);
+        if (!tile) {
+            return undefined;
+        }
+        const piece = this.getReadyStructurePieceAt(tileX, tileY);
+        return {
+            tileX,
+            tileY,
+            groundType: tile.groundType,
+            biomeTag: tile.biomeTag,
+            featureTag: tile.featureTag,
+            collision: tile.getCollision(tileX, tileY, this.tileSize)?.response,
+            structure: piece && {
+                sprite: piece.sprite,
+                structureId: piece.structureId,
+                layer: piece.layer,
+                collision: piece.collision !== "none" ? piece.collision : undefined,
+            },
+        };
+    }
+
+    /**
+     * Everything the debug hover tooltip shows about whichever entity's
+     * drawn rectangle contains a world-pixel point, if any. Checked topmost
+     * (last-drawn) entity first, since that's what the cursor would actually
+     * appear to be over.
+     *
+     * @param worldX - X position to test, in world pixels.
+     * @param worldY - Y position to test, in world pixels.
+     * @returns The topmost entity's hover info at that point, or `undefined` if none is there.
+     */
+    public getEntityHoverInfo(worldX: number, worldY: number): EntityHoverInfo | undefined {
+        for (let i = this.entities.length - 1; i >= 0; i--) {
+            const entity = this.entities[i];
+            const rect = entity.getBoundingRect();
+            if (worldX < rect.x || worldX >= rect.x + rect.w || worldY < rect.y || worldY >= rect.y + rect.h) {
+                continue;
+            }
+            const position = entity.getPosition();
+            const velocity = entity instanceof MovableEntity && entity.isMoving() ? entity.getVelocity() : undefined;
+            return {
+                name: entity instanceof MovableEntity ? entity.getDisplayName() : entity.getRegistryId(),
+                x: position.x,
+                y: position.y,
+                status: entity.getStatus(),
+                velocity: velocity && {x: velocity.x, y: velocity.y},
+            };
+        }
+        return undefined;
     }
 
     /**
@@ -1277,6 +1341,18 @@ export class World {
      */
     public getNoiseFieldNames(): readonly string[] {
         return this.chunkGenerator.getFields().getAll().map((field) => field.name);
+    }
+
+    /**
+     * Samples one registered `NoiseField` at a world tile position.
+     *
+     * @param fieldName - Name of the field to sample.
+     * @param tileX - Tile's X position, in tiles from the world origin.
+     * @param tileY - Tile's Y position, in tiles from the world origin.
+     * @returns The field's sample at that position, or `undefined` if nothing is registered under `fieldName`.
+     */
+    public getNoiseFieldSample(fieldName: string, tileX: number, tileY: number): number | undefined {
+        return this.chunkGenerator.getFields().get(fieldName)?.sample(tileX, tileY);
     }
 
     /**

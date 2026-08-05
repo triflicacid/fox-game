@@ -13,6 +13,9 @@ export class DebugController {
     /** Whether entity hitboxes (bounding box + facing arrow) are drawn - toggled with `h`, only while {@link enabled}. Off by default even when debug mode is on. */
     private hitboxesEnabled = false;
 
+    /** Whether the cursor-hover tooltip (tile/structure/entity info) is drawn - toggled with `i`, only while {@link enabled}. Off by default even when debug mode is on. */
+    private hoverInfoEnabled = false;
+
     /**
      * @param keyboard - Shared keyboard state used to observe debug hotkeys.
      * @param onReloadChunks - Called when the `r` key is pressed while debug mode is enabled.
@@ -28,6 +31,7 @@ export class DebugController {
         keyboard.onKeyDownForKey("d", this.toggleDebugOverlay, {caseInsensitive: true});
         keyboard.onKeyDownForKey("b", this.toggleBorders, {caseInsensitive: true});
         keyboard.onKeyDownForKey("h", this.toggleHitboxes, {caseInsensitive: true});
+        keyboard.onKeyDownForKey("i", this.toggleHoverInfo, {caseInsensitive: true});
         keyboard.onKeyDownForKey("r", this.handleReloadChunks, {caseInsensitive: true});
         keyboard.onKeyDownForKey("t", this.handleTeleportToCamera, {caseInsensitive: true});
     }
@@ -73,6 +77,17 @@ export class DebugController {
     }
 
     /**
+     * Whether the cursor-hover tooltip is currently drawn. The `i` toggle
+     * persists independently of debug mode, but this always reads `false`
+     * while debug mode itself is off.
+     *
+     * @returns `true` if the hover tooltip is enabled.
+     */
+    public isHoverInfoEnabled(): boolean {
+        return this.enabled && this.hoverInfoEnabled;
+    }
+
+    /**
      * This controller's key bindings.
      *
      * @returns This controller's key bindings.
@@ -83,6 +98,7 @@ export class DebugController {
             bindings.push(
                 {key: "B", description: "Toggle chunk/biome/feature/structure borders"},
                 {key: "H", description: "Toggle entity hitboxes"},
+                {key: "I", description: "Toggle cursor-hover tooltip"},
                 {key: "R", description: "Reload all chunks"},
             );
             if (this.isSpectating()) {
@@ -105,6 +121,12 @@ export class DebugController {
     private readonly toggleHitboxes = (): void => {
         if (this.enabled) {
             this.hitboxesEnabled = !this.hitboxesEnabled;
+        }
+    };
+
+    private readonly toggleHoverInfo = (): void => {
+        if (this.enabled) {
+            this.hoverInfoEnabled = !this.hoverInfoEnabled;
         }
     };
 
