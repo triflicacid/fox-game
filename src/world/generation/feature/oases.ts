@@ -117,7 +117,7 @@ export class OasisFeature extends Feature {
                 const tile = tiles[localY][localX];
 
                 // lake wins on Plains tiles; oasis wins on Desert tiles
-                if ((tile.featureTag === "lake:shallow" || tile.featureTag === "lake:deep")
+                if ((tile.featureTag === "lake.shallow" || tile.featureTag === "lake.deep")
                     && tile.biomeTag !== "desert") {
                     continue;
                 }
@@ -127,7 +127,7 @@ export class OasisFeature extends Feature {
                 const threshold = OasisFeature.deepWaterThreshold(edgeDistance);
                 const isDeep = !isEdge && this.oasisShape.sample(worldX, worldY) >= threshold;
                 tile.groundType = isDeep ? "oasisWaterDark" : "oasisWaterLight";
-                tile.featureTag = isDeep ? "oasis:deep" : "oasis:shallow";
+                tile.featureTag = isDeep ? "oasis.deep" : "oasis.shallow";
             }
 
             for (const [worldX, worldY] of outwardDistances.keys()) {

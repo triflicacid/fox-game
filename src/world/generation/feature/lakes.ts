@@ -133,7 +133,7 @@ export class LakeFeature extends Feature {
                 const threshold = LakeFeature.deepWaterThreshold(edgeDistance);
                 const isDeep = !isEdge && this.lakeShape.sample(worldX, worldY) >= threshold;
                 tiles[localY][localX].groundType = isDeep ? "waterDark" : "waterLight";
-                tiles[localY][localX].featureTag = isDeep ? "lake:deep" : "lake:shallow";
+                tiles[localY][localX].featureTag = isDeep ? "lake.deep" : "lake.shallow";
             }
 
             // Apply shore-grass banding: lighten surrounding land tiles proportional to shore proximity.

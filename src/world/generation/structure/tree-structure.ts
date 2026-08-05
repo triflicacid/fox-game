@@ -154,9 +154,9 @@ export class TreeStructure extends Structure<TreeSpriteType> {
         anchorWorldY: number,
     ): TreeSpriteType {
         if (piece.role === "leaf") {
-            return `${family}Leaves` as TreeSpriteType;
+            return `tree.${family}.leaves` as TreeSpriteType;
         }
         const round = this.roll(anchorWorldX, anchorWorldY, TREE_CONFIG.trunkStyleSalt) < 0.5;
-        return `${family}Log${round ? "Round" : "Square"}` as TreeSpriteType;
+        return `tree.${family}.log_${round ? "round" : "square"}` as TreeSpriteType;
     }
 }

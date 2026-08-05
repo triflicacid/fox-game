@@ -3,8 +3,8 @@ import {SpriteSheetDescriptor, SpriteTileDescriptor} from "./sprite-sheet-descri
 import {StaticSpriteSheet} from "./StaticSpriteSheet";
 
 /** Every log/leaf tile type in `static/tree-sprites.png`/`.json`. */
-export type TreeSpriteType = "oakLogSquare" | "oakLogRound" | "oakLeaves"
-    | "birchLogSquare" | "birchLogRound" | "birchLeaves";
+export type TreeSpriteType = "tree.oak.log_square" | "tree.oak.log_round" | "tree.oak.leaves"
+    | "tree.birch.log_square" | "tree.birch.log_round" | "tree.birch.leaves";
 
 const descriptor = descriptorJson as SpriteSheetDescriptor<TreeSpriteType, SpriteTileDescriptor<TreeSpriteType>>;
 
