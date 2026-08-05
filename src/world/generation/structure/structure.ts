@@ -194,4 +194,35 @@ export abstract class Structure<TSpriteType extends string = string> {
     protected roll(worldX: number, worldY: number, salt: number): number {
         return hashLatticePoint(this.worldSeed + this.hashSeedOffset + salt, worldX, worldY);
     }
+
+    /**
+     * Whether `(worldX, worldY)` is the sole tile within its
+     * `cellSizeTiles`-square cell eligible to spawn this structure - every
+     * other tile in the cell is rejected outright, guaranteeing two
+     * candidates are at least `2 * cellMarginTiles + 1` tiles apart.
+     *
+     * @param worldX - Candidate tile's X, in tiles from the world origin.
+     * @param worldY - Candidate tile's Y, in tiles from the world origin.
+     * @param cellSizeTiles - Side length of the grid cell candidates are drawn from.
+     * @param cellMarginTiles - How far the candidate is kept from the cell's own edge - the remaining span is jitter room.
+     * @param jitterXSalt - Roll salt for the candidate's X jitter within its cell.
+     * @param jitterYSalt - Roll salt for the candidate's Y jitter within its cell.
+     */
+    protected isSoleCellCandidate(
+        worldX: number,
+        worldY: number,
+        cellSizeTiles: number,
+        cellMarginTiles: number,
+        jitterXSalt: number,
+        jitterYSalt: number,
+    ): boolean {
+        const cellX = Math.floor(worldX / cellSizeTiles);
+        const cellY = Math.floor(worldY / cellSizeTiles);
+        const span = cellSizeTiles - 2 * cellMarginTiles;
+        const jitterX = Math.floor(this.roll(cellX, cellY, jitterXSalt) * span);
+        const jitterY = Math.floor(this.roll(cellX, cellY, jitterYSalt) * span);
+        const anchorX = cellX * cellSizeTiles + cellMarginTiles + jitterX;
+        const anchorY = cellY * cellSizeTiles + cellMarginTiles + jitterY;
+        return worldX === anchorX && worldY === anchorY;
+    }
 }
