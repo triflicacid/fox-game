@@ -49,6 +49,12 @@ export interface DebugHudData {
     actualFps: number;
     targetFps: number | undefined;
     spectating: boolean;
+    /** Whether the main entity is overlapping a collidable tile/structure piece as of this tick - see `World.handleEntityCollisions`. */
+    collision: boolean;
+    /** The colliding entity's display name. Only meaningful while {@link collision} is `true`. */
+    collisionEntity: string;
+    /** The obstacle it collided with, as a short label (kind, name, tile position). Only meaningful while {@link collision} is `true`. */
+    collisionObstacle: string;
 }
 
 /**
@@ -78,6 +84,14 @@ export class DebugHud {
     /** A numeric-valued segment - `value` is pre-formatted (may include a unit suffix, e.g. `"12.3 ms"`). */
     private numberValue(value: string): TextSegment {
         return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
+    }
+
+    /** A coloured true/false segment for the collision indicator - lime when colliding, tomato when not. */
+    private collisionValue(collision: boolean): TextSegment {
+        return {
+            content: collision ? "true" : "false",
+            style: {foreground: collision ? DEBUG_CONFIG.hudCollisionTrueColor : DEBUG_CONFIG.hudCollisionFalseColor},
+        };
     }
 
     /** A coloured chunk-state symbol: ● ready, ○ generating, · unloaded. */
@@ -167,6 +181,13 @@ export class DebugHud {
                 this.stringValue(`[${data.velocityLabel}] `),
                 this.text("vel: ("), this.numberValue(data.velocityX.toFixed(1)), this.text(", "), this.numberValue(data.velocityY.toFixed(1)),
                 this.text(")  speed: "), this.numberValue(data.speed.toFixed(1)), this.text(" px/s"),
+            ],
+            // Collision indicator - lime/true with entity + obstacle detail when colliding, tomato/false otherwise
+            [
+                this.text("collision: "), this.collisionValue(data.collision),
+                ...(data.collision
+                    ? [this.text("  "), this.stringValue(data.collisionEntity), this.text(" vs "), this.stringValue(data.collisionObstacle)]
+                    : []),
             ],
         ];
         if (data.spectating) {

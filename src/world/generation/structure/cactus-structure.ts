@@ -53,7 +53,7 @@ export class CactusStructure extends Structure<CactusSpriteType> {
         worldSeed: number,
         private readonly isFeatureSite: (worldX: number, worldY: number) => boolean,
     ) {
-        super(worldSeed, CACTUS_CONFIG.hashSeedOffset);
+        super(worldSeed, CACTUS_CONFIG.hashSeedOffset, "cactus");
     }
 
     public override getFields(): readonly NoiseField[] {

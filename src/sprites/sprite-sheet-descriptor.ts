@@ -1,4 +1,5 @@
 import {SpriteBounds} from "./sprite";
+import {CollisionResponseKind} from "../geometry/collision-response";
 
 /**
  * Base fields shared by every sprite sheet entry, whatever kind of content it
@@ -28,6 +29,8 @@ export interface SpriteTileDescriptor<TType extends string = string> {
     height?: number;
     /** Collision bounding shape relative to the cell's centre. Absent for a non-interactable entry. */
     bounds?: SpriteBounds;
+    /** How this entry reacts to an overlapping entity, if {@link bounds} is set. Defaults to `"solid"` when absent. */
+    response?: CollisionResponseKind;
 }
 
 /**

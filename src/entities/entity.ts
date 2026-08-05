@@ -150,7 +150,20 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
      * @returns The current frame's collision bounds, positioned in the world.
      */
     public getCollisionPolygon(): ConvexPolygon {
-        return this.currentFrame.bounds.points.map((point) => new Vector2d(this.position.x + point.x, this.position.y + point.y));
+        return this.collisionPolygonAt(this.position);
+    }
+
+    /**
+     * Same as {@link getCollisionPolygon}, but at a hypothetical `position`
+     * rather than this entity's actual current one - lets a collision
+     * response (e.g. `resolveSolid` in `world/collision.ts`) test candidate
+     * positions before committing to one, without mutating the entity first.
+     *
+     * @param position - Hypothetical position (the sprite's centre point) to place the current frame's bounds at.
+     * @returns The current frame's collision bounds, positioned at `position`.
+     */
+    public collisionPolygonAt(position: Vector2d): ConvexPolygon {
+        return this.currentFrame.bounds.points.map((point) => new Vector2d(position.x + point.x, position.y + point.y));
     }
 
     /**

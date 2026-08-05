@@ -115,6 +115,19 @@ export class ChunkGenerator {
     }
 
     /**
+     * Every structure type this generator places (e.g. trees, cacti) - so a
+     * main-thread collision check can look one back up by
+     * {@link Structure.getStructureId} and call its optional
+     * {@link Structure.handleCollision}, even though {@link generate} itself
+     * runs off-thread (see `World`'s own main-thread `ChunkGenerator`).
+     *
+     * @returns Every structure type.
+     */
+    public getStructures(): readonly Structure[] {
+        return this.structures;
+    }
+
+    /**
      * Generates the chunk at the given chunk coordinate.
      *
      * @param chunkX - Chunk's X coordinate, in chunk units.

@@ -59,6 +59,10 @@ export const DEBUG_CONFIG = {
     hudChunkUnloadedColor: "#666666",
     /** Text colour for the HUD's spectator-mode indicator. */
     hudSpectatorColor: "#ffff00",
+    /** Text colour for the HUD's collision indicator when a collision is currently happening. */
+    hudCollisionTrueColor: "lime",
+    /** Text colour for the HUD's collision indicator when no collision is currently happening. */
+    hudCollisionFalseColor: "tomato",
     /** Background colour behind the HUD text. */
     hudBackgroundColor: "rgba(0, 0, 0, 0.5)",
     /** Font family for the HUD text. */
