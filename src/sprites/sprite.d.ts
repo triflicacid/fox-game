@@ -1,4 +1,5 @@
 import {Rect} from "../geometry/rect";
+import {CollisionResponseKind} from "../geometry/collision-response";
 
 /** A rectangular region within a sprite sheet image, in pixels. */
 export type SpriteRect = Rect;
@@ -57,4 +58,6 @@ export interface SpriteFrame extends SpriteRect {
 export interface SpriteTile extends SpriteRect {
     /** This tile's collision bounding box, or `undefined` if it has no collision shape (e.g. ground). */
     readonly bounds?: SpriteBounds;
+    /** How this tile reacts to an overlapping entity, if {@link bounds} is set. Defaults to `"solid"` when absent - see {@link Tile.getCollision}. */
+    readonly response?: CollisionResponseKind;
 }

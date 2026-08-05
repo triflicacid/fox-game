@@ -1,3 +1,5 @@
+import {CollisionResponseKind} from "../../../geometry/collision-response";
+
 /** Which chunk-render layer a structure piece belongs to. */
 export type StructureLayer = "background" | "foreground";
 
@@ -11,8 +13,8 @@ export interface StructureManifestPiece {
     readonly role: string;
     /** Which render layer this piece belongs to. */
     readonly layer: StructureLayer;
-    /** Whether this piece should block movement. Not yet consumed by any collision system. */
-    readonly collidable: boolean;
+    /** How this piece reacts to an overlapping entity - see `world/collision.ts`'s handler registry. Defaults to `"none"` when omitted. */
+    readonly collision?: CollisionResponseKind;
 }
 
 /** One named layout a structure family can take. */
