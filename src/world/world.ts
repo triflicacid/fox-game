@@ -19,6 +19,10 @@ import {CoordMap, CoordSet} from "./coord-set";
 import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
 import {getFieldGradient} from "./generation/noise-field-colors";
+import {Structure, StructurePieceInstance} from "./generation/structure/structure";
+import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
+import {CollisionResponseKind} from "../geometry/collision-response";
+import {applyCollisionResponse, CollisionContext} from "./collision";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -87,6 +91,17 @@ export class World {
      * {@link update}/{@link draw}.
      */
     private mainEntity: MovableEntity | undefined;
+
+    /**
+     * Which entity/obstacle most recently overlapped, for the debug HUD's
+     * collision indicator - `undefined` once cleared. Stays put across
+     * ticks where the colliding entity doesn't move again (see
+     * {@link handleCollisions}), so bumping into something and getting
+     * pushed back out still reads as `true` in the HUD right up until the
+     * entity is actually moved again - not just for the single tick contact
+     * happened, which would be easy to miss.
+     */
+    private lastCollision: {entityLabel: string; obstacleLabel: string} | undefined;
 
     /** Sum of every generated chunk's {@link Chunk.generationTimeMs}, for {@link getAverageChunkGenerationTimeMs}. */
     private totalChunkGenerationTimeMs = 0;
@@ -483,6 +498,16 @@ export class World {
         return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
     }
 
+    /** Returns the structure piece anchored at a world tile position only when its containing chunk is already loaded and ready. */
+    private getReadyStructurePieceAt(tileX: number, tileY: number): StructurePieceInstance | undefined {
+        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
+        const chunk = this.chunks.get(chunkX, chunkY);
+        if (!chunk?.isReady()) {
+            return undefined;
+        }
+        return chunk.getStructurePieceAt(tileX, tileY);
+    }
+
     /**
      * BFS from `(chunkX, chunkY)` over loaded, ready chunks whose
      * `biomeSummary` matches `biome`, returning the connected-region size.
@@ -828,6 +853,136 @@ export class World {
         } else if (!this.canMoveOntoGeneratingChunks) {
             this.constrainEntitiesToChunks(previousPositions, (chunk) => chunk.isReady());
         }
+        this.handleCollisions(previousPositions);
+    }
+
+    /**
+     * Checks each {@link MovableEntity} against every collidable tile and
+     * structure piece it currently overlaps, and reacts to the first one
+     * found (see {@link handleEntityCollisions}) per {@link CollisionResponseKind}.
+     *
+     * @param previousPositions - Each entity's position before this tick's movement - see {@link update}.
+     */
+    private handleCollisions(previousPositions: ReadonlyMap<MovableEntity, Vector2d>): void {
+        for (const entity of this.entities) {
+            if (!(entity instanceof MovableEntity)) {
+                continue;
+            }
+            const previousPosition = previousPositions.get(entity);
+            if (!previousPosition) {
+                continue;
+            }
+            if (entity.isMoving()) {
+                // Clear the stale indicator now that the entity's actually
+                // being moved again - handleEntityCollisions immediately
+                // below sets it fresh if this move collides too.
+                this.lastCollision = undefined;
+            }
+            this.handleEntityCollisions(entity, previousPosition);
+        }
+    }
+
+    /**
+     * Sweeps every tile `entity`'s bounding rect touches, testing its
+     * collision polygon (see {@link Entity.getCollisionPolygon}) against
+     * each one's collidable tile (via {@link Tile.getCollision}) and
+     * collidable structure piece (via its whole occupied tile square, since
+     * piece sprites don't carry their own authored hull yet). Stops at the
+     * first overlap found and reacted to - the entity may have just moved,
+     * so the remaining precomputed tile range no longer reliably reflects
+     * its position; next tick's sweep picks up from wherever it ends up.
+     *
+     * @param entity - The entity to check.
+     * @param previousPosition - `entity`'s position before this tick's movement - see {@link handleCollisions}.
+     */
+    private handleEntityCollisions(entity: MovableEntity, previousPosition: Vector2d): void {
+        const rect = entity.getBoundingRect();
+        const startTileX = Math.floor(rect.x / this.tileSize);
+        const startTileY = Math.floor(rect.y / this.tileSize);
+        const endTileX = Math.floor((rect.x + rect.w - 1) / this.tileSize);
+        const endTileY = Math.floor((rect.y + rect.h - 1) / this.tileSize);
+
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                const tile = this.getReadyTile(tileX, tileY);
+                const tileCollision = tile?.getCollision(tileX, tileY, this.tileSize);
+                if (tile && tileCollision) {
+                    if (this.resolveObstacleCollision(entity, previousPosition, tileCollision.polygon, tileCollision.response, "tile", tile.groundType, tileX, tileY, undefined)) {
+                        return;
+                    }
+                }
+
+                const piece = this.getReadyStructurePieceAt(tileX, tileY);
+                if (piece && piece.collision !== "none") {
+                    const piecePolygon = rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize);
+                    const structure = this.findStructure(piece.structureId);
+                    if (this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprite, tileX, tileY, structure)) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Looks up the `Structure` (e.g. the shared `TreeStructure`) that
+     * produced a piece stamped with `structureId` - see
+     * {@link StructurePieceInstance.structureId}. Reads from
+     * {@link chunkGenerator}, the main-thread `ChunkGenerator` kept around
+     * for exactly this kind of lookup (chunk generation itself runs on
+     * {@link chunkWorkerClient}, off-thread).
+     *
+     * @param structureId - The structure type's id to look up.
+     * @returns The matching `Structure`, or `undefined` if none matches (shouldn't normally happen).
+     */
+    private findStructure(structureId: string): Structure | undefined {
+        return this.chunkGenerator.getStructures().find((structure) => structure.getStructureId() === structureId);
+    }
+
+    /**
+     * Tests `entity`'s *current* collision polygon (re-derived fresh here,
+     * since an earlier obstacle this same sweep may have just repositioned
+     * it) against `obstaclePolygon`, and on overlap: gives `structure` (if
+     * any) first refusal via its optional {@link Structure.handleCollision} -
+     * returning `false` from that skips the generic response entirely - then
+     * otherwise dispatches `response`'s reaction via {@link applyCollisionResponse}
+     * (which also logs - see its doc).
+     *
+     * @param entity - The entity whose polygon is being tested.
+     * @param previousPosition - `entity`'s position before this tick's movement, passed through to the response handler.
+     * @param obstaclePolygon - The tile/structure piece's collision polygon.
+     * @param response - How to react on overlap - never `"none"`, since callers skip dispatching for it entirely.
+     * @param obstacleKind - What kind of obstacle this is (e.g. `"tile"`/`"structure"`), passed through to {@link CollisionContext}.
+     * @param obstacleName - The obstacle's own name (e.g. a ground type or structure sprite), passed through to {@link CollisionContext}.
+     * @param tileX - The obstacle's tile X, passed through to {@link CollisionContext}.
+     * @param tileY - The obstacle's tile Y, passed through to {@link CollisionContext}.
+     * @param structure - The `Structure` that produced this obstacle, or `undefined` for a tile (tiles have no `Structure` behind them).
+     * @returns `true` if a collision was found (and handled, one way or the other).
+     */
+    private resolveObstacleCollision(
+        entity: MovableEntity,
+        previousPosition: Vector2d,
+        obstaclePolygon: ConvexPolygon,
+        response: Exclude<CollisionResponseKind, "none">,
+        obstacleKind: string,
+        obstacleName: string,
+        tileX: number,
+        tileY: number,
+        structure: Structure | undefined,
+    ): boolean {
+        if (!convexPolygonsIntersect(entity.getCollisionPolygon(), obstaclePolygon)) {
+            return false;
+        }
+        this.lastCollision = {
+            entityLabel: entity.getDisplayName(),
+            obstacleLabel: `${obstacleKind} "${obstacleName}" (${tileX}, ${tileY})`,
+        };
+        const context: CollisionContext = {entity, previousPosition, obstaclePolygon, obstacleKind, obstacleName, tileX, tileY};
+        if (structure?.handleCollision && !structure.handleCollision(context)) {
+            return true;
+        }
+        applyCollisionResponse(response, context);
+        return true;
     }
 
     /**
@@ -1347,6 +1502,9 @@ export class World {
             actualFps,
             targetFps,
             spectating,
+            collision: this.lastCollision !== undefined,
+            collisionEntity: this.lastCollision?.entityLabel ?? "",
+            collisionObstacle: this.lastCollision?.obstacleLabel ?? "",
         });
     }
 }

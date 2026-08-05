@@ -3,6 +3,8 @@ import {BiomeTag} from "../biome/biome";
 import {NoiseField} from "../noise-field";
 import {hashLatticePoint} from "../../noise";
 import {StructureLayer, StructureManifest, StructureManifestPiece, pickShape} from "./structure-manifest";
+import {CollisionResponseKind} from "../../../geometry/collision-response";
+import type {CollisionContext} from "../../collision";
 
 /** One resolved structure piece, stamped at an absolute world-tile position. */
 export interface StructurePieceInstance<TSpriteType extends string = string> {
@@ -10,8 +12,10 @@ export interface StructurePieceInstance<TSpriteType extends string = string> {
     readonly worldY: number;
     readonly sprite: TSpriteType;
     readonly layer: StructureLayer;
-    /** See {@link StructureManifestPiece.collidable}. Not yet read by anything. */
-    readonly collidable: boolean;
+    /** See {@link StructureManifestPiece.collision}. */
+    readonly collision: CollisionResponseKind;
+    /** Which `Structure` produced this piece - see {@link Structure.getStructureId}. Lets a main-thread collision check look the originating `Structure` back up (see {@link Structure.handleCollision}), even though generation itself runs off-thread. */
+    readonly structureId: string;
 }
 
 /** Reserved rolls this base class uses - subclasses must pick distinct (much smaller) salts of their own. */
@@ -42,9 +46,40 @@ export abstract class Structure<TSpriteType extends string = string> {
     /**
      * @param worldSeed - The world's seed, so this structure's rolls/fields sample deterministically.
      * @param hashSeedOffset - Per-structure-type offset so independent structures' rolls don't correlate. Must stay well clear of {@link SPAWN_SALT}/{@link SHAPE_SALT}.
+     * @param structureId - Stable id for this structure type (e.g. `"tree"`/`"cactus"`) - stamped onto every piece it generates (see {@link StructurePieceInstance.structureId}) so a main-thread collision check can look this exact `Structure` instance back up (see `World.handleEntityCollisions`), even though {@link generate} itself runs off-thread.
      */
-    protected constructor(private readonly worldSeed: number, private readonly hashSeedOffset: number) {
+    protected constructor(
+        private readonly worldSeed: number,
+        private readonly hashSeedOffset: number,
+        private readonly structureId: string,
+    ) {
     }
+
+    /**
+     * This structure type's stable id - see the constructor's `structureId` doc.
+     *
+     * @returns The id.
+     */
+    public getStructureId(): string {
+        return this.structureId;
+    }
+
+    /**
+     * Optional per-structure collision override. If implemented, called once
+     * an entity's collision polygon is confirmed to overlap one of this
+     * structure's pieces (see `World.resolveObstacleCollision`) - *before*
+     * the generic {@link CollisionResponseKind} handler runs (see
+     * `world/collision.ts`'s `applyCollisionResponse`).
+     *
+     * Return `false` to fully take over the reaction yourself (e.g.
+     * repositioning the entity, playing an effect, ...) and skip the generic
+     * handler entirely. Return `true` - or simply don't implement this - to
+     * let the generic handler run afterwards as normal.
+     *
+     * @param context - The collision context - see `world/collision.ts`'s `CollisionContext`.
+     * @returns Whether the generic response handler should still run.
+     */
+    public handleCollision?(context: CollisionContext): boolean;
 
     /** Every `NoiseField` this structure owns (e.g. a field choosing which family grows where). */
     public abstract getFields(): readonly NoiseField[];
@@ -172,7 +207,8 @@ export abstract class Structure<TSpriteType extends string = string> {
                         worldY: worldY + piece.y,
                         sprite: this.resolveSprite(family, piece, worldX, worldY),
                         layer: piece.layer,
-                        collidable: piece.collidable,
+                        collision: piece.collision ?? "none",
+                        structureId: this.structureId,
                     });
                 }
             }
