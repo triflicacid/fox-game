@@ -28,7 +28,7 @@ export class CameraDragController {
             return;
         }
         const position = new Vector2d(event.clientX, event.clientY);
-        this.camera.pan(this.dragOrigin.subtract(position));
+        this.camera.pan(this.dragOrigin.subtract(position).scale(1 / this.camera.getZoom()));
         this.dragOrigin = position;
     };
 
