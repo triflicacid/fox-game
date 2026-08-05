@@ -8,12 +8,12 @@ import {ForestBiome} from "../biome/forest-biome";
 import {PlainsBiome} from "../biome/plains-biome";
 import {Feature, FeatureProvider} from "../feature/feature";
 import {TreeStructure} from "../structure/tree-structure";
-import {StructurePieceInstance} from "../structure/structure";
+import {CactusStructure} from "../structure/cactus-structure";
+import {Structure, StructurePieceInstance} from "../structure/structure";
 import {CoordMap} from "../../coord-set";
 import {ClimateFields} from "../biome/climate-fields";
 import {GenerationContext} from "../generation-context";
 import {computeCappedRegionDepths} from "../grid-algorithms";
-import {TreeSpriteType} from "../../../sprites/TreeSpriteSheet";
 import {
     TERRAIN_DEPTH_CONFIG,
     TerrainDepthConfig,
@@ -27,7 +27,7 @@ const DOMINANT_BIOME_FRACTION = 2 / 3;
 export interface GeneratedChunk {
     biomeSummary: BiomeSummary;
     tiles: TileData[][];
-    props: StructurePieceInstance<TreeSpriteType>[];
+    props: StructurePieceInstance[];
 }
 
 /**
@@ -40,7 +40,7 @@ export class ChunkGenerator {
     private features: readonly Feature[] = [];
     private readonly biomeCache = new CoordMap<Biome>();
     private readonly terrainDepthConfig: TerrainDepthConfig;
-    private treeStructure!: TreeStructure;
+    private structures: readonly Structure[] = [];
 
     /**
      * @param worldSeed - The world's seed.
@@ -72,8 +72,9 @@ export class ChunkGenerator {
         }
 
         const forestBiome = new ForestBiome(worldSeed, this.terrainDepthConfig);
+        const desertBiome = new DesertBiome(worldSeed, this.terrainDepthConfig);
         this.biomes = [
-            new DesertBiome(worldSeed, this.terrainDepthConfig),
+            desertBiome,
             forestBiome,
             new PlainsBiome(worldSeed, this.terrainDepthConfig),
         ];
@@ -93,9 +94,14 @@ export class ChunkGenerator {
 
         const isFeatureSite = (worldX: number, worldY: number): boolean =>
             this.features.some((feature) => feature.isCandidateSite(worldX, worldY));
-        this.treeStructure = new TreeStructure(worldSeed, isFeatureSite, forestBiome);
-        for (const field of this.treeStructure.getFields()) {
-            this.fields.register(field);
+        this.structures = [
+            new TreeStructure(worldSeed, isFeatureSite, forestBiome),
+            new CactusStructure(worldSeed, isFeatureSite),
+        ];
+        for (const structure of this.structures) {
+            for (const field of structure.getFields()) {
+                this.fields.register(field);
+            }
         }
     }
 
@@ -183,7 +189,8 @@ export class ChunkGenerator {
             feature.apply(tiles, chunkX, chunkY, resolveBiomeTagAt, resampleTerrainAt);
         }
 
-        const props = this.treeStructure.generate(chunkX, chunkY, paddedBiomeTags, paddedBiomeDepths, halo);
+        const props = this.structures.flatMap((structure) =>
+            structure.generate(chunkX, chunkY, paddedBiomeTags, paddedBiomeDepths, halo));
 
         return {biomeSummary: this.summariseBiomes(biomeCounts), tiles, props};
     }

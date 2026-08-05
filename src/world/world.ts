@@ -8,6 +8,7 @@ import {DebugHud, ChunkState} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {TreeSpriteSheet, TreeSpriteType} from "../sprites/TreeSpriteSheet";
+import {CactusSpriteSheet, CactusSpriteType} from "../sprites/CactusSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
@@ -60,9 +61,13 @@ export class World {
     private readonly chunks = new CoordMap<Chunk>();
     private readonly entities: Entity[] = [];
     private readonly treeSpriteSheet = new TreeSpriteSheet();
+    private readonly cactusSpriteSheet = new CactusSpriteSheet();
+    private readonly treeSpriteTypes = new Set<string>(this.treeSpriteSheet.getSpriteTypes());
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
-        getStructureSpriteBitmap: (sprite) => this.treeSpriteSheet.getTileBitmap(sprite as TreeSpriteType),
+        getStructureSpriteBitmap: (sprite) => this.treeSpriteTypes.has(sprite)
+            ? this.treeSpriteSheet.getTileBitmap(sprite as TreeSpriteType)
+            : this.cactusSpriteSheet.getTileBitmap(sprite as CactusSpriteType),
     };
     /** Used only for {@link getNoiseFieldNames}/{@link drawNoiseFieldOverlay} - actual chunk generation runs on {@link chunkWorkerClient}. */
     private chunkGenerator: ChunkGenerator;
