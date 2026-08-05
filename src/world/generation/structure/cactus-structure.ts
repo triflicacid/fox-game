@@ -28,7 +28,7 @@ const CACTUS_CONFIG = {
     cellMarginTiles: 3,
     cellSizeTiles: 3 * 2 + 4,
 
-    /** Flat acceptance chance for a cell's candidate - not banded by ground type/depth, so density carries no clustering signal. */
+    /** Flat acceptance chance for a cell's candidate - not banded by ground type, so density carries no clustering signal. */
     baseSpawnChance: 0.35,
     /** Multiplier applied right at the desert's border with another biome, so cacti thin out rather than cutting off hard. */
     borderSpawnChanceMultiplier: 0.35,

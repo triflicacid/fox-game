@@ -168,6 +168,7 @@ const FOREST_VARIANTS = [
     },
 ];
 
+// not in light-to-dark order - TILE_ROWS below assigns them to sand1/2/3 by actual brightness
 const SAND_VARIANTS = [
     {
         seed: 5001,
@@ -210,9 +211,9 @@ const TILE_ROWS = [
         { type: "waterDark", ...WATER_DARK },
     ],
     [
-        { type: "sand1", ...SAND_VARIANTS[0] },
-        { type: "sand2", ...SAND_VARIANTS[1] },
-        { type: "sand3", ...SAND_VARIANTS[2] },
+        { type: "sand1", ...SAND_VARIANTS[1] }, // brightest palette - see SAND_VARIANTS
+        { type: "sand2", ...SAND_VARIANTS[0] },
+        { type: "sand3", ...SAND_VARIANTS[2] }, // darkest palette
         { type: "oasisWaterLight", ...OASIS_WATER_LIGHT },
         { type: "oasisWaterDark", ...OASIS_WATER_DARK },
     ],

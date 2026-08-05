@@ -54,9 +54,9 @@ describe("ChunkGenerator biome-interior terrain depth", () => {
             expect(plains[localY][14].groundType).toBe(lowNoise ? "grass1" : "grass2");
             expect(plains[localY][13].groundType).toBe(lowNoise ? "grass1" : "grass3");
 
-            expect(desert[localY][0]).toMatchObject({biomeTag: "desert", groundType: "sand2"});
-            expect(desert[localY][1].groundType).toBe(lowNoise ? "sand1" : "sand2");
-            expect(desert[localY][2].groundType).toBe(lowNoise ? "sand1" : "sand3");
+            expect(desert[localY][0]).toMatchObject({biomeTag: "desert", groundType: "sand1"});
+            expect(desert[localY][1].groundType).toBe(lowNoise ? "sand2" : "sand1");
+            expect(desert[localY][2].groundType).toBe(lowNoise ? "sand2" : "sand3");
         }
     });
 
