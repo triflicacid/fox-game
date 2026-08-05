@@ -109,20 +109,20 @@ export class CactusStructure extends Structure<CactusSpriteType> {
         if (family === "barrel") {
             const flowering = this.roll(anchorWorldX, anchorWorldY, CACTUS_CONFIG.barrelFlowerChanceSalt) < CACTUS_CONFIG.barrelFloweringChance;
             if (!flowering) {
-                return "barrelPlain";
+                return "cactus:barrel:plain";
             }
             const colorRoll = this.roll(anchorWorldX, anchorWorldY, CACTUS_CONFIG.barrelFlowerColorSalt);
-            if (colorRoll < 1 / 3) return "barrelFlowerPink";
-            if (colorRoll < 2 / 3) return "barrelFlowerYellow";
-            return "barrelFlowerWhite";
+            if (colorRoll < 1 / 3) return "cactus:barrel:flower_pink";
+            if (colorRoll < 2 / 3) return "cactus:barrel:flower_yellow";
+            return "cactus:barrel:flower_white";
         }
 
         const armRoll = this.roll(anchorWorldX, anchorWorldY, CACTUS_CONFIG.armSalt);
-        const arm = armRoll < CACTUS_CONFIG.armThresholds.noArm ? "NoArm"
-            : armRoll < CACTUS_CONFIG.armThresholds.left ? "ArmLeft"
-            : armRoll < CACTUS_CONFIG.armThresholds.right ? "ArmRight"
-            : "BothArms";
+        const arm = armRoll < CACTUS_CONFIG.armThresholds.noArm ? "no_arm"
+            : armRoll < CACTUS_CONFIG.armThresholds.left ? "arm_left"
+            : armRoll < CACTUS_CONFIG.armThresholds.right ? "arm_right"
+            : "both_arms";
         const flowering = this.roll(anchorWorldX, anchorWorldY, CACTUS_CONFIG.saguaroFlowerSalt) < CACTUS_CONFIG.saguaroFloweringChance;
-        return `saguaro${arm}${flowering ? "Flower" : ""}` as CactusSpriteType;
+        return `cactus:saguaro:${arm}${flowering ? "_flower" : ""}` as CactusSpriteType;
     }
 }
