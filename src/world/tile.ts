@@ -1,7 +1,10 @@
 import {BackgroundTileType} from "../sprites/BackgroundTileSpriteSheet";
+import {SpriteTile} from "../sprites/sprite";
 import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
 import {BiomeTag} from "./generation/biome/biome";
 import {FeatureTag} from "./generation/feature/feature-tag";
+import {ConvexPolygon} from "../geometry/convex-polygon";
+import {Vector2d} from "../geometry/vector2d";
 
 /** A drawing target a {@link Tile} can render itself into. */
 export type DrawContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -40,6 +43,9 @@ export class Tile {
     private bitmap: ImageBitmap | null = null;
     private readonly bitmapReady: Promise<void>;
 
+    /** This tile's sheet placement/collision bounds - see {@link getCollisionPolygon}. */
+    private readonly spriteTile: SpriteTile;
+
     public readonly biomeTag: BiomeTag;
     public readonly biomeDepth: number;
     public readonly featureTag: FeatureTag;
@@ -55,6 +61,7 @@ export class Tile {
         this.featureTag = data.featureTag;
         this.groundType = data.groundType;
 
+        this.spriteTile = spriteSheets.backgroundTile.locateTile(data.groundType);
         this.bitmapReady = spriteSheets.backgroundTile.getTileBitmap(data.groundType).then((bitmap) => {
             this.bitmap = bitmap;
         });
@@ -68,6 +75,30 @@ export class Tile {
      */
     public whenReady(): Promise<void> {
         return this.bitmapReady;
+    }
+
+    /**
+     * This tile's collision polygon, in world pixels, or `undefined` if
+     * {@link groundType} has no collision shape (e.g. grass - not
+     * collidable). Scales the sprite's authored bounds - relative to the
+     * cell centre, in the sheet's own pixel space - up/down to `tileSize`,
+     * since a tile's sheet cell size and its actually-rendered size can
+     * differ (see {@link Chunk.draw}).
+     *
+     * @param worldX - This tile's X position, in tiles from the world origin.
+     * @param worldY - This tile's Y position, in tiles from the world origin.
+     * @param tileSize - Width/height this tile renders at, in world pixels.
+     * @returns The tile's world-space collision polygon, or `undefined` if it isn't collidable.
+     */
+    public getCollisionPolygon(worldX: number, worldY: number, tileSize: number): ConvexPolygon | undefined {
+        const {bounds, w} = this.spriteTile;
+        if (!bounds) {
+            return undefined;
+        }
+        const scale = tileSize / w;
+        const centerX = worldX * tileSize + tileSize / 2;
+        const centerY = worldY * tileSize + tileSize / 2;
+        return bounds.points.map((point) => new Vector2d(centerX + point.x * scale, centerY + point.y * scale));
     }
 
     /**
