@@ -15,10 +15,9 @@ const DESERT_CONFIG = {
     sandVariantFrequency: 1 / 10,
 } as const;
 
-/** Explicit visual ordering audited from the generated sprite palettes. */
 const SAND_VARIANTS: TerrainDepthVariants = {
-    light: "sand2",
-    medium: "sand1",
+    light: "sand1",
+    medium: "sand2",
     dark: "sand3",
 };
 

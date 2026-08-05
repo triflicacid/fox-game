@@ -72,8 +72,9 @@ export class ChunkGenerator {
         }
 
         const forestBiome = new ForestBiome(worldSeed, this.terrainDepthConfig);
+        const desertBiome = new DesertBiome(worldSeed, this.terrainDepthConfig);
         this.biomes = [
-            new DesertBiome(worldSeed, this.terrainDepthConfig),
+            desertBiome,
             forestBiome,
             new PlainsBiome(worldSeed, this.terrainDepthConfig),
         ];
