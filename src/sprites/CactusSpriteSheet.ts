@@ -4,9 +4,9 @@ import {StaticSpriteSheet} from "./StaticSpriteSheet";
 
 /** Every cactus tile type in `static/cactus-sprites.png`/`.json`. */
 export type CactusSpriteType =
-    | "cactus:saguaro:no_arm" | "cactus:saguaro:arm_left" | "cactus:saguaro:arm_right" | "cactus:saguaro:both_arms"
-    | "cactus:saguaro:no_arm_flower" | "cactus:saguaro:arm_left_flower" | "cactus:saguaro:arm_right_flower" | "cactus:saguaro:both_arms_flower"
-    | "cactus:barrel:plain" | "cactus:barrel:flower_pink" | "cactus:barrel:flower_yellow" | "cactus:barrel:flower_white";
+    | "cactus.saguaro.no_arm" | "cactus.saguaro.arm_left" | "cactus.saguaro.arm_right" | "cactus.saguaro.both_arms"
+    | "cactus.saguaro.no_arm_flower" | "cactus.saguaro.arm_left_flower" | "cactus.saguaro.arm_right_flower" | "cactus.saguaro.both_arms_flower"
+    | "cactus.barrel.plain" | "cactus.barrel.flower_pink" | "cactus.barrel.flower_yellow" | "cactus.barrel.flower_white";
 
 const descriptor = descriptorJson as SpriteSheetDescriptor<CactusSpriteType, SpriteTileDescriptor<CactusSpriteType>>;
 

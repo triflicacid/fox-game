@@ -178,14 +178,14 @@ const BIRCH_LEAVES = {
 // row 0: oak (square log, round log, leaves); row 1: birch (square log, round log, leaves)
 const TILE_ROWS = [
     [
-        { type: "oakLogSquare", build: () => buildLogGrid({ ...OAK_LOG, radius: null }) },
-        { type: "oakLogRound", build: () => buildLogGrid({ ...OAK_LOG, radius: LOG_RADIUS, cornerLeaves: OAK_LEAVES }) },
-        { type: "oakLeaves", build: () => buildLeafGrid(OAK_LEAVES) },
+        { type: "tree.oak.log_square", build: () => buildLogGrid({ ...OAK_LOG, radius: null }) },
+        { type: "tree.oak.log_round", build: () => buildLogGrid({ ...OAK_LOG, radius: LOG_RADIUS, cornerLeaves: OAK_LEAVES }) },
+        { type: "tree.oak.leaves", build: () => buildLeafGrid(OAK_LEAVES) },
     ],
     [
-        { type: "birchLogSquare", build: () => buildLogGrid({ ...BIRCH_LOG, radius: null }) },
-        { type: "birchLogRound", build: () => buildLogGrid({ ...BIRCH_LOG, radius: LOG_RADIUS, cornerLeaves: BIRCH_LEAVES }) },
-        { type: "birchLeaves", build: () => buildLeafGrid(BIRCH_LEAVES) },
+        { type: "tree.birch.log_square", build: () => buildLogGrid({ ...BIRCH_LOG, radius: null }) },
+        { type: "tree.birch.log_round", build: () => buildLogGrid({ ...BIRCH_LOG, radius: LOG_RADIUS, cornerLeaves: BIRCH_LEAVES }) },
+        { type: "tree.birch.leaves", build: () => buildLeafGrid(BIRCH_LEAVES) },
     ],
 ];
 

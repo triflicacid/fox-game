@@ -3,37 +3,37 @@
   "cellHeight": 32,
   "rows": [
     {
-      "type": "oakLogSquare",
+      "type": "tree.oak.log_square",
       "x": 0,
       "y": 0,
       "interactable": false
     },
     {
-      "type": "oakLogRound",
+      "type": "tree.oak.log_round",
       "x": 32,
       "y": 0,
       "interactable": false
     },
     {
-      "type": "oakLeaves",
+      "type": "tree.oak.leaves",
       "x": 64,
       "y": 0,
       "interactable": false
     },
     {
-      "type": "birchLogSquare",
+      "type": "tree.birch.log_square",
       "x": 0,
       "y": 32,
       "interactable": false
     },
     {
-      "type": "birchLogRound",
+      "type": "tree.birch.log_round",
       "x": 32,
       "y": 32,
       "interactable": false
     },
     {
-      "type": "birchLeaves",
+      "type": "tree.birch.leaves",
       "x": 64,
       "y": 32,
       "interactable": false

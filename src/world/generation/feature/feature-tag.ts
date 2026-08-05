@@ -1,3 +1,3 @@
 /** Per-tile label for which feature (if any) a tile belongs to. */
-export type FeatureTag = "none" | "lake:shallow" | "lake:deep" | "oasis:shallow" | "oasis:deep";
+export type FeatureTag = "none" | "lake.shallow" | "lake.deep" | "oasis.shallow" | "oasis.deep";
 

@@ -302,22 +302,22 @@ function saguaroTile(type, arms, flowering) {
 // row 2: barrel (plain, pink/yellow/white flower)
 const TILE_ROWS = [
     [
-        saguaroTile("cactus:saguaro:no_arm", { leftArm: false, rightArm: false }, false),
-        saguaroTile("cactus:saguaro:arm_left", { leftArm: true, rightArm: false }, false),
-        saguaroTile("cactus:saguaro:arm_right", { leftArm: false, rightArm: true }, false),
-        saguaroTile("cactus:saguaro:both_arms", { leftArm: true, rightArm: true }, false),
+        saguaroTile("cactus.saguaro.no_arm", { leftArm: false, rightArm: false }, false),
+        saguaroTile("cactus.saguaro.arm_left", { leftArm: true, rightArm: false }, false),
+        saguaroTile("cactus.saguaro.arm_right", { leftArm: false, rightArm: true }, false),
+        saguaroTile("cactus.saguaro.both_arms", { leftArm: true, rightArm: true }, false),
     ],
     [
-        saguaroTile("cactus:saguaro:no_arm_flower", { leftArm: false, rightArm: false }, true),
-        saguaroTile("cactus:saguaro:arm_left_flower", { leftArm: true, rightArm: false }, true),
-        saguaroTile("cactus:saguaro:arm_right_flower", { leftArm: false, rightArm: true }, true),
-        saguaroTile("cactus:saguaro:both_arms_flower", { leftArm: true, rightArm: true }, true),
+        saguaroTile("cactus.saguaro.no_arm_flower", { leftArm: false, rightArm: false }, true),
+        saguaroTile("cactus.saguaro.arm_left_flower", { leftArm: true, rightArm: false }, true),
+        saguaroTile("cactus.saguaro.arm_right_flower", { leftArm: false, rightArm: true }, true),
+        saguaroTile("cactus.saguaro.both_arms_flower", { leftArm: true, rightArm: true }, true),
     ],
     [
-        { type: "cactus:barrel:plain", build: () => buildBarrelGrid(null), bounds: BARREL_BOUNDS },
-        { type: "cactus:barrel:flower_pink", build: () => buildBarrelGrid(FLOWER_PALETTES.pink), bounds: BARREL_BOUNDS },
-        { type: "cactus:barrel:flower_yellow", build: () => buildBarrelGrid(FLOWER_PALETTES.yellow), bounds: BARREL_BOUNDS },
-        { type: "cactus:barrel:flower_white", build: () => buildBarrelGrid(FLOWER_PALETTES.white), bounds: BARREL_BOUNDS },
+        { type: "cactus.barrel.plain", build: () => buildBarrelGrid(null), bounds: BARREL_BOUNDS },
+        { type: "cactus.barrel.flower_pink", build: () => buildBarrelGrid(FLOWER_PALETTES.pink), bounds: BARREL_BOUNDS },
+        { type: "cactus.barrel.flower_yellow", build: () => buildBarrelGrid(FLOWER_PALETTES.yellow), bounds: BARREL_BOUNDS },
+        { type: "cactus.barrel.flower_white", build: () => buildBarrelGrid(FLOWER_PALETTES.white), bounds: BARREL_BOUNDS },
     ],
 ];
 
