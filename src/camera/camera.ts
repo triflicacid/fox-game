@@ -148,6 +148,18 @@ export class Camera {
     }
 
     /**
+     * Converts a canvas-space point (e.g. a mouse event's `clientX`/`clientY`,
+     * as used elsewhere.
+     *
+     * @param screenX - X position, in canvas pixels.
+     * @param screenY - Y position, in canvas pixels.
+     * @returns The corresponding world-space point, in world pixels.
+     */
+    public screenToWorld(screenX: number, screenY: number): Vector2d {
+        return new Vector2d(this.getViewX() + screenX / this.zoom, this.getViewY() + screenY / this.zoom);
+    }
+
+    /**
      * Whether a rectangle in world space is at least partially visible
      * within this camera's view.
      *
