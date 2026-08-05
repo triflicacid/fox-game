@@ -93,11 +93,13 @@ export class World {
     private mainEntity: MovableEntity | undefined;
 
     /**
-     * Which entity/obstacle overlapped as of the most recent {@link handleCollisions}
-     * call, for the debug HUD's collision indicator - `undefined` while
-     * nothing currently overlaps. Reset at the start of every
-     * {@link handleCollisions} call, so it only ever reflects the current
-     * tick, not collision history.
+     * Which entity/obstacle most recently overlapped, for the debug HUD's
+     * collision indicator - `undefined` once cleared. Stays put across
+     * ticks where the colliding entity doesn't move again (see
+     * {@link handleCollisions}), so bumping into something and getting
+     * pushed back out still reads as `true` in the HUD right up until the
+     * entity is actually moved again - not just for the single tick contact
+     * happened, which would be easy to miss.
      */
     private lastCollision: {entityLabel: string; obstacleLabel: string} | undefined;
 
@@ -859,10 +861,9 @@ export class World {
      * structure piece it currently overlaps, and reacts to the first one
      * found (see {@link handleEntityCollisions}) per {@link CollisionResponseKind}.
      *
-     * @param previousPositions - Each entity's position before this tick's movement - see {@link update}. A response (e.g. `resolveSolid` in `world/collision.ts`) may fall back/slide towards it.
+     * @param previousPositions - Each entity's position before this tick's movement - see {@link update}.
      */
     private handleCollisions(previousPositions: ReadonlyMap<MovableEntity, Vector2d>): void {
-        this.lastCollision = undefined;
         for (const entity of this.entities) {
             if (!(entity instanceof MovableEntity)) {
                 continue;
@@ -870,6 +871,12 @@ export class World {
             const previousPosition = previousPositions.get(entity);
             if (!previousPosition) {
                 continue;
+            }
+            if (entity.isMoving()) {
+                // Clear the stale indicator now that the entity's actually
+                // being moved again - handleEntityCollisions immediately
+                // below sets it fresh if this move collides too.
+                this.lastCollision = undefined;
             }
             this.handleEntityCollisions(entity, previousPosition);
         }

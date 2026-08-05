@@ -1,7 +1,18 @@
 import {MovableEntity} from "../entities/movable-entity";
 import {Vector2d} from "../geometry/vector2d";
-import {ConvexPolygon, convexPolygonsIntersect} from "../geometry/convex-polygon";
+import {ConvexPolygon, minimumTranslationVector} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
+
+/**
+ * Extra push past the exact minimum-translation-vector distance
+ * {@link resolveSolid} resolves a collision to, so the resolved position has
+ * a genuine (if imperceptible) gap from the obstacle rather than resting
+ * exactly on its boundary. Without this, the next tick's collision check
+ * would find that same resting contact "colliding" again (touching counts
+ * as overlapping - see `convexPolygonsIntersect`'s doc in `convex-polygon.ts`)
+ * and redo the same no-op push every tick.
+ */
+const SEPARATION_MARGIN_PX = 0.05;
 
 /**
  * Everything a {@link CollisionResponseHandler} needs to react to one
@@ -29,25 +40,36 @@ export interface CollisionContext {
 export type CollisionResponseHandler = (context: CollisionContext) => void;
 
 /**
- * Blocks movement: same "slide along the axis that's still clear, else
- * revert" idea as {@link World.constrainEntitiesToChunks}'s chunk-boundary
- * constraint, just tested against one obstacle's own polygon (via
- * {@link MovableEntity.collisionPolygonAt}) instead of a chunk predicate.
+ * Blocks movement - a simple {@link https://en.wikipedia.org/wiki/Collision_response | collision response}:
+ * pushes `context.entity` directly out of `context.obstaclePolygon` by the
+ * minimum translation vector (see {@link minimumTranslationVector}), plus
+ * {@link SEPARATION_MARGIN_PX}.
+ *
+ * Deliberately ignores `context.previousPosition`: an earlier version tried
+ * building "slide" candidates by mixing the entity's previous and current
+ * position per axis, falling back to `previousPosition` outright if neither
+ * cleared the obstacle. That broke as soon as `previousPosition` was itself
+ * already resting against an obstacle (e.g. one "foot" of the hitbox
+ * grazing a wall) - turning to move along a fresh single axis made both
+ * slide candidates collapse onto already-known-colliding positions (one
+ * literally identical to the just-detected collision, the other identical
+ * to the already-touching `previousPosition`), so the entity froze
+ * entirely instead of just being blocked along the one axis that was
+ * actually blocked. Computing the push directly from the current overlap,
+ * with no reference to any remembered position, sidesteps that whole
+ * failure mode.
  *
  * @param context - See {@link CollisionContext}.
  */
-function resolveSolid({entity, previousPosition, obstaclePolygon}: CollisionContext): void {
-    const current = entity.getPosition();
-    const slideX = new Vector2d(current.x, previousPosition.y);
-    const slideY = new Vector2d(previousPosition.x, current.y);
-
-    if (!convexPolygonsIntersect(entity.collisionPolygonAt(slideX), obstaclePolygon)) {
-        entity.teleportTo(slideX);
-    } else if (!convexPolygonsIntersect(entity.collisionPolygonAt(slideY), obstaclePolygon)) {
-        entity.teleportTo(slideY);
-    } else {
-        entity.teleportTo(previousPosition);
+function resolveSolid({entity, obstaclePolygon}: CollisionContext): void {
+    const push = minimumTranslationVector(entity.getCollisionPolygon(), obstaclePolygon);
+    if (!push) {
+        return; // Already resolved (e.g. by an earlier obstacle this same sweep), or merely touching - nothing to push out of.
     }
+
+    const depth = Math.hypot(push.x, push.y);
+    const withMargin = push.scale((depth + SEPARATION_MARGIN_PX) / depth);
+    entity.teleportTo(entity.getPosition().add(withMargin));
 }
 
 /**
