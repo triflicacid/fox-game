@@ -1,10 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { Vector2d } from "./vector2d";
-import { ConvexPolygon, convexPolygonsIntersect, rectPolygon } from "./convex-polygon";
+import { ConvexPolygon, convexPolygonsIntersect, minimumTranslationVector, rectPolygon } from "./convex-polygon";
+import { requireNonNull } from "../util";
 
 /** Builds a {@link ConvexPolygon} from plain `[x, y]` pairs, for terser test fixtures. */
 function polygon(...points: readonly (readonly [number, number])[]): ConvexPolygon {
     return points.map(([x, y]) => new Vector2d(x, y));
+}
+
+/** Translates every vertex of `polygon` by `offset`. */
+function translate(polygon: ConvexPolygon, offset: Vector2d): ConvexPolygon {
+    return polygon.map((point) => point.add(offset));
 }
 
 describe("rectPolygon", () => {
@@ -234,6 +240,101 @@ describe("convexPolygonsIntersect", () => {
             const a = polygon([0, 0], [10, 0]);
             const b = polygon([11, 0], [20, 0]);
             expect(convexPolygonsIntersect(a, b)).toBe(true);
+        });
+    });
+});
+
+describe("minimumTranslationVector", () => {
+    describe("direction and magnitude", () => {
+        it("pushes along the axis with the smaller overlap, not just any separating axis", () => {
+            // a: x[0,10] y[0,10]. b: x[8,18] y[3,13]. Overlap is 2 on X
+            // (10-8) but 7 on Y (10-3) - X must win.
+            const a = rectPolygon(0, 0, 10, 10);
+            const b = rectPolygon(8, 3, 10, 10);
+            const result = minimumTranslationVector(a, b);
+            expect(result?.x).toBeCloseTo(-2, 10);
+            expect(result?.y).toBeCloseTo(0, 10);
+        });
+
+        it("pushes right when the obstacle is to the left", () => {
+            const a = rectPolygon(0, 0, 10, 10);
+            const b = rectPolygon(-8, 3, 10, 10);
+            const result = minimumTranslationVector(a, b);
+            expect(result?.x).toBeCloseTo(2, 10);
+            expect(result?.y).toBeCloseTo(0, 10);
+        });
+
+        it("pushes down when the obstacle is above", () => {
+            const a = rectPolygon(0, 0, 10, 10);
+            const b = rectPolygon(3, -8, 10, 10);
+            const result = minimumTranslationVector(a, b);
+            expect(result?.x).toBeCloseTo(0, 10);
+            expect(result?.y).toBeCloseTo(2, 10);
+        });
+
+        it("pushes up when the obstacle is below", () => {
+            const a = rectPolygon(0, 0, 10, 10);
+            const b = rectPolygon(3, 8, 10, 10);
+            const result = minimumTranslationVector(a, b);
+            expect(result?.x).toBeCloseTo(0, 10);
+            expect(result?.y).toBeCloseTo(-2, 10);
+        });
+
+        it("returns a vector whose magnitude is the true minimum overlap for a non-square shape overlapping itself", () => {
+            // Centres coincide exactly, so the push *direction* is an arbitrary
+            // (but deterministic) tie-break - only the magnitude (the smaller
+            // of the two axis overlaps, i.e. the height) is well-defined here.
+            const a = rectPolygon(0, 0, 10, 4);
+            const result = requireNonNull(minimumTranslationVector(a, a));
+            expect(Math.hypot(result.x, result.y)).toBeCloseTo(4, 10);
+        });
+    });
+
+    describe("actually separates the shapes", () => {
+        it("translating a by the MTV plus a small epsilon leaves the shapes no longer overlapping", () => {
+            const a = rectPolygon(0, 0, 10, 10);
+            const b = rectPolygon(5, 5, 10, 10);
+            const push = requireNonNull(minimumTranslationVector(a, b));
+
+            const depth = Math.hypot(push.x, push.y);
+            const withEpsilon = push.scale((depth + 0.01) / depth);
+            expect(convexPolygonsIntersect(translate(a, withEpsilon), b)).toBe(false);
+        });
+
+        it("also separates two overlapping diamonds (non-axis-aligned shapes)", () => {
+            const a = polygon([5, 0], [10, 5], [5, 10], [0, 5]);
+            const b = polygon([9, 4], [14, 9], [9, 14], [4, 9]);
+            const push = requireNonNull(minimumTranslationVector(a, b));
+
+            const depth = Math.hypot(push.x, push.y);
+            const withEpsilon = push.scale((depth + 0.01) / depth);
+            expect(convexPolygonsIntersect(translate(a, withEpsilon), b)).toBe(false);
+        });
+    });
+
+    describe("no overlap to resolve", () => {
+        it("returns undefined for clearly separated rectangles", () => {
+            const a = rectPolygon(0, 0, 10, 10);
+            const b = rectPolygon(20, 0, 10, 10);
+            expect(minimumTranslationVector(a, b)).toBeUndefined();
+        });
+
+        it("returns undefined for rectangles that only touch (zero-depth overlap needs no push)", () => {
+            const a = rectPolygon(0, 0, 10, 10);
+            const b = rectPolygon(10, 0, 10, 10);
+            expect(minimumTranslationVector(a, b)).toBeUndefined();
+        });
+
+        it("returns undefined when either polygon is empty", () => {
+            const a = rectPolygon(0, 0, 10, 10);
+            expect(minimumTranslationVector(a, [])).toBeUndefined();
+            expect(minimumTranslationVector([], a)).toBeUndefined();
+        });
+
+        it("returns undefined for a single-point polygon (below the 2-point minimum)", () => {
+            const square = rectPolygon(0, 0, 10, 10);
+            const point = polygon([5, 5]);
+            expect(minimumTranslationVector(square, point)).toBeUndefined();
         });
     });
 });

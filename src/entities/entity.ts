@@ -155,9 +155,9 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
 
     /**
      * Same as {@link getCollisionPolygon}, but at a hypothetical `position`
-     * rather than this entity's actual current one - lets a collision
-     * response (e.g. `resolveSolid` in `world/collision.ts`) test candidate
-     * positions before committing to one, without mutating the entity first.
+     * rather than this entity's actual current one - lets a caller (e.g. a
+     * collision response) test a candidate position before committing to
+     * it, without mutating the entity first.
      *
      * @param position - Hypothetical position (the sprite's centre point) to place the current frame's bounds at.
      * @returns The current frame's collision bounds, positioned at `position`.
