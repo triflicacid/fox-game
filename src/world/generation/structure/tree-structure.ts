@@ -89,7 +89,7 @@ export class TreeStructure extends Structure<TreeSpriteType> {
         private readonly isFeatureSite: (worldX: number, worldY: number) => boolean,
         private readonly forestBiome: Biome,
     ) {
-        super(worldSeed, TREE_CONFIG.hashSeedOffset);
+        super(worldSeed, TREE_CONFIG.hashSeedOffset, "tree");
         this.grove = new FbmField(
             "tree_grove",
             worldSeed,
