@@ -19,6 +19,8 @@ import {CoordMap, CoordSet} from "./coord-set";
 import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
 import {getFieldGradient} from "./generation/noise-field-colors";
+import {StructurePieceInstance} from "./generation/structure/structure";
+import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -483,6 +485,16 @@ export class World {
         return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
     }
 
+    /** Returns the structure piece anchored at a world tile position only when its containing chunk is already loaded and ready. */
+    private getReadyStructurePieceAt(tileX: number, tileY: number): StructurePieceInstance | undefined {
+        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
+        const chunk = this.chunks.get(chunkX, chunkY);
+        if (!chunk?.isReady()) {
+            return undefined;
+        }
+        return chunk.getStructurePieceAt(tileX, tileY);
+    }
+
     /**
      * BFS from `(chunkX, chunkY)` over loaded, ready chunks whose
      * `biomeSummary` matches `biome`, returning the connected-region size.
@@ -827,6 +839,75 @@ export class World {
             this.constrainEntitiesToChunks(previousPositions, () => true);
         } else if (!this.canMoveOntoGeneratingChunks) {
             this.constrainEntitiesToChunks(previousPositions, (chunk) => chunk.isReady());
+        }
+        this.logCollisions();
+    }
+
+    /**
+     * Checks each {@link MovableEntity}'s collision polygon (see
+     * {@link Entity.getCollisionPolygon}) against every collidable tile and
+     * structure piece it currently overlaps - a tile via
+     * {@link Tile.getCollisionPolygon}, a structure piece via its whole
+     * occupied tile square, since piece sprites don't carry their own
+     * authored hull yet - logging any overlap found. Detection only for
+     * now: nothing is blocked, no matter what overlaps.
+     */
+    private logCollisions(): void {
+        for (const entity of this.entities) {
+            if (!(entity instanceof MovableEntity)) {
+                continue;
+            }
+
+            const entityPolygon = entity.getCollisionPolygon();
+            const rect = entity.getBoundingRect();
+            const startTileX = Math.floor(rect.x / this.tileSize);
+            const startTileY = Math.floor(rect.y / this.tileSize);
+            const endTileX = Math.floor((rect.x + rect.w - 1) / this.tileSize);
+            const endTileY = Math.floor((rect.y + rect.h - 1) / this.tileSize);
+
+            for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+                for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                    const tile = this.getReadyTile(tileX, tileY);
+                    const tilePolygon = tile?.getCollisionPolygon(tileX, tileY, this.tileSize);
+                    if (tile && tilePolygon) {
+                        World.logCollisionIfIntersecting(entity, entityPolygon, tilePolygon, "tile", tile.groundType, tileX, tileY);
+                    }
+
+                    const piece = this.getReadyStructurePieceAt(tileX, tileY);
+                    if (piece?.collidable) {
+                        const piecePolygon = rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize);
+                        World.logCollisionIfIntersecting(entity, entityPolygon, piecePolygon, "structure", piece.sprite, tileX, tileY);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Tests `entityPolygon` against `otherPolygon` via {@link convexPolygonsIntersect}
+     * and, on overlap, logs it - the placeholder collision "response" for
+     * now, until there's an actual reaction (blocking movement, damage,
+     * pickup, ...) to trigger instead.
+     *
+     * @param entity - The entity whose polygon is being tested.
+     * @param entityPolygon - `entity`'s current collision polygon.
+     * @param otherPolygon - The tile/structure piece's collision polygon.
+     * @param kind - What `otherPolygon` belongs to, for the log message (e.g. `"tile"`/`"structure"`).
+     * @param name - `otherPolygon`'s owner's name, for the log message (e.g. a ground type or structure sprite).
+     * @param tileX - `otherPolygon`'s owner's tile X, for the log message.
+     * @param tileY - `otherPolygon`'s owner's tile Y, for the log message.
+     */
+    private static logCollisionIfIntersecting(
+        entity: MovableEntity,
+        entityPolygon: ConvexPolygon,
+        otherPolygon: ConvexPolygon,
+        kind: string,
+        name: string,
+        tileX: number,
+        tileY: number,
+    ): void {
+        if (convexPolygonsIntersect(entityPolygon, otherPolygon)) {
+            console.log(`Collision: ${entity.getDisplayName()} vs ${kind} "${name}" at (${tileX}, ${tileY})`);
         }
     }
 

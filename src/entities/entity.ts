@@ -3,6 +3,7 @@ import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {Rect} from "../geometry/rect";
+import {ConvexPolygon} from "../geometry/convex-polygon";
 import {EffectDispatcher} from "../effects/effect-dispatcher";
 import {Accessor, type FieldContainer} from "../fields/field-registry";
 
@@ -138,6 +139,18 @@ export abstract class Entity<TSpriteType extends string = string, TStatus extend
             w: this.currentFrame.w,
             h: this.currentFrame.h,
         };
+    }
+
+    /**
+     * This entity's current collision polygon, in world pixels: its current
+     * frame's {@link SpriteBounds}, translated from cell-centre-relative to
+     * this entity's actual position. Doesn't account for {@link SpriteFrame.rotation},
+     * same as {@link drawDebugOverlay}'s hitbox outline.
+     *
+     * @returns The current frame's collision bounds, positioned in the world.
+     */
+    public getCollisionPolygon(): ConvexPolygon {
+        return this.currentFrame.bounds.points.map((point) => new Vector2d(this.position.x + point.x, this.position.y + point.y));
     }
 
     /**
