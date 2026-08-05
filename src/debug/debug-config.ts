@@ -74,6 +74,11 @@ export const DEBUG_CONFIG = {
     /** Vertical gap placed between consecutive HUD lines, in canvas pixels. */
     hudLineSpacing: 6,
 
+    /** Horizontal offset from the cursor to the hover tooltip's near edge, in canvas pixels - see {@link HoverTooltip}. */
+    tooltipOffsetX: 14,
+    /** Vertical offset from the cursor to the hover tooltip's near edge, in canvas pixels - see {@link HoverTooltip}. */
+    tooltipOffsetY: 14,
+
     /** Width of the noise-field legend's colour bar, in canvas pixels. */
     noiseLegendBarWidth: 20,
     /** Height of the noise-field legend's colour bar, in canvas pixels. */
@@ -107,6 +112,8 @@ fieldRegistry.registerFields("debug", DEBUG_CONFIG, {
     hudFontSize: nonNegativeInteger(),
     hudPadding: nonNegativeInteger(),
     hudLineSpacing: nonNegativeInteger(),
+    tooltipOffsetX: nonNegativeInteger(),
+    tooltipOffsetY: nonNegativeInteger(),
     noiseLegendBarWidth: nonNegativeInteger(),
     noiseLegendBarHeight: nonNegativeInteger(),
     noiseLegendMargin: nonNegativeInteger(),
