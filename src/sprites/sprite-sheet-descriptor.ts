@@ -9,10 +9,12 @@ import {CollisionResponseKind} from "../geometry/collision-response";
  *
  * A single sheet is always entirely one kind of entry - a plain
  * {@link SpriteTileDescriptor} for static content with no animation (e.g. a
- * tree, a patch of gravel), or a {@link SpriteRowDescriptor} for an animated
- * one (e.g. a walk cycle) - never a mix of both, so
- * {@link SpriteSheetDescriptor} takes the concrete entry shape as a type
- * parameter rather than trying to describe both at once.
+ * tree, a patch of gravel), a {@link SpriteRowDescriptor} for an entity's
+ * animation (e.g. a walk cycle), or a {@link SpriteAnimatedTileDescriptor}
+ * for a looping environmental animation with no owning entity (e.g.
+ * shimmering water) - never a mix of these, so {@link SpriteSheetDescriptor}
+ * takes the concrete entry shape as a type parameter rather than trying to
+ * describe all three at once.
  *
  * @typeParam TType - Union of valid `type` values for this sheet's entries.
  */
@@ -54,6 +56,24 @@ export interface SpriteRowDescriptor<TType extends string = string> extends Spri
      * animating but has the same `type` - if it has one.
      */
     idleX?: number;
+}
+
+/**
+ * A {@link SpriteTileDescriptor} that plays back as a looping multi-phase
+ * animation with no collision shape of its own (e.g. shimmering water).
+ * Unlike {@link SpriteRowDescriptor} - which is always an *entity's*
+ * animation and so always carries collision bounds - this inherits
+ * {@link SpriteTileDescriptor.bounds} as still-optional, and drives its own
+ * playback speed via {@link frameIntervalMs} rather than being stepped by an
+ * owning entity.
+ *
+ * @typeParam TType - Union of valid `type` values for this sheet's entries.
+ */
+export interface SpriteAnimatedTileDescriptor<TType extends string = string> extends SpriteTileDescriptor<TType> {
+    /** Number of animation phases (columns starting at `x`), always looping. */
+    phases: number;
+    /** How long, in milliseconds, each phase is shown before advancing to the next. */
+    frameIntervalMs: number;
 }
 
 /**

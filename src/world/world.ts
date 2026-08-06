@@ -7,6 +7,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {DebugHud, ChunkState} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
+import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
 import {TreeSpriteSheet, TreeSpriteType} from "../sprites/TreeSpriteSheet";
 import {CactusSpriteSheet, CactusSpriteType} from "../sprites/CactusSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
@@ -70,10 +71,14 @@ export class World {
     private readonly treeSpriteTypes = new Set<string>(this.treeSpriteSheet.getSpriteTypes());
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
+        waterTile: new AnimatedBackgroundTileSpriteSheet(),
         getStructureSpriteBitmap: (sprite) => this.treeSpriteTypes.has(sprite)
             ? this.treeSpriteSheet.getTileBitmap(sprite as TreeSpriteType)
             : this.cactusSpriteSheet.getTileBitmap(sprite as CactusSpriteType),
     };
+
+    /** Total elapsed time on the shared clock animated background tiles (e.g. water) read their phase from - see {@link Tile.draw}. Advanced every {@link update}. */
+    private animationElapsedMs = 0;
     /** Used only for {@link getNoiseFieldNames}/{@link drawNoiseFieldOverlay} - actual chunk generation runs on {@link chunkWorkerClient}. */
     private chunkGenerator: ChunkGenerator;
     private chunkWorkerClient: ChunkWorkerClient;
@@ -529,7 +534,7 @@ export class World {
         return {
             tileX,
             tileY,
-            groundType: tile.groundType,
+            groundType: tile.getDisplayGroundType(this.animationElapsedMs),
             biomeTag: tile.biomeTag,
             featureTag: tile.featureTag,
             collision: tile.getCollision(tileX, tileY, this.tileSize)?.response,
@@ -901,6 +906,7 @@ export class World {
      * @param spectating - Whether spectator mode is currently active - see {@link getChunkGenerationFocus}.
      */
     public update(deltaMs: number, camera: Camera, spectating: boolean): void {
+        this.animationElapsedMs += deltaMs;
         const previousPositions = new Map<MovableEntity, Vector2d>();
         for (const entity of this.entities) {
             if (entity instanceof MovableEntity) {
@@ -1228,7 +1234,7 @@ export class World {
                 }
 
                 const chunk = this.getChunk(chunkX, chunkY);
-                chunk.draw(ctx, originX, originY, this.tileSize);
+                chunk.draw(ctx, originX, originY, this.tileSize, this.animationElapsedMs);
                 this.lastVisibleChunkCount++;
 
                 if (bordersEnabled) {
