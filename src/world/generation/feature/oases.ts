@@ -126,7 +126,7 @@ export class OasisFeature extends Feature {
                 const isEdge = edgeDistance === 1;
                 const threshold = OasisFeature.deepWaterThreshold(edgeDistance);
                 const isDeep = !isEdge && this.oasisShape.sample(worldX, worldY) >= threshold;
-                tile.groundType = isDeep ? "oasisWaterDark" : "oasisWaterLight";
+                tile.groundType = isDeep ? "water.oasis.dark" : "water.oasis.light";
                 tile.featureTag = isDeep ? "oasis.deep" : "oasis.shallow";
             }
 

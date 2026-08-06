@@ -14,6 +14,16 @@ oasis water occupy the second.
 pnpm run spritesheet:background
 ```
 
+## water
+
+`scripts/gen-animated-background-tile-sprites.mjs`
+
+Same procedural approach as the background tiles, but each of the 4 water types (normal/oasis, light/dark) gets a 3-phase shimmer loop instead of one static texture - each phase salts the palette hash's seed so different cells roll the "shimmer" color, and each type carries its own playback speed (`frameIntervalMs`) in the descriptor.
+
+```
+pnpm run spritesheet:water
+```
+
 ## fox
 
 `scripts/gen-fox-sprites.mjs`

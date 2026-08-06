@@ -1,4 +1,5 @@
 import {BackgroundTileType} from "../sprites/BackgroundTileSpriteSheet";
+import {isWaterTileType, WaterTileType} from "../sprites/AnimatedBackgroundTileSpriteSheet";
 import {SpriteTile} from "../sprites/sprite";
 import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
 import {BiomeTag} from "./generation/biome/biome";
@@ -6,6 +7,7 @@ import {FeatureTag} from "./generation/feature/feature-tag";
 import {ConvexPolygon} from "../geometry/convex-polygon";
 import {Vector2d} from "../geometry/vector2d";
 import {CollisionResponseKind} from "../geometry/collision-response";
+import {computePhaseOffset, resolvePhase} from "./animated-background-tiles";
 
 /** A tile's resolved collision shape/reaction - see {@link Tile.getCollision}. */
 export interface TileCollision {
@@ -46,13 +48,31 @@ export interface TileData {
 
 /**
  * A single square tile within a {@link Chunk}. Renders whichever bitmap
- * {@link groundType} resolves to in the shared background-tile sheet.
+ * {@link groundType} resolves to - a single static bitmap from the
+ * background-tile sheet for most ground types, or, for a water type (see
+ * {@link isWaterTileType}), one of several phase bitmaps from the animated
+ * water-tile sheet, picked in {@link draw} by the caller's elapsed animation
+ * time.
  */
 export class Tile {
+    /** Set once loaded, for a non-animated tile - see {@link isAnimated}. */
     private bitmap: ImageBitmap | null = null;
+    /** Set once loaded, for an animated (water) tile, in phase order - see {@link isAnimated}. */
+    private phaseBitmaps: ImageBitmap[] | null = null;
     private readonly bitmapReady: Promise<void>;
 
-    /** This tile's sheet placement/collision bounds - see {@link getCollisionPolygon}. */
+    /** How long, in milliseconds, an animated tile shows each phase - `0` for a non-animated tile. */
+    private readonly frameIntervalMs: number;
+    /** How many phases an animated tile cycles through - `1` for a non-animated tile. */
+    private readonly phaseCount: number;
+    /**
+     * This animated tile's own starting point within its phase cycle,
+     * derived from its world position - see {@link computePhaseOffset} and
+     * {@link draw}. `0` for a non-animated tile.
+     */
+    private readonly phaseOffset: number;
+
+    /** This tile's sheet placement/collision bounds - see {@link getCollisionPolygon}. Water tiles have none. */
     private readonly spriteTile: SpriteTile;
 
     public readonly biomeTag: BiomeTag;
@@ -61,23 +81,50 @@ export class Tile {
     public readonly groundType: BackgroundTileType;
 
     /**
+     * Whether this tile animates through several phases (a water tile)
+     * rather than rendering one static bitmap - see {@link Chunk.hydrate},
+     * which skips caching a chunk's tile bitmap while any of its tiles are
+     * animated, redrawing every tile each frame instead.
+     */
+    public readonly isAnimated: boolean;
+
+    /**
      * @param data - This tile's generated data - see {@link TileData}.
      * @param spriteSheets - Shared sprite sheets to resolve bitmaps from.
+     * @param worldX - This tile's X position, in tiles from the world origin - only used to derive {@link phaseOffset} for a water tile.
+     * @param worldY - This tile's Y position, in tiles from the world origin - only used to derive {@link phaseOffset} for a water tile.
      */
-    public constructor(data: TileData, spriteSheets: ChunkSpriteSheets) {
+    public constructor(data: TileData, spriteSheets: ChunkSpriteSheets, worldX: number, worldY: number) {
         this.biomeTag = data.biomeTag;
         this.biomeDepth = data.biomeDepth;
         this.featureTag = data.featureTag;
         this.groundType = data.groundType;
+        this.isAnimated = isWaterTileType(data.groundType);
 
-        this.spriteTile = spriteSheets.backgroundTile.locateTile(data.groundType);
-        this.bitmapReady = spriteSheets.backgroundTile.getTileBitmap(data.groundType).then((bitmap) => {
-            this.bitmap = bitmap;
-        });
+        if (this.isAnimated) {
+            const waterType = data.groundType as WaterTileType;
+            const {waterTile} = spriteSheets;
+
+            this.spriteTile = {x: 0, y: 0, w: 1, h: 1};
+            this.frameIntervalMs = waterTile.getFrameIntervalMs(waterType);
+            this.phaseCount = waterTile.getPhaseCount(waterType);
+            this.phaseOffset = computePhaseOffset(worldX, worldY, this.phaseCount);
+            this.bitmapReady = waterTile.getPhaseBitmaps(waterType).then((bitmaps) => {
+                this.phaseBitmaps = bitmaps;
+            });
+        } else {
+            this.spriteTile = spriteSheets.backgroundTile.locateTile(data.groundType);
+            this.frameIntervalMs = 0;
+            this.phaseCount = 1;
+            this.phaseOffset = 0;
+            this.bitmapReady = spriteSheets.backgroundTile.getTileBitmap(data.groundType).then((bitmap) => {
+                this.bitmap = bitmap;
+            });
+        }
     }
 
     /**
-     * Resolves once this tile's sprite bitmap has finished loading, for
+     * Resolves once this tile's sprite bitmap(s) have finished loading, for
      * {@link Chunk}'s bitmap cache to wait on before drawing itself.
      *
      * @returns A promise that resolves once {@link draw} has something to paint.
@@ -113,19 +160,57 @@ export class Tile {
     }
 
     /**
+     * This animated tile's current phase, per `animationElapsedMs` - see
+     * {@link resolvePhase}. Only meaningful while {@link isAnimated}.
+     *
+     * @param animationElapsedMs - Total elapsed time on {@link World}'s shared animation clock, in milliseconds.
+     * @returns The current phase, 0-indexed.
+     */
+    private currentPhase(animationElapsedMs: number): number {
+        return resolvePhase(animationElapsedMs, this.frameIntervalMs, this.phaseOffset, this.phaseCount);
+    }
+
+    /**
      * Draws this tile's bitmap, or a checkerboard "not ready" placeholder on
-     * the handful of frames before it's finished loading.
+     * the handful of frames before it's finished loading. For an animated
+     * tile, picks {@link currentPhase}'s bitmap; ignored for a non-animated tile.
      *
      * @param ctx - Canvas context to draw into.
      * @param x - Left edge of the tile, in canvas pixels.
      * @param y - Top edge of the tile, in canvas pixels.
      * @param size - Width/height of the tile, in canvas pixels.
+     * @param animationElapsedMs - Total elapsed time on {@link World}'s shared animation clock, in milliseconds. Defaults to `0` for callers that never draw an animated tile.
      */
-    public draw(ctx: DrawContext, x: number, y: number, size: number): void {
+    public draw(ctx: DrawContext, x: number, y: number, size: number, animationElapsedMs = 0): void {
+        if (this.isAnimated) {
+            if (!this.phaseBitmaps) {
+                drawNotReadyTile(ctx, x, y, size);
+                return;
+            }
+            ctx.drawImage(this.phaseBitmaps[this.currentPhase(animationElapsedMs)], x, y, size, size);
+            return;
+        }
+
         if (!this.bitmap) {
             drawNotReadyTile(ctx, x, y, size);
             return;
         }
         ctx.drawImage(this.bitmap, x, y, size, size);
+    }
+
+    /**
+     * This tile's ground type for debug display, e.g. in the hover tooltip -
+     * see `HoverTooltip`. For an animated tile, appends the 1-indexed frame
+     * number currently showing (e.g. `"water.dark.2"`) so the tooltip reflects
+     * what's actually on screen; for a non-animated tile, just {@link groundType}.
+     *
+     * @param animationElapsedMs - Total elapsed time on {@link World}'s shared animation clock, in milliseconds.
+     * @returns The display ground type.
+     */
+    public getDisplayGroundType(animationElapsedMs: number): string {
+        if (!this.isAnimated) {
+            return this.groundType;
+        }
+        return `${this.groundType}.${this.currentPhase(animationElapsedMs) + 1}`;
     }
 }

@@ -33,18 +33,6 @@
       "interactable": false
     },
     {
-      "type": "waterLight",
-      "x": 160,
-      "y": 0,
-      "interactable": false
-    },
-    {
-      "type": "waterDark",
-      "x": 192,
-      "y": 0,
-      "interactable": false
-    },
-    {
       "type": "sand1",
       "x": 0,
       "y": 32,
@@ -59,18 +47,6 @@
     {
       "type": "sand3",
       "x": 64,
-      "y": 32,
-      "interactable": false
-    },
-    {
-      "type": "oasisWaterLight",
-      "x": 96,
-      "y": 32,
-      "interactable": false
-    },
-    {
-      "type": "oasisWaterDark",
-      "x": 128,
       "y": 32,
       "interactable": false
     },
