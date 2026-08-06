@@ -1236,16 +1236,7 @@ export class World {
                 const chunk = this.getChunk(chunkX, chunkY);
                 chunk.draw(ctx, originX, originY, this.tileSize, this.animationElapsedMs);
                 this.lastVisibleChunkCount++;
-
-                if (bordersEnabled) {
-                    const queuePosition = chunk.isReady() ? undefined : this.chunkWorkerClient.getQueuePosition(chunkX, chunkY);
-                    chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
-                }
             }
-        }
-
-        if (bordersEnabled) {
-            this.drawBiomeOutlines(ctx, camera);
         }
 
         if (debugEnabled && noiseFieldName) {
@@ -1257,6 +1248,13 @@ export class World {
         }
         this.drawEntities(ctx, camera, hitboxesEnabled);
         this.drawStructureProps(ctx, camera);
+
+        if (bordersEnabled) {
+            // drawn last, on top of entities/structures alike, so debug
+            // annotations are never occluded by a tree or entity
+            this.drawChunkDebugOverlays(ctx, camera);
+            this.drawBiomeOutlines(ctx, camera);
+        }
 
         ctx.restore();
 
@@ -1290,6 +1288,37 @@ export class World {
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
                 this.getChunk(chunkX, chunkY).drawProps(ctx, originX, originY, this.tileSize);
+            }
+        }
+    }
+
+    /**
+     * Draws every loaded visible chunk's debug overlay (outline,
+     * coordinate/biome/cache-state label, feature/structure outlines) - see
+     * {@link Chunk.drawDebug}. Its own pass, called after entities/structure
+     * props rather than folded into {@link draw}'s main per-chunk loop, so
+     * debug annotations always sit on top of everything else instead of
+     * being covered by a tree or entity drawn afterward.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param camera - Camera to render the world through.
+     */
+    private drawChunkDebugOverlays(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
+
+        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
+            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+                if (!this.isChunkLoaded(chunkX, chunkY)) {
+                    continue;
+                }
+                const originX = chunkX * chunkPixelSize - viewX;
+                const originY = chunkY * chunkPixelSize - viewY;
+                const chunk = this.getChunk(chunkX, chunkY);
+                const queuePosition = chunk.isReady() ? undefined : this.chunkWorkerClient.getQueuePosition(chunkX, chunkY);
+                chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
             }
         }
     }
@@ -1525,6 +1554,7 @@ export class World {
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
         const chunk = this.getChunk(chunkX, chunkY);
         const chunkBiome = chunk.isReady() ? chunk.biomeSummary : "generating...";
+        const chunkCacheState = chunk.isReady() ? chunk.getCacheState() : "pending";
         const biomeRegion = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
             ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
             : undefined;
@@ -1564,6 +1594,7 @@ export class World {
             chunkX,
             chunkY,
             chunkBiome,
+            chunkCacheState,
             neighborStates,
             distanceToBiomeEdge,
             biomeRegionChunks: biomeRegion?.count,

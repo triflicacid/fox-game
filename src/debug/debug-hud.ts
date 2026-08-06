@@ -11,6 +11,16 @@ import {DEBUG_CONFIG} from "./debug-config";
 /** Readiness state of a single chunk, for the neighbour indicator. */
 export type ChunkState = "ready" | "generating" | "unloaded";
 
+/**
+ * The current chunk's cache state, for the HUD's chunk line - mirrors
+ * `Chunk.ChunkCacheState` but kept as its own local type (like {@link ChunkState})
+ * rather than imported, so this module stays decoupled from `World`:
+ * - `"cached"` - blitted from a static cached bitmap every frame.
+ * - `"live"` - has an animated tile, so it's redrawn tile-by-tile every frame instead.
+ * - `"pending"` - still generating, so its eventual cache state isn't known yet.
+ */
+export type ChunkCacheState = "cached" | "live" | "pending";
+
 export interface DebugHudData {
     cameraCenterX: number;
     cameraCenterY: number;
@@ -25,6 +35,7 @@ export interface DebugHudData {
     chunkX: number;
     chunkY: number;
     chunkBiome: string;
+    chunkCacheState: ChunkCacheState;
     /** State of the four cardinal neighbours: north, south, east, west. */
     neighborStates: {n: ChunkState; s: ChunkState; e: ChunkState; w: ChunkState};
     /** Distance and compass direction to the nearest chunk with a different biome, or `undefined` when generating/mixed. */
@@ -135,10 +146,11 @@ export class DebugHud {
                 this.text(")  pos ("), this.numberValue(data.entityX.toFixed(1)), this.text(", "), this.numberValue(data.entityY.toFixed(1)),
                 this.text(")  facing: "), this.stringValue(data.entityFacing),
             ],
-            // Chunk + biome + edge distance + size
+            // Chunk + cache state + biome + edge distance + size
             [
                 this.text("chunk ("), this.numberValue(String(data.chunkX)), this.text(", "), this.numberValue(String(data.chunkY)),
-                this.text(")  biome: "), this.stringValue(data.chunkBiome),
+                this.text(") ["), this.stringValue(data.chunkCacheState), this.text("]"),
+                this.text("  biome: "), this.stringValue(data.chunkBiome),
                 ...(data.distanceToBiomeEdge !== undefined
                     ? [this.text("  edge: "), this.numberValue(String(data.distanceToBiomeEdge.distance)), this.text("ch "), this.stringValue(data.distanceToBiomeEdge.direction)]
                     : []),
