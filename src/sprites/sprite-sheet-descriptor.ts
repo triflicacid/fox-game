@@ -59,6 +59,18 @@ export interface SpriteRowDescriptor<TType extends string = string> extends Spri
 }
 
 /**
+ * How tiles sharing a {@link SpriteAnimatedTileDescriptor} type stay in step
+ * with each other:
+ * - `"perTile"` - each tile offsets its own phase from its world position,
+ *   so neighbouring tiles of the same type show different phases at once
+ *   (reads as scattered/organic - e.g. independent glints).
+ * - `"global"` - every tile of this type shows the exact same phase at the
+ *   exact same time, with no offset (reads as one continuous surface moving
+ *   together - e.g. a lake's current flowing as a whole).
+ */
+export type TileAnimationSync = "perTile" | "global";
+
+/**
  * A {@link SpriteTileDescriptor} that plays back as a looping multi-phase
  * animation with no collision shape of its own (e.g. shimmering water).
  * Unlike {@link SpriteRowDescriptor} - which is always an *entity's*
@@ -74,6 +86,8 @@ export interface SpriteAnimatedTileDescriptor<TType extends string = string> ext
     phases: number;
     /** How long, in milliseconds, each phase is shown before advancing to the next. */
     frameIntervalMs: number;
+    /** How tiles of this type stay in step with each other - see {@link TileAnimationSync}. Defaults to `"perTile"` when absent. */
+    sync?: TileAnimationSync;
 }
 
 /**

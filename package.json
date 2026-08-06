@@ -13,7 +13,7 @@
     "open:client": "vite preview --open",
     "spritesheet:fox": "node scripts/gen-fox-sprites.mjs static/fox-sprites.png static/fox-sprites.json",
     "spritesheet:background": "node scripts/gen-background-tile-sprites.mjs static/background-tile-sprites.png static/background-tile-sprites.json",
-    "spritesheet:water": "node scripts/gen-animated-background-tile-sprites.mjs static/animated-background-tile-sprites.png static/animated-background-tile-sprites.json",
+    "spritesheet:background:animated": "node scripts/gen-animated-background-tile-sprites.mjs static/animated-background-tile-sprites.png static/animated-background-tile-sprites.json",
     "spritesheet:trees": "node scripts/gen-tree-sprites.mjs static/tree-sprites.png static/tree-sprites.json",
     "spritesheet:cacti": "node scripts/gen-cactus-sprites.mjs static/cactus-sprites.png static/cactus-sprites.json",
     "test": "vitest run --config vitest.config.ts",
