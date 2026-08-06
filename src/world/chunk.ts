@@ -18,6 +18,15 @@ export {CHUNK_SIZE};
 const PENDING_COLOR = "#000000";
 
 /**
+ * A ready chunk's cache state, for debug display - see {@link Chunk.getCacheState}:
+ * - `"cached"` - has a static cached bitmap, blitted every frame.
+ * - `"live"` - has an animated tile (see {@link Tile.isAnimated}), so it's
+ *   redrawn tile-by-tile every frame instead of blitting one cached bitmap -
+ *   see {@link Chunk.cacheBitmap}.
+ */
+export type ChunkCacheState = "cached" | "live";
+
+/**
  * A fixed-size square region of the world, made up of `CHUNK_SIZE x
  * CHUNK_SIZE` {@link Tile}s. Chunks are generated on demand by {@link World}
  * (on a background worker - see `ChunkWorkerClient`) and identified by their
@@ -141,6 +150,15 @@ export class Chunk {
      */
     public isReady(): boolean {
         return this.tiles.length > 0;
+    }
+
+    /**
+     * This chunk's cache state.
+     *
+     * @returns The cache state.
+     */
+    public getCacheState(): ChunkCacheState {
+        return this.hasAnimatedTile ? "live" : "cached";
     }
 
     /**
@@ -362,11 +380,14 @@ export class Chunk {
     }
 
     /**
-     * Renders this chunk's debug overlay (outline, coordinate/biome label,
-     * feature outlines, structure outlines) once to an offscreen bitmap, in
-     * local chunk-space, so {@link drawDebug} can blit it every frame
-     * instead of re-stroking every tile edge. Only called once ready, so the
-     * label always shows the final biome summary rather than "generating...".
+     * Renders this chunk's debug overlay (outline, coordinate/biome/cache-state
+     * label, feature outlines, structure outlines) once to an offscreen
+     * bitmap, in local chunk-space, so {@link drawDebug} can blit it every
+     * frame instead of re-stroking every tile edge. Only called once ready,
+     * so the label always shows the final biome summary rather than
+     * "generating...", and {@link hasAnimatedTile} - unlike {@link cachedBitmap}
+     * itself - is already settled by then, so there's no risk of the label
+     * getting built (and permanently cached) before it's known.
      *
      * @param tileSize - Width/height of each tile, in canvas pixels.
      */
@@ -430,11 +451,6 @@ export class Chunk {
     /**
      * Draws this chunk's noise-field debug overlay: one coloured tile per
      * `field` sample, coloured via `gradient` (see `noise-field-colors.ts`).
-     * Rendered once to {@link cachedNoiseOverlayBitmap} and blitted from then
-     * on instead of resampling every tile every frame; rebuilt only when a
-     * different field is selected (see {@link cachedNoiseOverlayField}) - not
-     * on regeneration, since a `NoiseField` samples pure world-space
-     * coordinates independent of this chunk's own tile data.
      *
      * @param ctx - Canvas context to draw into.
      * @param originX - Canvas X position of this chunk's top-left corner.
