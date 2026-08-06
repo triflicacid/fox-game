@@ -1,6 +1,7 @@
 import {Display} from "@display/display";
 import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
+import type {ChunkCacheState} from "../world/chunk";
 
 /**
  * Everything the debug HUD needs to render one frame - gathered by whoever
@@ -25,6 +26,7 @@ export interface DebugHudData {
     chunkX: number;
     chunkY: number;
     chunkBiome: string;
+    chunkCacheState: ChunkCacheState | "pending";
     /** State of the four cardinal neighbours: north, south, east, west. */
     neighborStates: {n: ChunkState; s: ChunkState; e: ChunkState; w: ChunkState};
     /** Distance and compass direction to the nearest chunk with a different biome, or `undefined` when generating/mixed. */
@@ -135,10 +137,11 @@ export class DebugHud {
                 this.text(")  pos ("), this.numberValue(data.entityX.toFixed(1)), this.text(", "), this.numberValue(data.entityY.toFixed(1)),
                 this.text(")  facing: "), this.stringValue(data.entityFacing),
             ],
-            // Chunk + biome + edge distance + size
+            // Chunk + cache state + biome + edge distance + size
             [
                 this.text("chunk ("), this.numberValue(String(data.chunkX)), this.text(", "), this.numberValue(String(data.chunkY)),
-                this.text(")  biome: "), this.stringValue(data.chunkBiome),
+                this.text(") ["), this.stringValue(data.chunkCacheState), this.text("]"),
+                this.text("  biome: "), this.stringValue(data.chunkBiome),
                 ...(data.distanceToBiomeEdge !== undefined
                     ? [this.text("  edge: "), this.numberValue(String(data.distanceToBiomeEdge.distance)), this.text("ch "), this.stringValue(data.distanceToBiomeEdge.direction)]
                     : []),

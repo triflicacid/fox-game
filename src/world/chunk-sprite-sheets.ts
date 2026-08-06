@@ -1,12 +1,16 @@
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
+import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
 
 /**
  * Every sprite sheet a chunk/tiles needs to generate/render its
  * content.
  */
 export interface ChunkSpriteSheets {
-    /** Ground tiles - grass/dirt/gravel/water. */
+    /** Static ground tiles - grass/dirt/gravel/sand. */
     backgroundTile: BackgroundTileSpriteSheet;
+
+    /** Animated ground tiles. */
+    animatedBackgroundTile: AnimatedBackgroundTileSpriteSheet;
 
     /**
      * Resolves a decorative structure piece's sprite type to its bitmap,

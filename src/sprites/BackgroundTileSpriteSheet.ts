@@ -3,8 +3,8 @@ import {SpriteSheetDescriptor, SpriteTileDescriptor} from "./sprite-sheet-descri
 import {StaticSpriteSheet} from "./StaticSpriteSheet";
 
 /** Every ground tile type in `static/background-tile-sprites.png`/`.json`. */
-export type BackgroundTileType = "grass1" | "grass2" | "grass3" | "dirt" | "gravel" | "waterLight" | "waterDark"
-    | "sand1" | "sand2" | "sand3" | "oasisWaterLight" | "oasisWaterDark" | "forest1" | "forest2" | "forest3";
+export type BackgroundTileType = "grass1" | "grass2" | "grass3" | "dirt" | "gravel" | "water.light" | "water.dark"
+    | "sand1" | "sand2" | "sand3" | "water.oasis.light" | "water.oasis.dark" | "forest1" | "forest2" | "forest3";
 
 const descriptor = descriptorJson as SpriteSheetDescriptor<BackgroundTileType, SpriteTileDescriptor<BackgroundTileType>>;
 

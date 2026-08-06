@@ -1,8 +1,8 @@
-import {BackgroundTileType} from "../sprites/BackgroundTileSpriteSheet";
 import {BiomeTag} from "./generation/biome/biome";
 import {FeatureTag} from "./generation/feature/feature-tag";
 import {StructureLayer} from "./generation/structure/structure-manifest";
 import {CollisionResponseKind} from "../geometry/collision-response";
+import {TileAnimationInfo} from "./tile";
 
 /** The structure piece (if any) occupying a hovered tile - see {@link TileHoverInfo.structure}. */
 export interface StructureHoverInfo {
@@ -23,11 +23,14 @@ export interface StructureHoverInfo {
 export interface TileHoverInfo {
     tileX: number;
     tileY: number;
-    groundType: BackgroundTileType;
+    /** The tile's ground sprite, e.g. `"grass2"` - or, for an animated tile, its currently-showing frame, e.g. `"water.dark.2"` - see `Tile.getDisplayGroundType`. */
+    groundType: string;
     biomeTag: BiomeTag;
     featureTag: FeatureTag;
     /** How an entity standing on this tile reacts, or `undefined` if it isn't collidable - see {@link Tile.getCollision}. */
     collision: Exclude<CollisionResponseKind, "none"> | undefined;
+    /** This tile's animation playback info, or `undefined` if it doesn't animate - see {@link Tile.getAnimationInfo}. */
+    animated: TileAnimationInfo | undefined;
     /** The foreground/background structure piece occupying this tile, if any. */
     structure: StructureHoverInfo | undefined;
 }

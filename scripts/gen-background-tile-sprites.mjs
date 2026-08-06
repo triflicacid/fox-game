@@ -101,40 +101,6 @@ const GRAVEL = {
     ],
 };
 
-// water uses fewer colors for a smoother look
-const WATER_LIGHT = {
-    seed: 4001,
-    palette: [
-        { color: [46, 137, 163, 255], weight: 88 }, // base
-        { color: [78, 173, 194, 255], weight: 12 }, // shimmer
-    ],
-};
-
-const WATER_DARK = {
-    seed: 4002,
-    palette: [
-        { color: [14, 56, 84, 255], weight: 88 }, // base
-        { color: [8, 38, 60, 255], weight: 12 },  // shimmer
-    ],
-};
-
-// distinct turquoise palette makes oasis water recognizable against normal lake water
-const OASIS_WATER_LIGHT = {
-    seed: 6001,
-    palette: [
-        { color: [36, 159, 164, 255], weight: 88 }, // base
-        { color: [79, 196, 190, 255], weight: 12 }, // shimmer
-    ],
-};
-
-const OASIS_WATER_DARK = {
-    seed: 6002,
-    palette: [
-        { color: [13, 89, 108, 255], weight: 88 }, // base
-        { color: [20, 121, 128, 255], weight: 12 }, // shimmer
-    ],
-};
-
 // cooler-toned than plains grass (more blue-green/teal) so forest floor reads as distinct
 // cover without being too dark
 const FOREST_TEXTURE_SEED = 8081;
@@ -198,7 +164,8 @@ const SAND_VARIANTS = [
     },
 ];
 
-// row 0: plains terrain and lake water; row 1: desert terrain and oasis water; row 2: forest terrain
+// row 0: plains terrain; row 1: desert terrain; row 2: forest terrain
+// lake/oasis water lives in gen-animated-background-tile-sprites.mjs instead, since it's animated
 const TILE_ROWS = [
     [
         { type: "grass1", ...GRASS_VARIANTS[0] },
@@ -206,15 +173,11 @@ const TILE_ROWS = [
         { type: "grass3", ...GRASS_VARIANTS[2] },
         { type: "dirt", ...DIRT },
         { type: "gravel", ...GRAVEL },
-        { type: "waterLight", ...WATER_LIGHT },
-        { type: "waterDark", ...WATER_DARK },
     ],
     [
         { type: "sand1", ...SAND_VARIANTS[1] }, // brightest palette - see SAND_VARIANTS
         { type: "sand2", ...SAND_VARIANTS[0] },
         { type: "sand3", ...SAND_VARIANTS[2] }, // darkest palette
-        { type: "oasisWaterLight", ...OASIS_WATER_LIGHT },
-        { type: "oasisWaterDark", ...OASIS_WATER_DARK },
     ],
     [
         { type: "forest1", ...FOREST_VARIANTS[0] },
