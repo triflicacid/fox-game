@@ -7,6 +7,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {DebugHud, ChunkState} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
+import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
 import {TreeSpriteSheet, TreeSpriteType} from "../sprites/TreeSpriteSheet";
 import {CactusSpriteSheet, CactusSpriteType} from "../sprites/CactusSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
@@ -70,10 +71,14 @@ export class World {
     private readonly treeSpriteTypes = new Set<string>(this.treeSpriteSheet.getSpriteTypes());
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
+        animatedBackgroundTile: new AnimatedBackgroundTileSpriteSheet(),
         getStructureSpriteBitmap: (sprite) => this.treeSpriteTypes.has(sprite)
             ? this.treeSpriteSheet.getTileBitmap(sprite as TreeSpriteType)
             : this.cactusSpriteSheet.getTileBitmap(sprite as CactusSpriteType),
     };
+
+    /** Total elapsed time on the shared clock animated background tiles (e.g. water) read their phase from - see {@link Tile.draw}. Advanced every {@link update}. */
+    private animationElapsedMs = 0;
     /** Used only for {@link getNoiseFieldNames}/{@link drawNoiseFieldOverlay} - actual chunk generation runs on {@link chunkWorkerClient}. */
     private chunkGenerator: ChunkGenerator;
     private chunkWorkerClient: ChunkWorkerClient;
@@ -529,10 +534,11 @@ export class World {
         return {
             tileX,
             tileY,
-            groundType: tile.groundType,
+            groundType: tile.getDisplayGroundType(this.animationElapsedMs),
             biomeTag: tile.biomeTag,
             featureTag: tile.featureTag,
             collision: tile.getCollision(tileX, tileY, this.tileSize)?.response,
+            animated: tile.getAnimationInfo(),
             structure: piece && {
                 sprite: piece.sprite,
                 structureId: piece.structureId,
@@ -901,6 +907,7 @@ export class World {
      * @param spectating - Whether spectator mode is currently active - see {@link getChunkGenerationFocus}.
      */
     public update(deltaMs: number, camera: Camera, spectating: boolean): void {
+        this.animationElapsedMs += deltaMs;
         const previousPositions = new Map<MovableEntity, Vector2d>();
         for (const entity of this.entities) {
             if (entity instanceof MovableEntity) {
@@ -1228,18 +1235,9 @@ export class World {
                 }
 
                 const chunk = this.getChunk(chunkX, chunkY);
-                chunk.draw(ctx, originX, originY, this.tileSize);
+                chunk.draw(ctx, originX, originY, this.tileSize, this.animationElapsedMs);
                 this.lastVisibleChunkCount++;
-
-                if (bordersEnabled) {
-                    const queuePosition = chunk.isReady() ? undefined : this.chunkWorkerClient.getQueuePosition(chunkX, chunkY);
-                    chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
-                }
             }
-        }
-
-        if (bordersEnabled) {
-            this.drawBiomeOutlines(ctx, camera);
         }
 
         if (debugEnabled && noiseFieldName) {
@@ -1251,6 +1249,13 @@ export class World {
         }
         this.drawEntities(ctx, camera, hitboxesEnabled);
         this.drawStructureProps(ctx, camera);
+
+        if (bordersEnabled) {
+            // drawn last, on top of entities/structures alike, so debug
+            // annotations are never occluded by a tree or entity
+            this.drawChunkDebugOverlays(ctx, camera);
+            this.drawBiomeOutlines(ctx, camera);
+        }
 
         ctx.restore();
 
@@ -1284,6 +1289,37 @@ export class World {
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
                 this.getChunk(chunkX, chunkY).drawProps(ctx, originX, originY, this.tileSize);
+            }
+        }
+    }
+
+    /**
+     * Draws every loaded visible chunk's debug overlay (outline,
+     * coordinate/biome/cache-state label, feature/structure outlines) - see
+     * {@link Chunk.drawDebug}. Its own pass, called after entities/structure
+     * props rather than folded into {@link draw}'s main per-chunk loop, so
+     * debug annotations always sit on top of everything else instead of
+     * being covered by a tree or entity drawn afterward.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param camera - Camera to render the world through.
+     */
+    private drawChunkDebugOverlays(ctx: CanvasRenderingContext2D, camera: Camera): void {
+        const viewX = camera.getViewX();
+        const viewY = camera.getViewY();
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
+
+        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
+            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+                if (!this.isChunkLoaded(chunkX, chunkY)) {
+                    continue;
+                }
+                const originX = chunkX * chunkPixelSize - viewX;
+                const originY = chunkY * chunkPixelSize - viewY;
+                const chunk = this.getChunk(chunkX, chunkY);
+                const queuePosition = chunk.isReady() ? undefined : this.chunkWorkerClient.getQueuePosition(chunkX, chunkY);
+                chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
             }
         }
     }
@@ -1519,6 +1555,7 @@ export class World {
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
         const chunk = this.getChunk(chunkX, chunkY);
         const chunkBiome = chunk.isReady() ? chunk.biomeSummary : "generating...";
+        const chunkCacheState = chunk.isReady() ? chunk.getCacheState() : "pending";
         const biomeRegion = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
             ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
             : undefined;
@@ -1558,6 +1595,7 @@ export class World {
             chunkX,
             chunkY,
             chunkBiome,
+            chunkCacheState,
             neighborStates,
             distanceToBiomeEdge,
             biomeRegionChunks: biomeRegion?.count,

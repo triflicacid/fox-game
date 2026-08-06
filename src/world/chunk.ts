@@ -18,6 +18,15 @@ export {CHUNK_SIZE};
 const PENDING_COLOR = "#000000";
 
 /**
+ * A ready chunk's cache state, for debug display - see {@link Chunk.getCacheState}:
+ * - `"cached"` - has a static cached bitmap, blitted every frame.
+ * - `"live"` - has an animated tile (see {@link Tile.isAnimated}), so it's
+ *   redrawn tile-by-tile every frame instead of blitting one cached bitmap -
+ *   see {@link Chunk.cacheBitmap}.
+ */
+export type ChunkCacheState = "cached" | "live";
+
+/**
  * A fixed-size square region of the world, made up of `CHUNK_SIZE x
  * CHUNK_SIZE` {@link Tile}s. Chunks are generated on demand by {@link World}
  * (on a background worker - see `ChunkWorkerClient`) and identified by their
@@ -27,14 +36,30 @@ export class Chunk {
     /** Empty until {@link hydrate} resolves - see {@link isReady}. */
     private tiles: Tile[][] = [];
 
-    /** Rendered once every tile's sprite has loaded. `null` until then, during which {@link draw} falls back to a per-tile loop. */
+    /**
+     * Rendered once every tile's sprite has loaded, and only while none of
+     * this chunk's tiles animate (see {@link Tile.isAnimated}). `null` until
+     * then, or permanently for a chunk with any animated tile, during which
+     * {@link draw} falls back to a per-tile loop instead.
+     */
     private cachedBitmap: ImageBitmap | null = null;
+
+    /** Whether any tile in this chunk animates - see {@link cachedBitmap}. `false` until {@link hydrate} resolves. */
+    private hasAnimatedTile = false;
 
     /** Decorative structure pieces (e.g. tree trunks/leaves) touching this chunk. Empty until {@link hydrate} resolves. */
     private structurePieces: StructurePieceInstance[] = [];
 
     /** Rendered once every foreground-layer piece's sprite has loaded. `null` until then (or while there are none), during which {@link drawProps} draws nothing. */
     private cachedPropsBitmap: ImageBitmap | null = null;
+
+    /**
+     * Rendered once every background-layer piece's sprite has loaded. `null`
+     * until then (or while there are none) - its own layer, separate from
+     * {@link cachedBitmap}, so background props still draw normally even for
+     * a chunk whose tile bitmap isn't cacheable (see {@link hasAnimatedTile}).
+     */
+    private cachedBackgroundPropsBitmap: ImageBitmap | null = null;
 
     /** Rendered once, lazily, the first time {@link drawDebug} is called on a ready chunk - see {@link buildDebugBitmap}. `null` until then. */
     private cachedDebugBitmap: ImageBitmap | null = null;
@@ -100,7 +125,10 @@ export class Chunk {
 
         this.biomeSummary = result.biomeSummary;
         this.generationTimeMs = result.generationTimeMs;
-        this.tiles = result.tiles.map((row) => row.map((data) => new Tile(data, spriteSheets)));
+        const chunkOriginX = this.chunkX * CHUNK_SIZE;
+        const chunkOriginY = this.chunkY * CHUNK_SIZE;
+        this.tiles = result.tiles.map((row, y) => row.map((data, x) => new Tile(data, spriteSheets, chunkOriginX + x, chunkOriginY + y)));
+        this.hasAnimatedTile = this.tiles.some((row) => row.some((tile) => tile.isAnimated));
         this.structurePieces = result.props;
         for (const piece of this.structurePieces) {
             this.structureOccupancy.set(piece.worldX, piece.worldY, piece);
@@ -111,7 +139,7 @@ export class Chunk {
             this.structureBitmaps.set(sprite, await spriteSheets.getStructureSpriteBitmap(sprite));
         }));
 
-        await Promise.all([this.cacheBitmap(tileSize), this.cachePropsBitmap(tileSize)]);
+        await Promise.all([this.cacheBitmap(tileSize), this.cachePropsBitmap(tileSize), this.cacheBackgroundPropsBitmap(tileSize)]);
     }
 
     /**
@@ -124,14 +152,28 @@ export class Chunk {
     }
 
     /**
+     * This chunk's cache state.
+     *
+     * @returns The cache state.
+     */
+    public getCacheState(): ChunkCacheState {
+        return this.hasAnimatedTile ? "live" : "cached";
+    }
+
+    /**
      * Renders this chunk once to an offscreen bitmap so {@link draw} can blit
-     * it instead of redrawing every tile every frame. Background-layer
-     * structure pieces are painted on top of the ground tiles within this
-     * same cache, so they merge into it rather than needing their own pass.
+     * it instead of redrawing every tile every frame. Left `null` (permanently)
+     * for a chunk with any animated tile - see {@link hasAnimatedTile} - since
+     * such a chunk needs repainting every frame anyway, so caching one static
+     * snapshot of it wouldn't help.
      *
      * @param tileSize - Width/height a tile renders at, in canvas pixels.
      */
     private async cacheBitmap(tileSize: number): Promise<void> {
+        if (this.hasAnimatedTile) {
+            return;
+        }
+
         await Promise.all(this.tiles.flatMap((row) => row.map((tile) => tile.whenReady())));
 
         const pixelSize = CHUNK_SIZE * tileSize;
@@ -142,7 +184,6 @@ export class Chunk {
                 this.tiles[y][x].draw(ctx, x * tileSize, y * tileSize, tileSize);
             }
         }
-        this.drawStructureLayer(ctx, tileSize, "background");
         this.cachedBitmap = offscreen.transferToImageBitmap();
     }
 
@@ -164,6 +205,26 @@ export class Chunk {
         const ctx = requireNonNull(offscreen.getContext("2d"));
         this.drawStructureLayer(ctx, tileSize, "foreground");
         this.cachedPropsBitmap = offscreen.transferToImageBitmap();
+    }
+
+    /**
+     * Renders this chunk's background-layer structure pieces onto a
+     * transparent offscreen bitmap so {@link draw} can blit it instead of
+     * redrawing every piece every frame - see {@link cachedBackgroundPropsBitmap}.
+     * Left `null` if there are none to draw.
+     *
+     * @param tileSize - Width/height a tile renders at, in canvas pixels.
+     */
+    private async cacheBackgroundPropsBitmap(tileSize: number): Promise<void> {
+        if (!this.structurePieces.some((piece) => piece.layer === "background")) {
+            return;
+        }
+
+        const pixelSize = CHUNK_SIZE * tileSize;
+        const offscreen = new OffscreenCanvas(pixelSize, pixelSize);
+        const ctx = requireNonNull(offscreen.getContext("2d"));
+        this.drawStructureLayer(ctx, tileSize, "background");
+        this.cachedBackgroundPropsBitmap = offscreen.transferToImageBitmap();
     }
 
     /**
@@ -224,16 +285,19 @@ export class Chunk {
 
     /**
      * Draws this chunk: blits {@link cachedBitmap} if it's ready, otherwise
-     * falls back to drawing every tile individually. While this chunk hasn't
-     * finished generating yet, fills its bounds with a placeholder colour
-     * instead.
+     * falls back to drawing every tile individually - always the case for a
+     * chunk with an animated tile, since it never gets a {@link cachedBitmap}
+     * (see {@link cacheBitmap}). While this chunk hasn't finished generating
+     * yet, fills its bounds with a placeholder colour instead. Background
+     * structure props, if any, are blitted on top either way.
      *
      * @param ctx - Canvas context to draw into.
      * @param originX - Canvas X position of this chunk's top-left corner.
      * @param originY - Canvas Y position of this chunk's top-left corner.
      * @param tileSize - Width/height of each tile, in canvas pixels.
+     * @param animationElapsedMs - Total elapsed time on `World`'s shared animation clock, in milliseconds - only read by an animated tile's fallback-loop draw. Defaults to `0`.
      */
-    public draw(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
+    public draw(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, animationElapsedMs = 0): void {
         if (!this.isReady()) {
             ctx.fillStyle = PENDING_COLOR;
             ctx.fillRect(originX, originY, CHUNK_SIZE * tileSize, CHUNK_SIZE * tileSize);
@@ -242,13 +306,16 @@ export class Chunk {
 
         if (this.cachedBitmap) {
             ctx.drawImage(this.cachedBitmap, originX, originY, CHUNK_SIZE * tileSize, CHUNK_SIZE * tileSize);
-            return;
+        } else {
+            for (let y = 0; y < CHUNK_SIZE; y++) {
+                for (let x = 0; x < CHUNK_SIZE; x++) {
+                    this.tiles[y][x].draw(ctx, originX + x * tileSize, originY + y * tileSize, tileSize, animationElapsedMs);
+                }
+            }
         }
 
-        for (let y = 0; y < CHUNK_SIZE; y++) {
-            for (let x = 0; x < CHUNK_SIZE; x++) {
-                this.tiles[y][x].draw(ctx, originX + x * tileSize, originY + y * tileSize, tileSize);
-            }
+        if (this.cachedBackgroundPropsBitmap) {
+            ctx.drawImage(this.cachedBackgroundPropsBitmap, originX, originY, CHUNK_SIZE * tileSize, CHUNK_SIZE * tileSize);
         }
     }
 
@@ -312,11 +379,14 @@ export class Chunk {
     }
 
     /**
-     * Renders this chunk's debug overlay (outline, coordinate/biome label,
-     * feature outlines, structure outlines) once to an offscreen bitmap, in
-     * local chunk-space, so {@link drawDebug} can blit it every frame
-     * instead of re-stroking every tile edge. Only called once ready, so the
-     * label always shows the final biome summary rather than "generating...".
+     * Renders this chunk's debug overlay (outline, coordinate/biome/cache-state
+     * label, feature outlines, structure outlines) once to an offscreen
+     * bitmap, in local chunk-space, so {@link drawDebug} can blit it every
+     * frame instead of re-stroking every tile edge. Only called once ready,
+     * so the label always shows the final biome summary rather than
+     * "generating...", and {@link hasAnimatedTile} - unlike {@link cachedBitmap}
+     * itself - is already settled by then, so there's no risk of the label
+     * getting built (and permanently cached) before it's known.
      *
      * @param tileSize - Width/height of each tile, in canvas pixels.
      */
@@ -380,11 +450,6 @@ export class Chunk {
     /**
      * Draws this chunk's noise-field debug overlay: one coloured tile per
      * `field` sample, coloured via `gradient` (see `noise-field-colors.ts`).
-     * Rendered once to {@link cachedNoiseOverlayBitmap} and blitted from then
-     * on instead of resampling every tile every frame; rebuilt only when a
-     * different field is selected (see {@link cachedNoiseOverlayField}) - not
-     * on regeneration, since a `NoiseField` samples pure world-space
-     * coordinates independent of this chunk's own tile data.
      *
      * @param ctx - Canvas context to draw into.
      * @param originX - Canvas X position of this chunk's top-left corner.
