@@ -1,6 +1,9 @@
 import {SpriteRect} from "./sprite";
-import {SpriteAnimatedTileDescriptor, SpriteSheetDescriptor} from "./sprite-sheet-descriptor";
+import {SpriteAnimatedTileDescriptor, SpriteSheetDescriptor, TileAnimationSync} from "./sprite-sheet-descriptor";
 import {SpriteSheet} from "./SpriteSheet";
+
+/** {@link SpriteAnimatedTileDescriptor.sync} when a descriptor entry doesn't specify one. */
+const DEFAULT_SYNC: TileAnimationSync = "perTile";
 
 /**
  * A sprite sheet of multiple named, looping environmental tile animations
@@ -65,6 +68,17 @@ export class AnimatedTileSpriteSheet<TType extends string = string> extends Spri
      */
     public getFrameIntervalMs(type: TType): number {
         return this.findTile(type).frameIntervalMs;
+    }
+
+    /**
+     * How `type`'s tiles stay in step with each other - authored per type in
+     * the sheet's own descriptor, defaulting to `"perTile"` when absent.
+     *
+     * @param type - Tile identifier to look up.
+     * @returns The sync mode.
+     */
+    public getSync(type: TType): TileAnimationSync {
+        return this.findTile(type).sync ?? DEFAULT_SYNC;
     }
 
     /**

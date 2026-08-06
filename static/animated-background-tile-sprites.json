@@ -7,28 +7,32 @@
       "x": 0,
       "y": 0,
       "phases": 3,
-      "frameIntervalMs": 150
+      "frameIntervalMs": 250,
+      "sync": "global"
     },
     {
       "type": "water.dark",
       "x": 0,
       "y": 32,
       "phases": 3,
-      "frameIntervalMs": 260
+      "frameIntervalMs": 250,
+      "sync": "global"
     },
     {
       "type": "water.oasis.light",
       "x": 0,
       "y": 64,
       "phases": 3,
-      "frameIntervalMs": 150
+      "frameIntervalMs": 250,
+      "sync": "global"
     },
     {
       "type": "water.oasis.dark",
       "x": 0,
       "y": 96,
       "phases": 3,
-      "frameIntervalMs": 260
+      "frameIntervalMs": 250,
+      "sync": "global"
     }
   ]
 }

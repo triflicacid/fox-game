@@ -108,7 +108,7 @@ export class Tile {
             this.spriteTile = {x: 0, y: 0, w: 1, h: 1};
             this.frameIntervalMs = waterTile.getFrameIntervalMs(waterType);
             this.phaseCount = waterTile.getPhaseCount(waterType);
-            this.phaseOffset = computePhaseOffset(worldX, worldY, this.phaseCount);
+            this.phaseOffset = computePhaseOffset(worldX, worldY, this.phaseCount, waterTile.getSync(waterType));
             this.bitmapReady = waterTile.getPhaseBitmaps(waterType).then((bitmaps) => {
                 this.phaseBitmaps = bitmaps;
             });

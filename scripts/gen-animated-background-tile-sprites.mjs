@@ -50,20 +50,28 @@ function pickColor(palette, seed, x, y) {
     return palette[palette.length - 1].color;
 }
 
-// shallow/sunlit water: brisker shimmer, faster cycle
+// shared per water-body timing, so light and dark variants of the same body
+// (which mix within a single lake/oasis - see lakes.ts/oases.ts) always
+// scroll at the exact same rate - otherwise their shared "global" sync only
+// keeps each variant in step with itself, and the body's surface would tear
+// at the light/dark boundary as the two variants drift apart over time
+const LAKE_TIMING = { frameIntervalMs: 250, sync: "global" };
+const OASIS_TIMING = { frameIntervalMs: 250, sync: "global" };
+
+// shallow/sunlit water
 const WATER_LIGHT = {
     seed: 4001,
-    frameIntervalMs: 150,
+    ...LAKE_TIMING,
     palette: [
         { color: [46, 137, 163, 255], weight: 88 }, // base
         { color: [78, 173, 194, 255], weight: 12 }, // shimmer
     ],
 };
 
-// deep/shaded water: fewer flecks, slower cycle
+// deep/shaded water
 const WATER_DARK = {
     seed: 4002,
-    frameIntervalMs: 260,
+    ...LAKE_TIMING,
     palette: [
         { color: [14, 56, 84, 255], weight: 88 }, // base
         { color: [8, 38, 60, 255], weight: 12 },  // shimmer
@@ -73,7 +81,7 @@ const WATER_DARK = {
 // distinct turquoise palette makes oasis water recognizable against normal lake water
 const OASIS_WATER_LIGHT = {
     seed: 6001,
-    frameIntervalMs: 150,
+    ...OASIS_TIMING,
     palette: [
         { color: [36, 159, 164, 255], weight: 88 }, // base
         { color: [79, 196, 190, 255], weight: 12 }, // shimmer
@@ -82,7 +90,7 @@ const OASIS_WATER_LIGHT = {
 
 const OASIS_WATER_DARK = {
     seed: 6002,
-    frameIntervalMs: 260,
+    ...OASIS_TIMING,
     palette: [
         { color: [13, 89, 108, 255], weight: 88 }, // base
         { color: [20, 121, 128, 255], weight: 12 }, // shimmer
@@ -159,6 +167,7 @@ const rowDescriptors = WATER_TYPES.map((tile, row) => {
         y,
         phases: PHASES,
         frameIntervalMs: tile.frameIntervalMs,
+        sync: tile.sync,
     };
 });
 
