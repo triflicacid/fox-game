@@ -49,6 +49,16 @@ export class AnimatedTileSpriteSheet<TType extends string = string> extends Spri
     }
 
     /**
+     * Whether `type` is one of this sheet's animated types.
+     *
+     * @param type - A ground type to test.
+     * @returns `true` if `type` is one of this sheet's animated types.
+     */
+    public hasType(type: string): type is TType {
+        return this.descriptor.rows.some((candidate) => candidate.type === type);
+    }
+
+    /**
      * How many animation phases `type` cycles through.
      *
      * @param type - Tile identifier to look up.

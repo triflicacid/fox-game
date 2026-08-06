@@ -91,6 +91,13 @@ export class HoverTooltip {
             if (tile.collision) {
                 lines.push(this.collidableLine("tile", tile.collision));
             }
+            if (tile.animated) {
+                lines.push([
+                    this.text("animated: "), this.boolValue(true),
+                    this.text(" ("), this.stringValue(tile.animated.sync), this.text(", "),
+                    this.numberValue(String(tile.animated.frameIntervalMs)), this.text("ms)"),
+                ]);
+            }
             if (tile.structure) {
                 lines.push([
                     this.text("structure: "), this.stringValue(tile.structure.sprite),

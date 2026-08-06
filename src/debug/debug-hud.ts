@@ -1,6 +1,7 @@
 import {Display} from "@display/display";
 import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
+import type {ChunkCacheState} from "../world/chunk";
 
 /**
  * Everything the debug HUD needs to render one frame - gathered by whoever
@@ -10,16 +11,6 @@ import {DEBUG_CONFIG} from "./debug-config";
 
 /** Readiness state of a single chunk, for the neighbour indicator. */
 export type ChunkState = "ready" | "generating" | "unloaded";
-
-/**
- * The current chunk's cache state, for the HUD's chunk line - mirrors
- * `Chunk.ChunkCacheState` but kept as its own local type (like {@link ChunkState})
- * rather than imported, so this module stays decoupled from `World`:
- * - `"cached"` - blitted from a static cached bitmap every frame.
- * - `"live"` - has an animated tile, so it's redrawn tile-by-tile every frame instead.
- * - `"pending"` - still generating, so its eventual cache state isn't known yet.
- */
-export type ChunkCacheState = "cached" | "live" | "pending";
 
 export interface DebugHudData {
     cameraCenterX: number;
@@ -35,7 +26,7 @@ export interface DebugHudData {
     chunkX: number;
     chunkY: number;
     chunkBiome: string;
-    chunkCacheState: ChunkCacheState;
+    chunkCacheState: ChunkCacheState | "pending";
     /** State of the four cardinal neighbours: north, south, east, west. */
     neighborStates: {n: ChunkState; s: ChunkState; e: ChunkState; w: ChunkState};
     /** Distance and compass direction to the nearest chunk with a different biome, or `undefined` when generating/mixed. */
