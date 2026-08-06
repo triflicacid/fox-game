@@ -71,7 +71,7 @@ export class World {
     private readonly treeSpriteTypes = new Set<string>(this.treeSpriteSheet.getSpriteTypes());
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
-        waterTile: new AnimatedBackgroundTileSpriteSheet(),
+        animatedBackgroundTile: new AnimatedBackgroundTileSpriteSheet(),
         getStructureSpriteBitmap: (sprite) => this.treeSpriteTypes.has(sprite)
             ? this.treeSpriteSheet.getTileBitmap(sprite as TreeSpriteType)
             : this.cactusSpriteSheet.getTileBitmap(sprite as CactusSpriteType),
@@ -538,6 +538,7 @@ export class World {
             biomeTag: tile.biomeTag,
             featureTag: tile.featureTag,
             collision: tile.getCollision(tileX, tileY, this.tileSize)?.response,
+            animated: tile.getAnimationInfo(),
             structure: piece && {
                 sprite: piece.sprite,
                 structureId: piece.structureId,

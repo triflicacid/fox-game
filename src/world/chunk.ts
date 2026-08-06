@@ -40,8 +40,7 @@ export class Chunk {
      * Rendered once every tile's sprite has loaded, and only while none of
      * this chunk's tiles animate (see {@link Tile.isAnimated}). `null` until
      * then, or permanently for a chunk with any animated tile, during which
-     * {@link draw} falls back to a per-tile loop instead - a water tile needs
-     * repainting every frame, so there's nothing worth caching.
+     * {@link draw} falls back to a per-tile loop instead.
      */
     private cachedBitmap: ImageBitmap | null = null;
 

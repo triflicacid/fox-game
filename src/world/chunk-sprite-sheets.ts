@@ -9,8 +9,8 @@ export interface ChunkSpriteSheets {
     /** Static ground tiles - grass/dirt/gravel/sand. */
     backgroundTile: BackgroundTileSpriteSheet;
 
-    /** Animated water tiles - lake/oasis, light/dark. */
-    waterTile: AnimatedBackgroundTileSpriteSheet;
+    /** Animated ground tiles. */
+    animatedBackgroundTile: AnimatedBackgroundTileSpriteSheet;
 
     /**
      * Resolves a decorative structure piece's sprite type to its bitmap,
