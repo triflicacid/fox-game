@@ -8,7 +8,7 @@ import {DebugHud, ChunkState} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
-import {TreeSpriteSheet, TreeSpriteType} from "../sprites/TreeSpriteSheet";
+import {StructureSpriteSheet, TreeSpriteType} from "../sprites/StructureSpriteSheet";
 import {CactusSpriteSheet, CactusSpriteType} from "../sprites/CactusSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
@@ -66,14 +66,14 @@ export class World {
 
     private readonly chunks = new CoordMap<Chunk>();
     private readonly entities: Entity[] = [];
-    private readonly treeSpriteSheet = new TreeSpriteSheet();
+    private readonly structureSpriteSheet = new StructureSpriteSheet();
     private readonly cactusSpriteSheet = new CactusSpriteSheet();
-    private readonly treeSpriteTypes = new Set<string>(this.treeSpriteSheet.getSpriteTypes());
+    private readonly treeSpriteTypes = new Set<string>(this.structureSpriteSheet.getSpriteTypes());
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
         animatedBackgroundTile: new AnimatedBackgroundTileSpriteSheet(),
         getStructureSpriteBitmap: (sprite) => this.treeSpriteTypes.has(sprite)
-            ? this.treeSpriteSheet.getTileBitmap(sprite as TreeSpriteType)
+            ? this.structureSpriteSheet.getTileBitmap(sprite as TreeSpriteType)
             : this.cactusSpriteSheet.getTileBitmap(sprite as CactusSpriteType),
     };
 
