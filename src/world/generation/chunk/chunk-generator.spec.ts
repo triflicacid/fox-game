@@ -84,7 +84,7 @@ function controlledTundraWetnessGenerator() {
     vi.spyOn(requireField(generator, "temperature"), "sample")
         .mockImplementation((worldX) => worldX >= 0 ? 0.05 : ESCAPES_ALL_SPECIFIC_BIOMES.temperature);
     vi.spyOn(requireField(generator, "moisture"), "sample")
-        .mockImplementation((worldX, worldY) => worldX >= 0 ? (worldY < 8 ? 0.1 : 0.25) : ESCAPES_ALL_SPECIFIC_BIOMES.moisture);
+        .mockImplementation((worldX, worldY) => worldX >= 0 ? (worldY < 8 ? 0.1 : 0.3) : ESCAPES_ALL_SPECIFIC_BIOMES.moisture);
     vi.spyOn(requireField(generator, "tundra_variant"), "sample").mockReturnValue(0.9);
     return generator;
 }
