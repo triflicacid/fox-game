@@ -164,12 +164,7 @@ const SAND_VARIANTS = [
     },
 ];
 
-// Tundra gets two wetness-banded palettes (see plans/tundra.md) rather than one - barren
-// (drier) and icy (wetter) - each its own light/medium/dark triple, dot-namespaced like the
-// water types above rather than flat-numbered like grass/sand/forest, since a flat "tundra1"
-// couldn't tell the two sub-palettes apart. Both share the same seed across their own
-// light/medium/dark so texture placement stays consistent as a tile darkens, exactly like
-// GRASS_VARIANTS/FOREST_VARIANTS reusing one seed per biome.
+// Tundra gets two wetness-banded palettes: barren (drier) and icy (wetter)
 const TUNDRA_BARREN_SEED = 9401;
 const TUNDRA_ICY_SEED = 9402;
 
@@ -225,9 +220,6 @@ const TUNDRA_ICY_DARK = {
 };
 
 // row 0: plains terrain; row 1: desert terrain; row 2: forest terrain; row 3: tundra terrain
-// (barren light/medium/dark, then icy light/dark - icy reuses barren's own medium tile, so
-// only 5 physical tiles cover both sub-palettes' light/medium/dark triples)
-// lake/oasis water lives in gen-animated-background-tile-sprites.mjs instead, since it's animated
 const TILE_ROWS = [
     [
         { type: "grass1", ...GRASS_VARIANTS[0] },
