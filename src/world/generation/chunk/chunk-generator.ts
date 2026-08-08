@@ -11,6 +11,7 @@ import {Feature, FeatureProvider} from "../feature/feature";
 import {TreeStructure} from "../structure/tree-structure";
 import {CactusStructure} from "../structure/cactus-structure";
 import {SkeletalTreeStructure} from "../structure/skeletal-tree-structure";
+import {BoulderStructure} from "../structure/boulder-structure";
 import {Structure, StructurePieceInstance} from "../structure/structure";
 import {CoordMap} from "../../coord-set";
 import {ClimateFields} from "../biome/climate-fields";
@@ -102,6 +103,7 @@ export class ChunkGenerator {
             new TreeStructure(worldSeed, isFeatureSite, forestBiome),
             new CactusStructure(worldSeed, isFeatureSite),
             new SkeletalTreeStructure(worldSeed, isFeatureSite, tundraBiome),
+            new BoulderStructure(worldSeed, isFeatureSite),
         ];
         for (const structure of this.structures) {
             for (const field of structure.getFields()) {

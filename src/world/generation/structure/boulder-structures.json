@@ -1,0 +1,49 @@
+{
+  "small": [
+    {
+      "id": "boulder-small-solo",
+      "pieces": [
+        {"x": 0, "y": 0, "roles": ["solo"], "layer": "background", "collision": "solid"}
+      ]
+    },
+    {
+      "id": "boulder-small-pair",
+      "pieces": [
+        {"x": 0, "y": 0, "roles": ["pair"], "layer": "background", "collision": "solid"}
+      ]
+    },
+    {
+      "id": "boulder-small-cluster",
+      "pieces": [
+        {"x": 0, "y": 0, "roles": ["cluster"], "layer": "background", "collision": "solid"}
+      ]
+    }
+  ],
+  "large": [
+    {
+      "id": "boulder-large",
+      "pieces": [
+        {"x": 0, "y": 0, "roles": ["nw", "snow.nw"], "layer": "foreground", "collision": "solid"},
+        {"x": 1, "y": 0, "roles": ["ne", "snow.ne"], "layer": "foreground", "collision": "solid"},
+        {"x": 0, "y": 1, "roles": ["sw", "snow.sw"], "layer": "foreground", "collision": "solid"},
+        {"x": 1, "y": 1, "roles": ["se", "snow.se"], "layer": "foreground", "collision": "solid"}
+      ]
+    }
+  ],
+  "huge": [
+    {
+      "id": "boulder-huge",
+      "pieces": [
+        {"x": -1, "y": -1, "roles": ["nw", "snow.nw"], "layer": "foreground", "collision": "solid"},
+        {"x": 0, "y": -1, "roles": ["n", "snow.n"], "layer": "foreground", "collision": "solid"},
+        {"x": 1, "y": -1, "roles": ["ne", "snow.ne"], "layer": "foreground", "collision": "solid"},
+        {"x": -1, "y": 0, "roles": ["w", "snow.w"], "layer": "foreground", "collision": "solid"},
+        {"x": 0, "y": 0, "roles": ["center", "snow.center"], "layer": "foreground", "collision": "solid"},
+        {"x": 1, "y": 0, "roles": ["e", "snow.e"], "layer": "foreground", "collision": "solid"},
+        {"x": -1, "y": 1, "roles": ["sw", "snow.sw"], "layer": "foreground", "collision": "solid"},
+        {"x": 0, "y": 1, "roles": ["s", "snow.s"], "layer": "foreground", "collision": "solid"},
+        {"x": 1, "y": 1, "roles": ["se", "snow.se"], "layer": "foreground", "collision": "solid"}
+      ]
+    }
+  ]
+}

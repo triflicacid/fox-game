@@ -1,5 +1,5 @@
 import {Structure} from "./structure";
-import {StructureManifest, StructureManifestPiece} from "./structure-manifest";
+import {StructureManifest} from "./structure-manifest";
 import manifestJson from "./tree-structures.json";
 import {Biome, BiomeTag} from "../biome/biome";
 import {FbmField, NoiseField} from "../noise-field";
@@ -149,11 +149,11 @@ export class TreeStructure extends Structure<TreeSpriteType> {
     /** Leaves always use their family's one leaf sprite; trunk tiles independently roll square vs round per instance. */
     protected override resolveSprite(
         family: string,
-        piece: StructureManifestPiece,
+        role: string,
         anchorWorldX: number,
         anchorWorldY: number,
     ): TreeSpriteType {
-        if (piece.role === "leaf") {
+        if (role === "leaf") {
             return `tree.${family}.leaves` as TreeSpriteType;
         }
         const round = this.roll(anchorWorldX, anchorWorldY, TREE_CONFIG.trunkStyleSalt) < 0.5;
