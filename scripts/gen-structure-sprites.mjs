@@ -332,17 +332,17 @@ const TREE_ROWS = [
 // A skeletal (dead) tree is a single-tile, standalone sprite.
 const SKELETAL_TREE_ROWS = [
     [
-        { type: "skeletal_tree.trunk_square", build: () => mergeGrids(
+        { type: "skeletal_tree.1", build: () => mergeGrids(
             buildLogGrid({ ...SKELETAL_LOG, radius: SKELETAL_TRUNK_RADIUS + 0.4 }),
             buildSpikeGrid(SKELETAL_TRUNK_TWIGS),
         ) },
-        { type: "skeletal_tree.trunk_round", build: () => mergeGrids(
+        { type: "skeletal_tree.2", build: () => mergeGrids(
             buildLogGrid({ ...SKELETAL_LOG, radius: SKELETAL_TRUNK_RADIUS }),
             buildSpikeGrid({ ...SKELETAL_TRUNK_TWIGS, seed: SKELETAL_TRUNK_TWIGS.seed + 1 }),
         ) },
         // a fuller-branched variant, not a separate companion piece - still its own trunk,
         // like the other two, just paired with the longer/more numerous SKELETAL_BRANCHES set
-        { type: "skeletal_tree.branches", build: () => mergeGrids(
+        { type: "skeletal_tree.3", build: () => mergeGrids(
             buildLogGrid({ ...SKELETAL_LOG, radius: SKELETAL_TRUNK_RADIUS }),
             buildSpikeGrid(SKELETAL_BRANCHES),
         ) },

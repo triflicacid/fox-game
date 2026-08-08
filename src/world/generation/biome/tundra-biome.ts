@@ -75,12 +75,18 @@ export class TundraBiome extends Biome {
             && climate.temperature < TUNDRA_CONFIG.maximumTemperature;
     }
 
+    /**
+     * Whether a Tundra tile at this position reads as icy rather than
+     * barren.
+     */
+    public isIcy(worldX: number, worldY: number): boolean {
+        return this.moisture.sample(worldX, worldY) >= TUNDRA_CONFIG.wetnessThreshold;
+    }
+
     /** Selects progressively paler/icier bands, picking the icy or barren palette from the resampled moisture field. */
     public override sampleBaseTerrain(worldX: number, worldY: number, biomeDepth: number): BackgroundTileType {
         const value = this.terrainVariantField.sample(worldX, worldY);
-        const variants = this.moisture.sample(worldX, worldY) >= TUNDRA_CONFIG.wetnessThreshold
-            ? ICY_VARIANTS
-            : BARREN_VARIANTS;
+        const variants = this.isIcy(worldX, worldY) ? ICY_VARIANTS : BARREN_VARIANTS;
         return selectTerrainVariant(value, biomeDepth, variants, this.terrainDepthConfig);
     }
 }
