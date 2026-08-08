@@ -164,7 +164,69 @@ const SAND_VARIANTS = [
     },
 ];
 
-// row 0: plains terrain; row 1: desert terrain; row 2: forest terrain
+// Tundra gets two wetness-banded palettes (see plans/tundra.md) rather than one - barren
+// (drier) and icy (wetter) - each its own light/medium/dark triple, dot-namespaced like the
+// water types above rather than flat-numbered like grass/sand/forest, since a flat "tundra1"
+// couldn't tell the two sub-palettes apart. Both share the same seed across their own
+// light/medium/dark so texture placement stays consistent as a tile darkens, exactly like
+// GRASS_VARIANTS/FOREST_VARIANTS reusing one seed per biome.
+const TUNDRA_BARREN_SEED = 9401;
+const TUNDRA_ICY_SEED = 9402;
+
+const TUNDRA_BARREN_LIGHT = {
+    seed: TUNDRA_BARREN_SEED,
+    palette: [
+        { color: [156, 142, 122, 255], weight: 55 }, // exposed permafrost/dirt base
+        { color: [134, 120, 100, 255], weight: 18 }, // shaded dirt
+        { color: [214, 214, 210, 255], weight: 22 }, // thin frost dusting
+        { color: [238, 240, 238, 255], weight: 5 },  // bright frost fleck
+    ],
+};
+
+const TUNDRA_BARREN_MEDIUM = {
+    seed: TUNDRA_BARREN_SEED,
+    palette: [
+        { color: [214, 214, 212, 255], weight: 60 }, // packed snow base
+        { color: [192, 194, 196, 255], weight: 22 }, // shaded snow
+        { color: [236, 238, 238, 255], weight: 14 }, // sunlit snow
+        { color: [168, 168, 170, 255], weight: 4 },  // grit fleck
+    ],
+};
+
+// shared as *both* subtypes' own "medium" band by TundraBiome - see plans/tundra.md 3.3
+const TUNDRA_BARREN_DARK = {
+    seed: TUNDRA_BARREN_SEED,
+    palette: [
+        { color: [196, 200, 202, 255], weight: 56 }, // wind-scoured pale base
+        { color: [172, 178, 182, 255], weight: 24 }, // shaded
+        { color: [222, 226, 228, 255], weight: 12 }, // sunlit
+        { color: [120, 126, 130, 255], weight: 8 },  // exposed rock/crack fleck
+    ],
+};
+
+const TUNDRA_ICY_LIGHT = {
+    seed: TUNDRA_ICY_SEED,
+    palette: [
+        { color: [206, 224, 232, 255], weight: 58 }, // frost-glazed base
+        { color: [180, 202, 214, 255], weight: 22 }, // shaded glaze
+        { color: [230, 242, 246, 255], weight: 16 }, // sunlit glaze
+        { color: [150, 178, 196, 255], weight: 4 },  // deeper glint fleck
+    ],
+};
+
+const TUNDRA_ICY_DARK = {
+    seed: TUNDRA_ICY_SEED,
+    palette: [
+        { color: [120, 168, 196, 255], weight: 56 }, // crusted blue-white ice base
+        { color: [92, 140, 172, 255], weight: 24 },  // shaded ice
+        { color: [160, 202, 224, 255], weight: 14 }, // sunlit ice
+        { color: [64, 108, 140, 255], weight: 6 },   // deep crack fleck
+    ],
+};
+
+// row 0: plains terrain; row 1: desert terrain; row 2: forest terrain; row 3: tundra terrain
+// (barren light/medium/dark, then icy light/dark - icy reuses barren's own medium tile, so
+// only 5 physical tiles cover both sub-palettes' light/medium/dark triples)
 // lake/oasis water lives in gen-animated-background-tile-sprites.mjs instead, since it's animated
 const TILE_ROWS = [
     [
@@ -183,6 +245,13 @@ const TILE_ROWS = [
         { type: "forest1", ...FOREST_VARIANTS[0] },
         { type: "forest2", ...FOREST_VARIANTS[1] },
         { type: "forest3", ...FOREST_VARIANTS[2] },
+    ],
+    [
+        { type: "tundra.barren.light", ...TUNDRA_BARREN_LIGHT },
+        { type: "tundra.barren.medium", ...TUNDRA_BARREN_MEDIUM },
+        { type: "tundra.barren.dark", ...TUNDRA_BARREN_DARK },
+        { type: "tundra.icy.light", ...TUNDRA_ICY_LIGHT },
+        { type: "tundra.icy.dark", ...TUNDRA_ICY_DARK },
     ],
 ];
 

@@ -1,0 +1,308 @@
+{
+  "cellWidth": 32,
+  "cellHeight": 32,
+  "rows": [
+    {
+      "type": "tree.oak.log_square",
+      "x": 0,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "tree.oak.log_round",
+      "x": 32,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "tree.oak.leaves",
+      "x": 64,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "tree.birch.log_square",
+      "x": 0,
+      "y": 32,
+      "interactable": false
+    },
+    {
+      "type": "tree.birch.log_round",
+      "x": 32,
+      "y": 32,
+      "interactable": false
+    },
+    {
+      "type": "tree.birch.leaves",
+      "x": 64,
+      "y": 32,
+      "interactable": false
+    },
+    {
+      "type": "skeletal_tree.trunk_square",
+      "x": 0,
+      "y": 64,
+      "interactable": false
+    },
+    {
+      "type": "skeletal_tree.trunk_round",
+      "x": 32,
+      "y": 64,
+      "interactable": false
+    },
+    {
+      "type": "skeletal_tree.branches",
+      "x": 64,
+      "y": 64,
+      "interactable": false
+    },
+    {
+      "type": "boulder.small.solo",
+      "x": 0,
+      "y": 96,
+      "interactable": true,
+      "bounds": {
+        "points": [
+          {
+            "x": -8,
+            "y": 0
+          },
+          {
+            "x": -7,
+            "y": -5
+          },
+          {
+            "x": -3,
+            "y": -8
+          },
+          {
+            "x": 3,
+            "y": -8
+          },
+          {
+            "x": 7,
+            "y": -5
+          },
+          {
+            "x": 8,
+            "y": 0
+          },
+          {
+            "x": 7,
+            "y": 5
+          },
+          {
+            "x": 3,
+            "y": 8
+          },
+          {
+            "x": -3,
+            "y": 8
+          },
+          {
+            "x": -7,
+            "y": 5
+          }
+        ]
+      }
+    },
+    {
+      "type": "boulder.small.pair",
+      "x": 32,
+      "y": 96,
+      "interactable": true,
+      "bounds": {
+        "points": [
+          {
+            "x": -10,
+            "y": 1
+          },
+          {
+            "x": -9,
+            "y": -3
+          },
+          {
+            "x": -5,
+            "y": -5
+          },
+          {
+            "x": 3,
+            "y": -7
+          },
+          {
+            "x": 6,
+            "y": -7
+          },
+          {
+            "x": 8,
+            "y": -5
+          },
+          {
+            "x": 9,
+            "y": -2
+          },
+          {
+            "x": 8,
+            "y": 0
+          },
+          {
+            "x": 6,
+            "y": 2
+          },
+          {
+            "x": -1,
+            "y": 8
+          },
+          {
+            "x": -5,
+            "y": 8
+          },
+          {
+            "x": -9,
+            "y": 5
+          }
+        ]
+      }
+    },
+    {
+      "type": "boulder.small.cluster",
+      "x": 64,
+      "y": 96,
+      "interactable": true,
+      "bounds": {
+        "points": [
+          {
+            "x": -10,
+            "y": 2
+          },
+          {
+            "x": -9,
+            "y": -1
+          },
+          {
+            "x": -4,
+            "y": -7
+          },
+          {
+            "x": -2,
+            "y": -8
+          },
+          {
+            "x": 1,
+            "y": -8
+          },
+          {
+            "x": 3,
+            "y": -7
+          },
+          {
+            "x": 8,
+            "y": -2
+          },
+          {
+            "x": 9,
+            "y": 1
+          },
+          {
+            "x": 8,
+            "y": 4
+          },
+          {
+            "x": 5,
+            "y": 6
+          },
+          {
+            "x": -2,
+            "y": 7
+          },
+          {
+            "x": -6,
+            "y": 7
+          },
+          {
+            "x": -9,
+            "y": 5
+          }
+        ]
+      }
+    },
+    {
+      "type": "boulder.large.nw",
+      "x": 0,
+      "y": 128,
+      "interactable": false
+    },
+    {
+      "type": "boulder.large.ne",
+      "x": 32,
+      "y": 128,
+      "interactable": false
+    },
+    {
+      "type": "boulder.large.sw",
+      "x": 0,
+      "y": 160,
+      "interactable": false
+    },
+    {
+      "type": "boulder.large.se",
+      "x": 32,
+      "y": 160,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.nw",
+      "x": 0,
+      "y": 192,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.n",
+      "x": 32,
+      "y": 192,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.ne",
+      "x": 64,
+      "y": 192,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.w",
+      "x": 0,
+      "y": 224,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.center",
+      "x": 32,
+      "y": 224,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.e",
+      "x": 64,
+      "y": 224,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.sw",
+      "x": 0,
+      "y": 256,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.s",
+      "x": 32,
+      "y": 256,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.se",
+      "x": 64,
+      "y": 256,
+      "interactable": false
+    }
+  ]
+}
