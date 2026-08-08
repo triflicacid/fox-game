@@ -1,5 +1,5 @@
 import {Structure} from "./structure";
-import {StructureManifest, StructureManifestPiece} from "./structure-manifest";
+import {StructureManifest} from "./structure-manifest";
 import manifestJson from "./cactus-structures.json";
 import {BiomeTag} from "../biome/biome";
 import {NoiseField} from "../noise-field";
@@ -100,11 +100,11 @@ export class CactusStructure extends Structure<CactusSpriteType> {
     /** Every cactus is a single piece, so all its variety comes from these per-instance rolls rather than piece/role branching. */
     protected override resolveSprite(
         family: string,
-        piece: StructureManifestPiece,
+        role: string,
         anchorWorldX: number,
         anchorWorldY: number,
     ): CactusSpriteType {
-        void piece;
+        void role;
 
         if (family === "barrel") {
             const flowering = this.roll(anchorWorldX, anchorWorldY, CACTUS_CONFIG.barrelFlowerChanceSalt) < CACTUS_CONFIG.barrelFloweringChance;

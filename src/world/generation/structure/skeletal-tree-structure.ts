@@ -1,5 +1,5 @@
 import {Structure} from "./structure";
-import {StructureManifest, StructureManifestPiece} from "./structure-manifest";
+import {StructureManifest} from "./structure-manifest";
 import manifestJson from "./skeletal-tree-structures.json";
 import {BiomeTag} from "../biome/biome";
 import {TundraBiome} from "../biome/tundra-biome";
@@ -93,9 +93,9 @@ export class SkeletalTreeStructure extends Structure<SkeletalTreeSpriteType> {
     /** Every shape is a single piece whose `role` already names its sprite variant - no extra per-instance roll needed. */
     protected override resolveSprite(
         family: string,
-        piece: StructureManifestPiece,
+        role: string,
     ): SkeletalTreeSpriteType {
         void family;
-        return `skeletal_tree.${piece.role}` as SkeletalTreeSpriteType;
+        return `skeletal_tree.${role}` as SkeletalTreeSpriteType;
     }
 }

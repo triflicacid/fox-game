@@ -10,7 +10,7 @@ export interface StructureHoverInfo {
     sprite: string;
     /** Which `Structure` produced this piece, e.g. `"tree"`/`"cactus"` - see {@link Structure.getStructureId}. */
     structureId: string;
-    /** Whether this piece draws before or after entities - see {@link StructureManifestPiece.role}/`Structure`'s class doc. */
+    /** Whether this piece draws before or after entities - see {@link StructureManifestPiece.layer}/`Structure`'s class doc. */
     layer: StructureLayer;
     /** How an entity overlapping this piece's tile reacts, or `undefined` if it isn't collidable - see {@link StructurePieceInstance.collision}. */
     collision: Exclude<CollisionResponseKind, "none"> | undefined;
@@ -31,8 +31,8 @@ export interface TileHoverInfo {
     collision: Exclude<CollisionResponseKind, "none"> | undefined;
     /** This tile's animation playback info, or `undefined` if it doesn't animate - see {@link Tile.getAnimationInfo}. */
     animated: TileAnimationInfo | undefined;
-    /** The foreground/background structure piece occupying this tile, if any. */
-    structure: StructureHoverInfo | undefined;
+    /** Every structure piece stacked on this tile, bottom to top - empty if none. More than one when a piece layers an extra role over another (e.g. a boulder's snow cap over its own rock). */
+    structure: readonly StructureHoverInfo[];
 }
 
 /**

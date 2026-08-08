@@ -79,8 +79,8 @@ export class Chunk {
     /** Bitmap per distinct structure sprite type this chunk uses - populated once in {@link hydrate}, before either cache is built. */
     private readonly structureBitmaps = new Map<string, ImageBitmap>();
 
-    /** Structure piece at each occupied world position - see {@link drawStructureOutlines} and {@link getStructurePieceAt}. Populated once in {@link hydrate}. */
-    private readonly structureOccupancy = new CoordMap<StructurePieceInstance>();
+    /** Every structure piece stacked at each occupied world position, in the same order {@link structurePieces} lists them (bottom to top, e.g. a boulder's rock role then its snow-cap role) - see {@link drawStructureOutlines} and {@link getStructurePiecesAt}. Populated once in {@link hydrate}. */
+    private readonly structureOccupancy = new CoordMap<StructurePieceInstance[]>();
 
     /** Dominant biome or `mixed`, for debugging only. Empty until {@link isReady}. */
     public biomeSummary: BiomeSummary | "" = "";
@@ -131,7 +131,12 @@ export class Chunk {
         this.hasAnimatedTile = this.tiles.some((row) => row.some((tile) => tile.isAnimated));
         this.structurePieces = result.props;
         for (const piece of this.structurePieces) {
-            this.structureOccupancy.set(piece.worldX, piece.worldY, piece);
+            const stacked = this.structureOccupancy.get(piece.worldX, piece.worldY);
+            if (stacked) {
+                stacked.push(piece);
+            } else {
+                this.structureOccupancy.set(piece.worldX, piece.worldY, [piece]);
+            }
         }
 
         const distinctSprites = [...new Set(this.structurePieces.map((piece) => piece.sprite))];
@@ -270,17 +275,18 @@ export class Chunk {
     }
 
     /**
-     * Looks up the structure piece anchored at the given world position, if
-     * any. Unlike {@link getTile}, takes world (not local) coordinates, since
-     * {@link structureOccupancy} already includes halo-sourced pieces
-     * anchored in a neighbouring chunk.
+     * Looks up every structure piece stacked at the given world position -
+     * e.g. a boulder's rock role and its layered snow-cap role both anchor
+     * at the same position. Unlike {@link getTile}, takes world (not local)
+     * coordinates, since {@link structureOccupancy} already includes
+     * halo-sourced pieces anchored in a neighbouring chunk.
      *
      * @param worldX - Tile's X position, in tiles from the world origin.
      * @param worldY - Tile's Y position, in tiles from the world origin.
-     * @returns The structure piece at that position, or `undefined` if none.
+     * @returns Every structure piece at that position, bottom to top - empty if none.
      */
-    public getStructurePieceAt(worldX: number, worldY: number): StructurePieceInstance | undefined {
-        return this.structureOccupancy.get(worldX, worldY);
+    public getStructurePiecesAt(worldX: number, worldY: number): readonly StructurePieceInstance[] {
+        return this.structureOccupancy.get(worldX, worldY) ?? [];
     }
 
     /**

@@ -98,16 +98,18 @@ export class HoverTooltip {
                     this.numberValue(String(tile.animated.frameIntervalMs)), this.text("ms)"),
                 ]);
             }
-            if (tile.structure) {
+            tile.structure.forEach((piece, index) => {
+                // Stacked bottom to top.
+                const label = tile.structure.length > 1 ? `structure #${index}` : "structure";
                 lines.push([
-                    this.text("structure: "), this.stringValue(tile.structure.sprite),
-                    this.text(" ("), this.stringValue(tile.structure.structureId), this.text("/"),
-                    this.stringValue(tile.structure.layer), this.text(")"),
+                    this.text(`${label}: `), this.stringValue(piece.sprite),
+                    this.text(" ("), this.stringValue(piece.structureId), this.text("/"),
+                    this.stringValue(piece.layer), this.text(")"),
                 ]);
-                if (tile.structure.collision) {
-                    lines.push(this.collidableLine("structure", tile.structure.collision));
+                if (piece.collision) {
+                    lines.push(this.collidableLine(label, piece.collision));
                 }
-            }
+            });
         } else {
             lines.push([this.stringValue("(chunk not generated)")]);
         }

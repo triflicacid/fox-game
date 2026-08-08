@@ -2,7 +2,7 @@ import {CHUNK_SIZE} from "../../chunk-size";
 import {BiomeTag} from "../biome/biome";
 import {NoiseField} from "../noise-field";
 import {hashLatticePoint} from "../../noise";
-import {StructureLayer, StructureManifest, StructureManifestPiece, pickShape} from "./structure-manifest";
+import {StructureLayer, StructureManifest, pickShape} from "./structure-manifest";
 import {CollisionResponseKind} from "../../../geometry/collision-response";
 import type {CollisionContext} from "../../collision";
 
@@ -23,22 +23,10 @@ const SPAWN_SALT = 90001;
 const SHAPE_SALT = 90002;
 
 /**
- * A multi-tile decorative/terrain object placed from a deterministic,
+ * A decorative/terrain object placed from a deterministic,
  * data-driven JSON manifest (e.g. trees). Every tile it occupies is defined
  * relative to one anchor tile, and each can independently belong to the
- * background layer (merged into the ground cache, drawn before entities -
- * e.g. a low decoration that shouldn't occlude the player) or the
- * foreground layer (drawn after entities, with room for transparent gaps -
- * e.g. a tree's trunk and canopy alike, so the player always renders under
- * the whole tree rather than only under its leaves).
- *
- * Like trees among lakes/oases, a `Structure` is a per-tile scatter/point
- * process, not a region/component feature: every candidate anchor is
- * evaluated independently from world coordinates and shared fields, so no
- * flood fill or cross-chunk component discovery is needed. A structure
- * whose shape spills into a neighbouring chunk is generated identically by
- * both chunks (same anchor, same deterministic rolls), and each chunk keeps
- * whichever stamped pieces land within its own bounds.
+ * background layer or the foreground layer.
  *
  * @typeParam TSpriteType - Union of sprite types this structure's pieces resolve to.
  */
@@ -134,21 +122,21 @@ export abstract class Structure<TSpriteType extends string = string> {
     protected abstract pickFamily(worldX: number, worldY: number): string;
 
     /**
-     * Resolves one manifest piece's role (plus any extra deterministic
-     * per-instance choices, e.g. trunk style - see {@link roll}) into a
-     * concrete sprite type.
+     * Resolves one of a manifest piece's stacked roles into a concrete
+     * sprite type, or `undefined` to omit just this one layer for this
+     * instance.
      *
      * @param family - The instance's family - see {@link pickFamily}.
-     * @param piece - The manifest piece being resolved.
-     * @param anchorWorldX - The instance's anchor X - stable across every piece of the same instance, so per-instance (not per-piece) rolls stay consistent.
+     * @param role - One of the resolving piece's {@link StructureManifestPiece.roles}, called once per role in stacking order.
+     * @param anchorWorldX - The instance's anchor X - stable across every piece/role of the same instance, so per-instance (not per-piece) rolls stay consistent.
      * @param anchorWorldY - The instance's anchor Y.
      */
     protected abstract resolveSprite(
         family: string,
-        piece: StructureManifestPiece,
+        role: string,
         anchorWorldX: number,
         anchorWorldY: number,
-    ): TSpriteType;
+    ): TSpriteType | undefined;
 
     /**
      * Generates every piece of this structure touching the chunk at
@@ -202,14 +190,20 @@ export abstract class Structure<TSpriteType extends string = string> {
                 const shape = pickShape(shapes, this.roll(worldX, worldY, SHAPE_SALT));
 
                 for (const piece of shape.pieces) {
-                    instances.push({
-                        worldX: worldX + piece.x,
-                        worldY: worldY + piece.y,
-                        sprite: this.resolveSprite(family, piece, worldX, worldY),
-                        layer: piece.layer,
-                        collision: piece.collision ?? "none",
-                        structureId: this.structureId,
-                    });
+                    for (const role of piece.roles) {
+                        const sprite = this.resolveSprite(family, role, worldX, worldY);
+                        if (sprite === undefined) {
+                            continue;
+                        }
+                        instances.push({
+                            worldX: worldX + piece.x,
+                            worldY: worldY + piece.y,
+                            sprite,
+                            layer: piece.layer,
+                            collision: piece.collision ?? "none",
+                            structureId: this.structureId,
+                        });
+                    }
                 }
             }
         }
