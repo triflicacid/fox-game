@@ -547,6 +547,84 @@ function buildBoulderPieceGrid(rock, tilesPerEdge, pieceCol, pieceRow) {
     return grid;
 }
 
+// same packed-snow tone as the ground tundra tiles (see gen-background-tile-sprites.mjs's
+// TUNDRA_BARREN_MEDIUM), so a snow-capped boulder reads as covered in the same stuff the
+// ground is
+const SNOW_CAP = {
+    seed: 9331,
+    centerCoverage: 0.95, // near-solid at the boulder's own crown
+    rimCoverage: 0.3,     // patchy, rock-peeking-through at the rounded rim
+    palette: [
+        { color: [232, 236, 238, 255], weight: 55 },
+        { color: [210, 216, 220, 255], weight: 22 },
+        { color: [248, 250, 250, 255], weight: 16 },
+        { color: [186, 196, 204, 255], weight: 7 }, // cold shadow fleck
+    ],
+};
+
+/**
+ * builds one tile-sized piece of a boulder's optional snow cap - a partial
+ * overlay meant to be drawn on top of the matching {@link buildBoulderPieceGrid}
+ * piece, not a replacement for it (see `SNOW_CAP`'s caller, which keeps this
+ * a separate sprite type from the boulder itself). Reuses the same composite
+ * circle geometry so the cap's edge follows the boulder's own rounded
+ * silhouette. These are top-down sprites - there's no "north side" of a
+ * boulder to favour - so coverage is radial instead of directional: solid
+ * near the composite's own centre (its flattest, most snow-catching point as
+ * seen from directly above) and thinning to patchy near the rounded rim
+ * (where the surface curves away steeply and less snow clings), with every
+ * cell's own coverage independently rolled rather than a hard radius cutoff,
+ * so the edge reads as drifted/uneven rather than a precise ring.
+ *
+ * @param {{seed: number, palette: {color: number[], weight: number}[], centerCoverage: number, rimCoverage: number}} snow - shared snow palette/seed/coverage falloff.
+ * @param {number} tilesPerEdge - how many tiles wide/tall the composite boulder spans (e.g. `2` or `3`).
+ * @param {number} pieceCol - this piece's column within the composite, `0`-indexed.
+ * @param {number} pieceRow - this piece's row within the composite, `0`-indexed.
+ * @returns {(number[]|null)[]} this piece's tile colors in row-major order.
+ */
+function buildBoulderSnowPieceGrid(snow, tilesPerEdge, pieceCol, pieceRow) {
+    const compositeSize = tilesPerEdge * GRID;
+    const compositeCenter = compositeSize / 2;
+    const radius = compositeCenter - 1.5; // matches buildBoulderPieceGrid's own margin, so the cap never pokes past the rock
+
+    const grid = new Array(GRID * GRID).fill(null);
+    for (let gy = 0; gy < GRID; gy++) {
+        for (let gx = 0; gx < GRID; gx++) {
+            const compositeX = pieceCol * GRID + gx + 0.5;
+            const compositeY = pieceRow * GRID + gy + 0.5;
+            const dist = Math.hypot(compositeX - compositeCenter, compositeY - compositeCenter);
+            if (dist > radius) continue; // never spill past the boulder's own silhouette
+
+            const rimness = dist / radius; // 0 at the centre, 1 at the very rim
+            const coverageChance = snow.centerCoverage - rimness * (snow.centerCoverage - snow.rimCoverage);
+            if (hash(snow.seed + GAP_SEED_OFFSET, compositeX, compositeY) >= coverageChance) continue; // bare rock shows through here
+
+            grid[gy * GRID + gx] = pickColor(snow.palette, snow.seed, compositeX, compositeY);
+        }
+    }
+    return grid;
+}
+
+/**
+ * one composite boulder's full set of snow-cap piece row entries - every
+ * position gets one, not just a subset: a top-down sprite has no "north
+ * side" to single out, so the whole visible surface can carry snow (see
+ * {@link buildBoulderSnowPieceGrid}'s radial coverage). Mirrors
+ * {@link boulderPieceRows}'s own row layout exactly, so a piece's snow
+ * overlay always lines up with its rock piece.
+ *
+ * @param {string} family - sprite type family, matching the base boulder's own (`"large"`/`"huge"`).
+ * @param {number} tilesPerEdge - how many tiles wide/tall the composite boulder spans.
+ * @param {string[][]} compassGrid - row-major compass-direction names for every piece position - see {@link COMPASS_2}/{@link COMPASS_3}.
+ * @returns {{type: string, build: () => (number[]|null)[]}[][]} one array of snow-cap tile row entries per row of `compassGrid`.
+ */
+function boulderSnowCapRows(family, tilesPerEdge, compassGrid) {
+    return compassGrid.map((row, pieceRow) => row.map((name, pieceCol) => ({
+        type: `boulder.${family}.snow.${name}`,
+        build: () => buildBoulderSnowPieceGrid(SNOW_CAP, tilesPerEdge, pieceCol, pieceRow),
+    })));
+}
+
 /**
  * one composite boulder's full set of piece row entries, one row per grid
  * row so it slots directly into {@link TILE_ROWS}.
@@ -607,6 +685,9 @@ const STONE_CLUSTER = [
 // row 0: small, single-tile sub-tile stones (solo, pair, cluster)
 // rows 1-2: "large" - a 2x2 rounded composite boulder (4 corner pieces, no edges/centre at this size)
 // rows 3-5: "huge" - a 3x3 rounded composite boulder (4 corners, 4 edge midpoints, 1 centre)
+// rows 6-8: optional snow caps for "large"/"huge", one full compass grid each (every
+// position, not just a subset - see boulderSnowCapRows) - separate sprites, layered over the
+// matching rock piece rather than baked into it, so a boulder can spawn with or without snow
 const BOULDER_ROWS = [
     [
         stoneTile("boulder.small.solo", STONE_SOLO),
@@ -615,6 +696,8 @@ const BOULDER_ROWS = [
     ],
     ...boulderPieceRows("large", ROCK_STONE, COMPASS_2),
     ...boulderPieceRows("huge", ROCK_WEATHERED, COMPASS_3),
+    ...boulderSnowCapRows("large", 2, COMPASS_2),
+    ...boulderSnowCapRows("huge", 3, COMPASS_3),
 ];
 
 const TILE_ROWS = [...TREE_ROWS, ...SKELETAL_TREE_ROWS, ...BOULDER_ROWS];
