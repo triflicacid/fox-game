@@ -3,7 +3,7 @@ import {StructureManifest, StructureManifestPiece} from "./structure-manifest";
 import manifestJson from "./tree-structures.json";
 import {Biome, BiomeTag} from "../biome/biome";
 import {FbmField, NoiseField} from "../noise-field";
-import {TreeSpriteType} from "../../../sprites/TreeSpriteSheet";
+import {TreeSpriteType} from "../../../sprites/StructureSpriteSheet";
 import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 
 const manifest = manifestJson as StructureManifest;
