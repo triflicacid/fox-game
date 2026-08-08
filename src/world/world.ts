@@ -504,21 +504,21 @@ export class World {
         return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
     }
 
-    /** Returns every structure piece stacked at a world tile position - e.g. a boulder's rock and layered snow-cap roles both anchor here - only when its containing chunk is already loaded and ready. Empty if none, or if the chunk isn't ready. */
-    private getReadyStructurePiecesAt(tileX: number, tileY: number): readonly StructurePieceInstance[] {
+    /** Returns the structure piece anchored at a world tile position only when its containing chunk is already loaded and ready. */
+    private getReadyStructurePieceAt(tileX: number, tileY: number): StructurePieceInstance | undefined {
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
         const chunk = this.chunks.get(chunkX, chunkY);
         if (!chunk?.isReady()) {
-            return [];
+            return undefined;
         }
-        return chunk.getStructurePiecesAt(tileX, tileY);
+        return chunk.getStructurePieceAt(tileX, tileY);
     }
 
     /**
      * Everything the debug hover tooltip (see `HoverTooltip`) shows about the
      * tile at a world tile position - ground/biome/feature, its own
-     * collidability, and every structure piece stacked on it. Never triggers
-     * generation - see {@link getReadyTile}/{@link getReadyStructurePiecesAt} -
+     * collidability, and any structure piece occupying it. Never triggers
+     * generation - see {@link getReadyTile}/{@link getReadyStructurePieceAt} -
      * since the tooltip only reads from chunks already loaded/rendered.
      *
      * @param tileX - Tile's X position, in tiles from the world origin.
@@ -530,7 +530,7 @@ export class World {
         if (!tile) {
             return undefined;
         }
-        const pieces = this.getReadyStructurePiecesAt(tileX, tileY);
+        const piece = this.getReadyStructurePieceAt(tileX, tileY);
         return {
             tileX,
             tileY,
@@ -539,12 +539,12 @@ export class World {
             featureTag: tile.featureTag,
             collision: tile.getCollision(tileX, tileY, this.tileSize)?.response,
             animated: tile.getAnimationInfo(),
-            structure: pieces.map((piece) => ({
-                sprite: piece.sprite,
+            structure: piece && {
+                sprites: piece.sprites,
                 structureId: piece.structureId,
                 layer: piece.layer,
                 collision: piece.collision !== "none" ? piece.collision : undefined,
-            })),
+            },
         };
     }
 
@@ -767,8 +767,7 @@ export class World {
      * Looks up the structure sprite(s) at the given world tile position,
      * generating its containing chunk first if necessary. Safe to call on a
      * chunk that's still generating - returns `"none"` instead of throwing.
-     * A tile with more than one piece stacked on it (e.g. a boulder's rock
-     * role plus its layered snow-cap role) reports every sprite joined with
+     * A piece with more than one sprite stacked on it reports them joined with
      * `", "`, so it still reads as one dominance-grouping tag - see
      * {@link getDominantStructureLabel}.
      *
@@ -782,8 +781,7 @@ export class World {
         if (!chunk.isReady()) {
             return "none";
         }
-        const pieces = chunk.getStructurePiecesAt(tileX, tileY);
-        return pieces.length > 0 ? pieces.map((piece) => piece.sprite).join(", ") : "none";
+        return chunk.getStructurePieceAt(tileX, tileY)?.sprites.join(", ") ?? "none";
     }
 
     /**
@@ -961,13 +959,12 @@ export class World {
     /**
      * Sweeps every tile `entity`'s bounding rect touches, testing its
      * collision polygon (see {@link Entity.getCollisionPolygon}) against
-     * each one's collidable tile (via {@link Tile.getCollision}) and every
-     * collidable structure piece stacked on it (via its whole occupied tile
-     * square, since piece sprites don't carry their own authored hull yet).
-     * Stops at the first overlap found and reacted to - the entity may have
-     * just moved, so the remaining precomputed tile range no longer
-     * reliably reflects its position; next tick's sweep picks up from
-     * wherever it ends up.
+     * each one's collidable tile (via {@link Tile.getCollision}) and
+     * collidable structure piece (via its whole occupied tile square, since
+     * piece sprites don't carry their own authored hull yet). Stops at the
+     * first overlap found and reacted to - the entity may have just moved,
+     * so the remaining precomputed tile range no longer reliably reflects
+     * its position; next tick's sweep picks up from wherever it ends up.
      *
      * @param entity - The entity to check.
      * @param previousPosition - `entity`'s position before this tick's movement - see {@link handleCollisions}.
@@ -989,13 +986,11 @@ export class World {
                     }
                 }
 
-                for (const piece of this.getReadyStructurePiecesAt(tileX, tileY)) {
-                    if (piece.collision === "none") {
-                        continue;
-                    }
+                const piece = this.getReadyStructurePieceAt(tileX, tileY);
+                if (piece && piece.collision !== "none") {
                     const piecePolygon = rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize);
                     const structure = this.findStructure(piece.structureId);
-                    if (this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprite, tileX, tileY, structure)) {
+                    if (this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprites.join(", "), tileX, tileY, structure)) {
                         return;
                     }
                 }

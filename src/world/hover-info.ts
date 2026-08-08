@@ -6,8 +6,8 @@ import {TileAnimationInfo} from "./tile";
 
 /** The structure piece (if any) occupying a hovered tile - see {@link TileHoverInfo.structure}. */
 export interface StructureHoverInfo {
-    /** The piece's sprite type, e.g. `"tree.oak.log_round"`. */
-    sprite: string;
+    /** Sprites stacked at this piece, bottom to top, e.g. `["boulder.large.nw", "boulder.large.snow.nw"]`. */
+    sprites: readonly string[];
     /** Which `Structure` produced this piece, e.g. `"tree"`/`"cactus"` - see {@link Structure.getStructureId}. */
     structureId: string;
     /** Whether this piece draws before or after entities - see {@link StructureManifestPiece.layer}/`Structure`'s class doc. */
@@ -31,8 +31,8 @@ export interface TileHoverInfo {
     collision: Exclude<CollisionResponseKind, "none"> | undefined;
     /** This tile's animation playback info, or `undefined` if it doesn't animate - see {@link Tile.getAnimationInfo}. */
     animated: TileAnimationInfo | undefined;
-    /** Every structure piece stacked on this tile, bottom to top - empty if none. More than one when a piece layers an extra role over another (e.g. a boulder's snow cap over its own rock). */
-    structure: readonly StructureHoverInfo[];
+    /** The foreground/background structure piece occupying this tile, if any. */
+    structure: StructureHoverInfo | undefined;
 }
 
 /**

@@ -18,7 +18,7 @@ const TUNDRA_CONFIG = {
      * Moisture at/above which a Tundra tile reads as icy rather than
      * barren - splits Tundra's own moisture band roughly at its midpoint.
      */
-    wetnessThreshold: 0.18,
+    wetnessThreshold: 0.28,
 
     terrainVariantSeedOffset: 8081,
     /** Noise cycles per tile: one lattice cell spans 10 tiles, matching Desert/Forest. */

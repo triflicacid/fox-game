@@ -10,7 +10,8 @@ import type {CollisionContext} from "../../collision";
 export interface StructurePieceInstance<TSpriteType extends string = string> {
     readonly worldX: number;
     readonly worldY: number;
-    readonly sprite: TSpriteType;
+    /** Sprites drawn here, in stack order (later on top of earlier) - e.g. a boulder's rock sprite then its optional snow cap. */
+    readonly sprites: readonly TSpriteType[];
     readonly layer: StructureLayer;
     /** See {@link StructureManifestPiece.collision}. */
     readonly collision: CollisionResponseKind;
@@ -190,20 +191,24 @@ export abstract class Structure<TSpriteType extends string = string> {
                 const shape = pickShape(shapes, this.roll(worldX, worldY, SHAPE_SALT));
 
                 for (const piece of shape.pieces) {
+                    const sprites: TSpriteType[] = [];
                     for (const role of piece.roles) {
                         const sprite = this.resolveSprite(family, role, worldX, worldY);
-                        if (sprite === undefined) {
-                            continue;
+                        if (sprite !== undefined) {
+                            sprites.push(sprite);
                         }
-                        instances.push({
-                            worldX: worldX + piece.x,
-                            worldY: worldY + piece.y,
-                            sprite,
-                            layer: piece.layer,
-                            collision: piece.collision ?? "none",
-                            structureId: this.structureId,
-                        });
                     }
+                    if (sprites.length === 0) {
+                        continue;
+                    }
+                    instances.push({
+                        worldX: worldX + piece.x,
+                        worldY: worldY + piece.y,
+                        sprites,
+                        layer: piece.layer,
+                        collision: piece.collision ?? "none",
+                        structureId: this.structureId,
+                    });
                 }
             }
         }

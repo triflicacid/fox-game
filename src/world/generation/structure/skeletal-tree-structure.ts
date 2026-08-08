@@ -20,12 +20,23 @@ const SKELETAL_TREE_CONFIG = {
     cellJitterXSalt: 1,
     cellJitterYSalt: 2,
 
-    /** Sparser spacing than Cactus's own cell - a dead tree should read as a rarer landmark than a cactus. */
-    cellMarginTiles: 4,
-    cellSizeTiles: 4 * 2 + 4,
+    /**
+     * Tighter spacing than the "rarer landmark than a cactus" framing alone
+     * would suggest, because candidate cells are laid out in absolute world
+     * space, independent of where Tundra actually is - a cell's one fixed
+     * candidate tile only ever gets a chance to spawn a tree if it happens
+     * to land inside Tundra at all. With Tundra itself covering roughly 1%
+     * of the map, a Cactus-like cell size left barely any candidates
+     * landing in-biome, let alone surviving the icy exclusion and spawn
+     * roll on top - the net result read as "basically never spawns" rather
+     * than "rare". This is sized so a typical Tundra patch has a realistic
+     * chance of containing at least one candidate.
+     */
+    cellMarginTiles: 1,
+    cellSizeTiles: 1 * 2 + 4,
 
-    /** Flat acceptance chance for a cell's candidate - not banded by ground type, so density carries no clustering signal, mirroring Cactus's own flat scatter. */
-    baseSpawnChance: 0.15,
+    /** Flat acceptance chance for a cell's candidate - not banded by ground type, so density carries no clustering signal, mirroring Cactus's own flat scatter. Higher than Cactus's own 0.35 to offset how few candidates ever land in Tundra to begin with (see `cellSizeTiles`). */
+    baseSpawnChance: 0.6,
     /** Multiplier applied right at Tundra's border with another biome, so dead trees thin out rather than cutting off hard. */
     borderSpawnChanceMultiplier: 0.35,
 } as const;
@@ -81,7 +92,8 @@ export class SkeletalTreeStructure extends Structure<SkeletalTreeSpriteType> {
             return 0;
         }
 
-        const multiplier = biomeDepth === 0 ? SKELETAL_TREE_CONFIG.borderSpawnChanceMultiplier : 1;
+        // border cells carry depth 1, not 0 - see `computeCappedRegionDepths`
+        const multiplier = biomeDepth === 1 ? SKELETAL_TREE_CONFIG.borderSpawnChanceMultiplier : 1;
         return SKELETAL_TREE_CONFIG.baseSpawnChance * multiplier;
     }
 

@@ -48,6 +48,11 @@ export class HoverTooltip {
         return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
     }
 
+    /** Several string-valued segments (e.g. stacked structure sprites), each its own colour, joined by plain `", "` separators rather than one comma-included blob. */
+    private stringValueList(values: readonly string[]): TextSegment[] {
+        return values.flatMap((value, index) => index === 0 ? [this.stringValue(value)] : [this.text(", "), this.stringValue(value)]);
+    }
+
     /** A coloured true/false segment - lime when `true`, tomato when `false` - reusing the HUD's collision colours for any other boolean reading (e.g. "is this collidable"). */
     private boolValue(value: boolean): TextSegment {
         return {
@@ -98,18 +103,16 @@ export class HoverTooltip {
                     this.numberValue(String(tile.animated.frameIntervalMs)), this.text("ms)"),
                 ]);
             }
-            tile.structure.forEach((piece, index) => {
-                // Stacked bottom to top.
-                const label = tile.structure.length > 1 ? `structure #${index}` : "structure";
+            if (tile.structure) {
                 lines.push([
-                    this.text(`${label}: `), this.stringValue(piece.sprite),
-                    this.text(" ("), this.stringValue(piece.structureId), this.text("/"),
-                    this.stringValue(piece.layer), this.text(")"),
+                    this.text("structure: "), ...this.stringValueList(tile.structure.sprites),
+                    this.text(" ("), this.stringValue(tile.structure.structureId), this.text("/"),
+                    this.stringValue(tile.structure.layer), this.text(")"),
                 ]);
-                if (piece.collision) {
-                    lines.push(this.collidableLine(label, piece.collision));
+                if (tile.structure.collision) {
+                    lines.push(this.collidableLine("structure", tile.structure.collision));
                 }
-            });
+            }
         } else {
             lines.push([this.stringValue("(chunk not generated)")]);
         }
