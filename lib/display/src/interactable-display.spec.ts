@@ -266,3 +266,55 @@ describe("InteractableDisplay pie chart", () => {
     });
 });
 
+describe("InteractableDisplay hr length modes", () => {
+    it("sizes 'top'/'bottom' against the row directly above/below, treating a missing neighbour as 0", () => {
+        const display = new InteractableDisplay({}, FLAT_THEME, "always");
+        const {ctx} = createMockCanvasContext();
+        const lines: DisplayLine[] = [
+            [{content: "Short"}],
+            [{kind: "hr", length: "top"}],
+            [{kind: "hr", length: "bottom"}],
+            [{content: "Longer row"}],
+        ];
+
+        display.beginResolvePass();
+        const {rows} = display.resolveLines(ctx, lines, 4);
+        const topHr = rows[1].elements[0];
+        const bottomHr = rows[2].elements[0];
+        if (topHr.kind !== "hr" || bottomHr.kind !== "hr") {
+            throw new Error("Expected resolved hr elements");
+        }
+        expect(topHr.width).toBe(rows[0].width);
+        expect(bottomHr.width).toBe(rows[3].width);
+    });
+
+    it("'both' matches whichever neighbour is wider; 'max' matches the widest row anywhere in the block, even when neither of its own neighbours is that row", () => {
+        const display = new InteractableDisplay({}, FLAT_THEME, "always");
+        const {ctx} = createMockCanvasContext();
+        const lines: DisplayLine[] = [
+            [{content: "Short"}],
+            [{kind: "hr", length: "both"}],
+            [{content: "Medium neighbour row"}],
+            [{content: "The widest row in this whole block, by far"}],
+            [{content: "Tail before max hr"}],
+            [{kind: "hr", length: "max"}],
+            [{content: "Tail"}],
+        ];
+
+        display.beginResolvePass();
+        const {rows} = display.resolveLines(ctx, lines, 4);
+        const bothHr = rows[1].elements[0];
+        const maxHr = rows[5].elements[0];
+        if (bothHr.kind !== "hr" || maxHr.kind !== "hr") {
+            throw new Error("Expected resolved hr elements");
+        }
+        // "both" (row 1) sits between "Short" and "Medium neighbour row" - matches the wider of the two, ignoring the block's actual widest row further down.
+        expect(bothHr.width).toBe(rows[2].width);
+        expect(bothHr.width).toBeLessThan(rows[3].width);
+        // "max" (row 5) spans the block's widest row (row 3) even though both its own neighbours (rows 4 and 6) are narrower than that.
+        expect(maxHr.width).toBe(rows[3].width);
+        expect(maxHr.width).toBeGreaterThan(rows[4].width);
+        expect(maxHr.width).toBeGreaterThan(rows[6].width);
+    });
+});
+

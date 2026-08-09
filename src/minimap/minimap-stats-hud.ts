@@ -104,9 +104,12 @@ export class MinimapStatsHud {
                 .content(this.numberValue(String(MINIMAP_CONFIG.statsBiomeSampleGrid)))
                 .content(this.text(" = "))
                 .content(this.numberValue(String(MINIMAP_CONFIG.statsBiomeSampleGrid ** 2))),
-            line().content(hr()),
-            line().content(this.text("Biome distribution")),
-            line().content(pieChart),
+            line()
+                .content(hr({ length: "max" })),
+            line()
+                .content(this.text("Biome distribution")),
+            line()
+                .content(pieChart),
         ];
     }
 

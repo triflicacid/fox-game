@@ -1271,27 +1271,30 @@ export class InteractableDisplay extends Display {
         return {elements, width, height: Math.max(maxFontSize, maxOuterHeight)};
     }
 
-    /** Picks which neighbouring row's width an hr's bar matches, per its own `length` - `above`/`below` are `undefined` at the first/last row respectively, treated as `0`. */
-    private resolveHrReference(length: HrLength, above: number | undefined, below: number | undefined): number {
+    /** Picks which reference width an hr's bar matches, per its own `length` - `above`/`below` are `undefined` at the first/last row respectively, treated as `0`; `blockWidth` is the widest row anywhere in the whole resolved block (also pre-patch - see {@link resolveHrLengths}). */
+    private resolveHrReference(length: HrLength, above: number | undefined, below: number | undefined, blockWidth: number): number {
         switch (length) {
             case "top":
                 return above ?? 0;
             case "bottom":
                 return below ?? 0;
-            case "max":
+            case "both":
                 return Math.max(above ?? 0, below ?? 0);
+            case "max":
+                return blockWidth;
         }
     }
 
-    /** Patches every hr's `width` across `rows` in place, per {@link resolveHrReference}. Neighbour widths are snapshotted up front, so two adjacent hrs each see the other's pre-patch (`0`) width. Adjusts each patched row's own `width` total to match. */
+    /** Patches every hr's `width` across `rows` in place, per {@link resolveHrReference}. Neighbour and block widths are snapshotted up front, so two adjacent (or block-spanning) hrs each see the others' pre-patch (`0`) width rather than each other's patched width. Adjusts each patched row's own `width` total to match. */
     private resolveHrLengths(rows: ResolvedElementLine[]): void {
         const rowWidths = rows.map((row) => row.width);
+        const blockWidth = Math.max(0, ...rowWidths);
         rows.forEach((row, i) => {
             for (const element of row.elements) {
                 if (element.kind !== "hr") {
                     continue;
                 }
-                const reference = this.resolveHrReference(element.length, rowWidths[i - 1], rowWidths[i + 1]);
+                const reference = this.resolveHrReference(element.length, rowWidths[i - 1], rowWidths[i + 1], blockWidth);
                 const barWidth = Math.max(0, reference - this.horizontalSpacing(element.padding));
                 row.width += barWidth - element.width;
                 element.width = barWidth;
@@ -1299,7 +1302,7 @@ export class InteractableDisplay extends Display {
         });
     }
 
-    /** Resolves each of `lines` via {@link resolveElements}, then sizes every hr's bar against its neighbouring row(s) via {@link resolveHrLengths} - plus the widest row's width and every row's height summed (`lineSpacing` apart). */
+    /** Resolves each of `lines` via {@link resolveElements}, then sizes every hr's bar against its neighbouring row(s) or the whole block via {@link resolveHrLengths} - plus the widest row's width and every row's height summed (`lineSpacing` apart). */
     public resolveLines(ctx: CanvasRenderingContext2D, lines: DisplayLine[], lineSpacing: number): {rows: ResolvedElementLine[]; width: number; height: number} {
         const rows = lines.map((line) => this.resolveElements(ctx, line));
         this.resolveHrLengths(rows);
