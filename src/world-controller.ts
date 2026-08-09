@@ -104,6 +104,8 @@ export class WorldController {
             (spectating) => this.movementController.setSpectating(spectating),
             () => this.debugController.isEnabled(),
             (enabled) => this.debugController.setEnabled(enabled),
+            () => this.world.getMinimapEnabled(),
+            (enabled) => this.world.setMinimapEnabled(enabled),
             () => this.world.isGenerationEnabled(),
             (enabled) => this.world.setGenerationEnabled(enabled),
             () => this.getTargetFps() ?? WorldController.DEFAULT_TARGET_FPS,

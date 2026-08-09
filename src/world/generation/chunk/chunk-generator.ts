@@ -232,6 +232,18 @@ export class ChunkGenerator {
         return cached;
     }
 
+    /**
+     * Resolves which biome tag applies at an arbitrary (possibly fractional)
+     * world position (used for the minimap.)
+     *
+     * @param worldX - Tile's X position, in tiles from the world origin.
+     * @param worldY - Tile's Y position, in tiles from the world origin.
+     * @returns The biome tag that matches at that position.
+     */
+    public resolveBiomeTagAt(worldX: number, worldY: number): BiomeTag {
+        return resolveBiome(this.biomes, this.climate.sample(worldX, worldY)).name;
+    }
+
     /** Returns a biome tag only when it occupies at least two-thirds of the chunk. */
     private summariseBiomes(counts: ReadonlyMap<BiomeTag, number>): BiomeSummary {
         const dominantTileCount = Math.ceil(CHUNK_SIZE * CHUNK_SIZE * DOMINANT_BIOME_FRACTION);

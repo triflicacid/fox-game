@@ -18,7 +18,9 @@ import {SpriteFrame, SpriteTile} from "../sprites/sprite";
 import {CoordMap, CoordSet} from "./coord-set";
 import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
-import {getFieldGradient} from "./generation/noise-field-colors";
+import {getFieldGradient, sampleGradient} from "./generation/noise-field-colors";
+import {BIOME_COLORS} from "./generation/biome/biome-colors";
+import {Minimap, MinimapData} from "../minimap/minimap";
 import {Structure, StructurePieceInstance} from "./generation/structure/structure";
 import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
@@ -86,6 +88,10 @@ export class World {
     /** Debug knob: minimum time the worker leaves between finishing one chunk and starting the next. `0` disables it - see {@link setMinChunkGenerationDelayMs}. */
     private minChunkGenerationDelayMs = 0;
     private readonly debugHud = new DebugHud();
+    private readonly minimap = new Minimap();
+
+    /** Whether the minimap is currently shown - independent of {@link DebugController.isEnabled}, defaults to visible. See {@link getMinimapEnabled}/{@link setMinimapEnabled}. */
+    private minimapEnabled = true;
 
     /** Every currently active {@link Effect}, driven generically by {@link update}/{@link draw} - see {@link registerEffect}. */
     private effects: Effect[] = [];
@@ -385,6 +391,28 @@ export class World {
         if (!enabled) {
             this.cancelPendingChunkGeneration();
         }
+    }
+
+    /**
+     * Whether the minimap is currently shown.
+     *
+     * @returns `true` if the minimap is enabled.
+     */
+    public getMinimapEnabled(): boolean {
+        return this.minimapEnabled;
+    }
+
+    /**
+     * Enables/disables the minimap. Independent of {@link DebugController.isEnabled} -
+     * the minimap is a normal gameplay element, not a debug one. No special
+     * handling is needed on re-enable: the tracked bitmap centre is simply
+     * stale, which {@link Minimap.draw}'s own large-jump fallback already
+     * treats as a full resample (see `Minimap.updateBitmap`).
+     *
+     * @param enabled - Whether the minimap should be shown.
+     */
+    public setMinimapEnabled(enabled: boolean): void {
+        this.minimapEnabled = enabled;
     }
 
     /**
@@ -1306,12 +1334,58 @@ export class World {
 
         ctx.restore();
 
+        if (this.minimapEnabled) {
+            this.minimap.draw(ctx, ctx.canvas.width, this.buildMinimapData(debugEnabled, noiseFieldName));
+        }
+
         if (debugEnabled) {
             this.drawDebugHud(ctx, camera, {spectating, spectatorVelocity, actualFps, targetFps});
             if (noiseFieldName) {
-                this.drawNoiseFieldLegend(ctx, ctx.canvas.width, noiseFieldName);
+                const legendRightEdge = this.minimapEnabled
+                    ? Minimap.getLegendRightEdge(ctx.canvas.width)
+                    : ctx.canvas.width - DEBUG_CONFIG.noiseLegendMargin;
+                this.drawNoiseFieldLegend(ctx, legendRightEdge, noiseFieldName);
             }
         }
+    }
+
+    /**
+     * Gathers this frame's minimap data: the player's centre position/facing,
+     * plus a colour source that switches from biome colour to the selected
+     * debug noise field's own gradient while `debugEnabled && noiseFieldName`
+     * - the same condition that already gates {@link drawNoiseFieldOverlay}/
+     * {@link drawNoiseFieldLegend} - so the minimap never shows a different
+     * colour language from the rest of the debug view for the same data.
+     *
+     * @param debugEnabled - Whether debug mode is currently on.
+     * @param noiseFieldName - Name of the currently selected debug noise field, if any.
+     * @returns This frame's minimap data - see {@link MinimapData}.
+     */
+    private buildMinimapData(debugEnabled: boolean, noiseFieldName?: string): MinimapData {
+        const mainEntity = this.requireMainEntity();
+        const position = mainEntity.getPosition();
+        const playerTileX = position.x / this.tileSize;
+        const playerTileY = position.y / this.tileSize;
+        const facing = mainEntity.getFacingVector();
+
+        if (debugEnabled && noiseFieldName) {
+            const gradient = getFieldGradient(noiseFieldName);
+            return {
+                playerTileX,
+                playerTileY,
+                facing,
+                modeKey: `noise:${noiseFieldName}`,
+                sampleColor: (tileX, tileY) => sampleGradient(gradient, this.getNoiseFieldSample(noiseFieldName, tileX, tileY) ?? 0),
+            };
+        }
+
+        return {
+            playerTileX,
+            playerTileY,
+            facing,
+            modeKey: "biome",
+            sampleColor: (tileX, tileY) => BIOME_COLORS[this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)],
+        };
     }
 
     /**
@@ -1478,10 +1552,11 @@ export class World {
      * `0` at the bottom, with tick labels at 0, 0.25, 0.5, 0.75, and 1.
      *
      * @param ctx - Canvas context to draw into, already outside any camera transform.
-     * @param canvasWidth - Canvas width, in canvas pixels, for right-alignment.
+     * @param rightEdge - Where the legend's right edge should sit, in canvas pixels - immediately left of the
+     * minimap when it's also showing this frame, or the canvas's own right margin otherwise (see `World.draw`).
      * @param fieldName - Name of the currently visualised field.
      */
-    private drawNoiseFieldLegend(ctx: CanvasRenderingContext2D, canvasWidth: number, fieldName: string): void {
+    private drawNoiseFieldLegend(ctx: CanvasRenderingContext2D, rightEdge: number, fieldName: string): void {
         const {
             noiseLegendBarWidth: barWidth,
             noiseLegendBarHeight: barHeight,
@@ -1503,7 +1578,7 @@ export class World {
 
         const boxWidth = padding * 2 + barWidth + tickLength + labelGap + labelWidth;
         const boxHeight = padding * 2 + barHeight;
-        const boxLeft = canvasWidth - margin - boxWidth;
+        const boxLeft = rightEdge - boxWidth;
         const boxTop = margin;
         const barLeft = boxLeft + padding;
         const barTop = boxTop + padding;
