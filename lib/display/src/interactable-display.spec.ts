@@ -164,14 +164,23 @@ describe("InteractableDisplay pie chart", () => {
         expect(noneElement.legend?.map((row) => row.runs[0]?.run.text)).toEqual(["a", "b"]);
     });
 
-    it("ignores `showValue` on a manual legend, since a hand-supplied entry has no class value to format", () => {
+    it("applies `showValue` to a manual legend row too, since every row is tied to a class - and drops an entry whose `key` matches no class", () => {
         const display = new InteractableDisplay({}, FLAT_THEME, "always");
         const {ctx} = createMockCanvasContext();
         const line: DisplayLine = [{
             kind: "piechart",
             radius: 10,
-            classes: [{key: "a", value: 1, fillColor: "#ff0000"}],
-            legend: {entries: [{color: "#ff0000", content: "Red"}], showValue: "percentage"},
+            classes: [
+                {key: "a", value: 3, fillColor: "#ff0000"},
+                {key: "b", value: 1, fillColor: "#00ff00"},
+            ],
+            legend: {
+                entries: [
+                    {key: "a", content: "Red"},
+                    {key: "missing", content: "Ghost"},
+                ],
+                showValue: "percentage",
+            },
         }];
 
         display.beginResolvePass();
@@ -179,23 +188,29 @@ describe("InteractableDisplay pie chart", () => {
         if (element.kind !== "piechart") {
             throw new Error("Expected a resolved piechart element");
         }
-        expect(element.legend?.[0].runs[0]?.run.text).toBe("Red");
+        // "missing" matches no class - it acts as absent, same as `hidden`
+        // would. "a" is suffixed against every visible class's total (3 of
+        // 4 => 75%), and its swatch falls back to the class's own
+        // `fillColor` since the entry set none.
+        expect(element.legend).toHaveLength(1);
+        expect(element.legend?.[0].runs[0]?.run.text).toBe("Red (75%)");
+        expect(element.legend?.[0].color).toBe("#ff0000");
     });
 
-    it("positions a manual left-side legend beside the pie and contributes no focusables", () => {
+    it("positions a manual left-side legend beside the pie and gives its row a focusable, tied to its class", () => {
         const display = new InteractableDisplay({}, FLAT_THEME, "always");
         const {ctx} = createMockCanvasContext();
         const line: DisplayLine = [{
             kind: "piechart",
             radius: 10,
             classes: [{key: "a", value: 1, fillColor: "#ff0000"}],
-            legend: {entries: [{color: "#ff0000", content: "Red"}], side: "left"},
+            legend: {entries: [{key: "a", content: "Red"}], side: "left"},
         }];
 
         display.beginResolvePass();
         const {rows} = display.resolveLines(ctx, [line], 4);
         const focusables = display.layoutFocusables(rows[0], 0, 0);
-        expect(focusables).toHaveLength(0);
+        expect(focusables).toHaveLength(1);
 
         const element = rows[0].elements[0];
         if (element.kind !== "piechart") {

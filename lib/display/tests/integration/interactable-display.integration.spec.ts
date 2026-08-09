@@ -272,5 +272,108 @@ describe("InteractableDisplay integration flows", () => {
         triggerClick(listeners, 250, 250);
         expect(display.isFocused()).toBe(false);
     });
+
+    it("focuses auto pie chart legend rows via keyboard, recolours the matching wedge, and activates the class's onClick", () => {
+        const onForestClick = vi.fn();
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
+
+        const lines: DisplayLine[] = [[{
+            kind: "piechart",
+            radius: 10,
+            classes: [
+                {key: "forest", value: 1, fillColor: "#008000", selectedFillColor: "#00ff00", selectedOutlineColor: "#ffffff", selectedStyle: {foreground: "#00ff00"}, onClick: onForestClick},
+                {key: "autumn", value: 1, fillColor: "#ff8000"},
+            ],
+            legend: {auto: true},
+        }]];
+
+        function resolvedPieChart() {
+            const {ctx} = createMockCanvasContext();
+            display.beginResolvePass();
+            const element = display.resolveElements(ctx, lines[0]).elements[0];
+            if (element.kind !== "piechart") {
+                throw new Error("Expected a resolved piechart element");
+            }
+            return element;
+        }
+
+        layoutFrame(display, lines);
+        display.setActive(true);
+
+        // Cursor starts on the first legend row ("forest") - its wedge
+        // already shows selectedFillColor/selectedOutlineColor, and its own
+        // legend label picks up selectedStyle's foreground; "autumn"
+        // (unfocused, no selected colours/style set) is untouched.
+        const focused = resolvedPieChart();
+        expect(focused.wedges).toEqual([
+            {startAngle: -Math.PI / 2, endAngle: Math.PI / 2, fillColor: "#00ff00", outlineColor: "#ffffff"},
+            {startAngle: Math.PI / 2, endAngle: Math.PI * 1.5, fillColor: "#ff8000", outlineColor: undefined},
+        ]);
+        expect(focused.legend?.[0].runs[0]?.run.foreground).toBe("#00ff00");
+
+        triggerKeyDown(listeners, "Enter");
+        expect(onForestClick).toHaveBeenCalledTimes(1);
+
+        triggerKeyDown(listeners, "ArrowDown");
+        const afterMove = resolvedPieChart();
+        expect(afterMove.wedges[0].fillColor).toBe("#008000");
+        expect(afterMove.wedges[0].outlineColor).toBeUndefined();
+        expect(afterMove.wedges[1].fillColor).toBe("#ff8000");
+        // Focus moved off "forest" - selectedStyle no longer applies to its label.
+        expect(afterMove.legend?.[0].runs[0]?.run.foreground).not.toBe("#00ff00");
+
+        // "autumn" has no onClick - activating it is a safe no-op.
+        expect(() => triggerKeyDown(listeners, "Enter")).not.toThrow();
+        expect(onForestClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("focuses and activates a manual pie chart legend row via keyboard, tied to its referenced class", () => {
+        const onForestClick = vi.fn();
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
+
+        const lines: DisplayLine[] = [
+            [{
+                kind: "piechart",
+                radius: 10,
+                classes: [{key: "forest", value: 1, fillColor: "#008000", onClick: onForestClick}],
+                legend: {entries: [{key: "forest", content: "Forest cover"}]},
+            }],
+        ];
+
+        layoutFrame(display, lines);
+        display.setActive(true);
+
+        triggerKeyDown(listeners, "Enter");
+        expect(onForestClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops a manual pie chart legend entry whose `key` matches no class, leaving other focusables' order untouched", () => {
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
+        const onButtonClick = vi.fn();
+
+        const lines: DisplayLine[] = [
+            [{kind: "piechart", radius: 10, classes: [{key: "a", value: 1, fillColor: "#ff0000"}], legend: {entries: [{key: "missing", color: "#ff0000", content: "Red"}]}}],
+            [button({content: "Next", onClick: onButtonClick})],
+        ];
+
+        const {ctx} = createMockCanvasContext();
+        display.beginResolvePass();
+        const {rows} = display.resolveLines(ctx, lines, 4);
+        const focusables = display.layoutLineFocusables(rows, 10, 10, 4);
+
+        // The unmatched entry contributes nothing - the button is the only
+        // focusable, so activating right after setActive hits it directly.
+        expect(focusables).toHaveLength(1);
+        display.setFocusables(focusables);
+        display.setActive(true);
+
+        // Buttons are `pressable` - activate() is deferred to key release.
+        triggerKeyDown(listeners, "Enter");
+        triggerKeyUp(listeners, "Enter");
+        expect(onButtonClick).toHaveBeenCalledTimes(1);
+    });
 });
 
