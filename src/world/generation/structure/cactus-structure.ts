@@ -3,7 +3,7 @@ import {StructureManifest} from "./structure-manifest";
 import manifestJson from "./cactus-structures.json";
 import {BiomeTag} from "../biome/biome";
 import {NoiseField} from "../noise-field";
-import {CactusSpriteType} from "../../../sprites/CactusSpriteSheet";
+import {DesertStructureSpriteType} from "../../../sprites/DesertStructureSpriteSheet";
 
 const manifest = manifestJson as StructureManifest;
 
@@ -44,7 +44,7 @@ const CACTUS_CONFIG = {
 } as const;
 
 /** Cacti: a `Structure` whose families (saguaro/barrel) are single-tile, sub-tile-rendered sprites, sparsely and independently scattered across the desert. */
-export class CactusStructure extends Structure<CactusSpriteType> {
+export class CactusStructure extends Structure<DesertStructureSpriteType> {
     /**
      * @param worldSeed - The world's seed, so this structure's rolls sample deterministically.
      * @param isFeatureSite - Whether a world position is a candidate site for another feature (e.g. an oasis) - cacti avoid these so they can't grow on water.
@@ -103,7 +103,7 @@ export class CactusStructure extends Structure<CactusSpriteType> {
         role: string,
         anchorWorldX: number,
         anchorWorldY: number,
-    ): CactusSpriteType {
+    ): DesertStructureSpriteType {
         void role;
 
         if (family === "barrel") {
@@ -123,6 +123,6 @@ export class CactusStructure extends Structure<CactusSpriteType> {
             : armRoll < CACTUS_CONFIG.armThresholds.right ? "arm_right"
             : "both_arms";
         const flowering = this.roll(anchorWorldX, anchorWorldY, CACTUS_CONFIG.saguaroFlowerSalt) < CACTUS_CONFIG.saguaroFloweringChance;
-        return `cactus.saguaro.${arm}${flowering ? "_flower" : ""}` as CactusSpriteType;
+        return `cactus.saguaro.${arm}${flowering ? "_flower" : ""}` as DesertStructureSpriteType;
     }
 }

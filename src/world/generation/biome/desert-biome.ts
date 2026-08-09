@@ -16,9 +16,9 @@ const DESERT_CONFIG = {
 } as const;
 
 const SAND_VARIANTS: TerrainDepthVariants = {
-    light: "sand1",
-    medium: "sand2",
-    dark: "sand3",
+    light: "desert.sand1",
+    medium: "desert.sand2",
+    dark: "desert.sand3",
 };
 
 /** Hot, dry terrain selected before the catch-all Plains biome. */

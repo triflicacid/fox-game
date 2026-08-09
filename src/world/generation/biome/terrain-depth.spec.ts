@@ -6,13 +6,13 @@ import {
     validateTerrainDepthConfig,
 } from "./terrain-depth";
 
-const VARIANTS = {light: "grass2", medium: "grass1", dark: "grass3"} as const;
+const VARIANTS = {light: "plains.grass2", medium: "plains.grass1", dark: "plains.grass3"} as const;
 
 describe("selectTerrainVariant", () => {
     it("allows only the explicit light sprite in border rings", () => {
         for (let depth = 0; depth <= TERRAIN_DEPTH_CONFIG.lightOnlyDepthTiles; depth++) {
-            expect(selectTerrainVariant(0, depth, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("grass2");
-            expect(selectTerrainVariant(0.999, depth, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("grass2");
+            expect(selectTerrainVariant(0, depth, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("plains.grass2");
+            expect(selectTerrainVariant(0.999, depth, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("plains.grass2");
         }
     });
 
@@ -25,19 +25,19 @@ describe("selectTerrainVariant", () => {
                 selected.add(selectTerrainVariant(noise, depth, VARIANTS, TERRAIN_DEPTH_CONFIG));
             }
         }
-        expect(selected).toEqual(new Set(["grass2", "grass1"]));
-        expect(selected).not.toContain("grass3");
+        expect(selected).toEqual(new Set(["plains.grass2", "plains.grass1"]));
+        expect(selected).not.toContain("plains.grass3");
     });
 
     it("allows medium and dark but never light at full interior depth", () => {
-        expect(selectTerrainVariant(0, TERRAIN_DEPTH_CONFIG.maximumDepthTiles, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("grass1");
-        expect(selectTerrainVariant(0.999, TERRAIN_DEPTH_CONFIG.maximumDepthTiles, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("grass3");
+        expect(selectTerrainVariant(0, TERRAIN_DEPTH_CONFIG.maximumDepthTiles, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("plains.grass1");
+        expect(selectTerrainVariant(0.999, TERRAIN_DEPTH_CONFIG.maximumDepthTiles, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("plains.grass3");
     });
 
     it("uses explicit visual ordering rather than numeric sprite suffixes", () => {
-        expect(selectTerrainVariant(0.9, 1, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("grass2");
-        expect(selectTerrainVariant(0.1, 8, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("grass1");
-        expect(selectTerrainVariant(0.9, 8, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("grass3");
+        expect(selectTerrainVariant(0.9, 1, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("plains.grass2");
+        expect(selectTerrainVariant(0.1, 8, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("plains.grass1");
+        expect(selectTerrainVariant(0.9, 8, VARIANTS, TERRAIN_DEPTH_CONFIG)).toBe("plains.grass3");
     });
 });
 

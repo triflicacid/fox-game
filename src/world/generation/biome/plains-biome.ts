@@ -12,9 +12,9 @@ const GRASS_VARIANT_FREQUENCY = 1 / 10;
 
 /** Explicit visual ordering audited from the generated sprite palettes. */
 const GRASS_VARIANTS: TerrainDepthVariants = {
-    light: "grass2",
-    medium: "grass1",
-    dark: "grass3",
+    light: "plains.grass2",
+    medium: "plains.grass1",
+    dark: "plains.grass3",
 };
 
 /**

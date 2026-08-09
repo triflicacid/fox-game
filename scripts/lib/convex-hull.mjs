@@ -13,8 +13,9 @@ export function crossProduct(o, a, b) {
 
 /**
  * computes the convex hull of a point set (Andrew's monotone chain) - shared
- * by gen-cactus-sprites.mjs and gen-structure-sprites.mjs, which both hull a
- * blob's sampled circumference points into a tight collision polygon.
+ * by gen-forest-structures.mjs, gen-tundra-structures.mjs, and
+ * gen-desert-structures.mjs, which each hull a blob's sampled circumference
+ * points into a tight collision polygon.
  *
  * @param {{x: number, y: number}[]} points - input points, not required to be sorted or de-duplicated.
  * @returns {{x: number, y: number}[]} the hull's vertices.

@@ -1,14 +1,15 @@
 import { blitGrid, parseCliArgs, writeSpriteSheet } from "./lib/sprite-sheet.mjs";
 import { convexHull } from "./lib/convex-hull.mjs";
 
-const GRID = 16; // logical cells per tile edge - matches the ground tile grid, so structure tiles align 1:1 with it
+const GRID = 16; // logical cells per tile edge - matches the ground tile grid, so tundra tiles align 1:1 with it
 const BLOCK = 2; // real pixels per grid cell -> 32x32 per tile
 const CELL_PX = GRID * BLOCK;
 
 // Two center conventions coexist here, matched to how each shape is built:
-// log-style grids (trees, large boulder pieces) mask from a grid-cell center at `(GRID - 1) / 2`,
-// while radial-blob grids (small boulder stones) sample from cell centers against `GRID / 2` - see
-// gen-cactus-sprites.mjs, which small stones otherwise mirror.
+// log-style grids (skeletal trunks, large boulder pieces) mask from a grid-cell center at
+// `(GRID - 1) / 2`, while radial-blob grids (small boulder stones) sample from cell centers
+// against `GRID / 2` - see gen-desert-structures.mjs, which small stones otherwise mirror, and
+// gen-forest-structures.mjs, which shares the log-style convention for its own trunks.
 const LOG_CENTER = (GRID - 1) / 2;
 const BLOB_CENTER = GRID / 2;
 
@@ -76,32 +77,26 @@ function pickColor(palette, seed, x, y) {
 // distinct from each tile's color seed so "is this cell a gap" doesn't correlate with "which color"
 const GAP_SEED_OFFSET = 5000;
 
-const LOG_RADIUS = 7; // the "round" variant's trunk radius, leaving its own tile corners outside it
 const RING_WIDTH = 2.2; // concentric tree-ring/rock banding, viewed from above
 const PITH_RADIUS = 1.4;
 
 /**
- * builds a top-down cut-log (or, for boulders, a full rock-slab) tile:
- * concentric ring bands (alternating palettes by ring parity) with a small
- * dark pith at the centre.
+ * builds a top-down cut-log tile: concentric ring bands (alternating
+ * palettes by ring parity) with a small dark pith at the centre.
  *
- * Two shapes: `radius: null` fills the whole square tile edge-to-edge (a
- * tree's "square" log, or a large boulder's full-tile rock fill). A finite
- * `radius` masks it into a circle instead (a tree's "round" log); cells
- * outside that circle use `cornerLeaves`' palette/gap-chance rather than
- * staying transparent, so a diagonally adjacent leaf tile visually connects
- * into the trunk tile's corners instead of leaving a bare gap of ground
- * showing.
+ * `radius: null` fills the whole square tile edge-to-edge; a finite `radius`
+ * masks it into a circle instead, leaving cells outside it transparent (no
+ * `cornerLeaves` texture here - a dead tree has no foliage to connect into,
+ * unlike gen-forest-structures.mjs's live trunks).
  *
- * @param {object} log - log/rock definition.
+ * @param {object} log - log definition.
  * @param {number} log.seed - color seed.
  * @param {[{color: number[], weight: number}[], {color: number[], weight: number}[]]} log.ringPalettes - palettes used on even/odd rings.
  * @param {number[]} log.pithColor - rgba color for the centre pith.
- * @param {number|null} log.radius - trunk/rock radius, or `null` for a full square tile.
- * @param {{seed: number, palette: {color: number[], weight: number}[], gapChance: number}} [log.cornerLeaves] - texture for the area outside `radius`; only used when `radius` is finite.
+ * @param {number|null} log.radius - trunk radius, or `null` for a full square tile.
  * @returns {(number[]|null)[]} the tile's colors in row-major order.
  */
-function buildLogGrid({ seed, ringPalettes, pithColor, radius, cornerLeaves }) {
+function buildLogGrid({ seed, ringPalettes, pithColor, radius }) {
     const grid = new Array(GRID * GRID).fill(null);
     for (let gy = 0; gy < GRID; gy++) {
         for (let gx = 0; gx < GRID; gx++) {
@@ -109,12 +104,7 @@ function buildLogGrid({ seed, ringPalettes, pithColor, radius, cornerLeaves }) {
             const y = gy - LOG_CENTER;
             const dist = Math.sqrt(x * x + y * y);
 
-            if (radius !== null && dist > radius) {
-                if (cornerLeaves && hash(cornerLeaves.seed + GAP_SEED_OFFSET, gx, gy) >= cornerLeaves.gapChance) {
-                    grid[gy * GRID + gx] = pickColor(cornerLeaves.palette, cornerLeaves.seed, gx, gy);
-                }
-                continue;
-            }
+            if (radius !== null && dist > radius) continue;
 
             if (dist <= PITH_RADIUS) {
                 grid[gy * GRID + gx] = pithColor;
@@ -123,28 +113,6 @@ function buildLogGrid({ seed, ringPalettes, pithColor, radius, cornerLeaves }) {
 
             const ringIndex = Math.floor(dist / RING_WIDTH);
             grid[gy * GRID + gx] = pickColor(ringPalettes[ringIndex % 2], seed, gx, gy);
-        }
-    }
-    return grid;
-}
-
-/**
- * builds a leaf/branch tile: a weighted-palette texture covering the whole
- * tile (so adjacent tiles tessellate into one continuous canopy), with
- * random fully-transparent gaps so the ground/entities beneath show through.
- *
- * @param {object} leaves - leaf/branch definition.
- * @param {number} leaves.seed - color seed.
- * @param {{color: number[], weight: number}[]} leaves.palette - color palette.
- * @param {number} leaves.gapChance - probability `[0, 1)` a cell is left transparent.
- * @returns {(number[]|null)[]} the tile's colors in row-major order.
- */
-function buildLeafGrid({ seed, palette, gapChance }) {
-    const grid = new Array(GRID * GRID).fill(null);
-    for (let gy = 0; gy < GRID; gy++) {
-        for (let gx = 0; gx < GRID; gx++) {
-            if (hash(seed + GAP_SEED_OFFSET, gx, gy) < gapChance) continue; // a gap in the canopy
-            grid[gy * GRID + gx] = pickColor(palette, seed, gx, gy);
         }
     }
     return grid;
@@ -230,42 +198,6 @@ function mergeGrids(base, overlay) {
     return base.map((color, i) => color ?? overlay[i]);
 }
 
-const OAK_LOG = {
-    seed: 8001,
-    ringPalettes: [
-        [
-            { color: [92, 64, 40, 255], weight: 70 },
-            { color: [78, 54, 34, 255], weight: 22 },
-            { color: [104, 74, 48, 255], weight: 8 },
-        ],
-        [
-            { color: [104, 76, 48, 255], weight: 70 },
-            { color: [88, 62, 38, 255], weight: 22 },
-            { color: [116, 86, 56, 255], weight: 8 },
-        ],
-    ],
-    pithColor: [54, 36, 22, 255],
-};
-
-const BIRCH_LOG = {
-    seed: 8002,
-    ringPalettes: [
-        [
-            { color: [225, 220, 204, 255], weight: 66 },
-            { color: [204, 198, 182, 255], weight: 22 },
-            { color: [238, 234, 222, 255], weight: 6 },
-            { color: [40, 36, 32, 255], weight: 6 }, // birch's characteristic dark bark streaks
-        ],
-        [
-            { color: [214, 208, 192, 255], weight: 66 },
-            { color: [194, 188, 172, 255], weight: 22 },
-            { color: [230, 226, 214, 255], weight: 6 },
-            { color: [40, 36, 32, 255], weight: 6 },
-        ],
-    ],
-    pithColor: [180, 172, 156, 255],
-};
-
 // ebony bark - near-black rather than brown, so a skeletal tree reads as dead/burnt at a glance
 const SKELETAL_LOG = {
     seed: 8003,
@@ -287,9 +219,9 @@ const SKELETAL_LOG = {
 };
 
 /**
- * Narrower than {@link LOG_RADIUS} (a live trunk's own mask radius) - a
- * skeletal tree's trunk should still read as a bare stick, not a log - but
- * big enough that the tile doesn't look undersized next to a live trunk.
+ * Narrower than a live trunk's own mask radius (see gen-forest-structures.mjs's LOG_RADIUS) - a
+ * skeletal tree's trunk should still read as a bare stick, not a log - but big enough that the
+ * tile doesn't look undersized next to a live trunk.
  */
 const SKELETAL_TRUNK_RADIUS = 3.5;
 
@@ -314,31 +246,6 @@ const SKELETAL_TRUNK_TWIGS = {
     thickness: 2,
 };
 
-// deliberately darker and more saturated than every forest-floor variant (see
-// FOREST_VARIANTS in gen-background-tile-sprites.mjs) so oak canopy reads as shadowed
-// foliage above the ground rather than blending into it
-const OAK_LEAVES = {
-    seed: 7001,
-    gapChance: 0.12,
-    palette: [
-        { color: [24, 52, 20, 255], weight: 60 },
-        { color: [16, 38, 14, 255], weight: 20 },
-        { color: [34, 68, 28, 255], weight: 16 },
-        { color: [44, 80, 34, 255], weight: 4 },
-    ],
-};
-
-const BIRCH_LEAVES = {
-    seed: 7002,
-    gapChance: 0.22, // birch foliage reads lighter/sparser than oak
-    palette: [
-        { color: [120, 150, 64, 255], weight: 60 },
-        { color: [100, 132, 52, 255], weight: 20 },
-        { color: [140, 168, 82, 255], weight: 16 },
-        { color: [156, 182, 98, 255], weight: 4 },
-    ],
-};
-
 // no foliage left, just a few bare ebony branches (see buildSpikeGrid) - same palette as
 // SKELETAL_TRUNK_TWIGS, just longer/more of them, since this tile carries the bulk of the tree's silhouette
 const SKELETAL_BRANCHES = {
@@ -349,28 +256,6 @@ const SKELETAL_BRANCHES = {
     palette: SKELETAL_BRANCH_PALETTE,
     thickness: 2,
 };
-
-// A "round" trunk's own collision hull: a tight circle at LOG_RADIUS, computed once and shared
-// by both families - the "square" variant fills its tile edge-to-edge instead (see TREE_ROWS
-// below), so it's left with no authored bounds of its own and just falls back to the whole tile
-// square, which is already exactly its silhouette.
-const LOG_ROUND_BOUNDS = buildBounds([{ cx: BLOB_CENTER, cy: BLOB_CENTER, radius: LOG_RADIUS }]);
-
-// row 0: oak (square log, round log, leaves); row 1: birch (square log, round log, leaves) -
-// both multi-tile, `tree.<family>.<role>`-namespaced: a trunk anchor piece plus a separate
-// leaf piece stamped across several surrounding tiles by their manifest (see tree-structures.json).
-const TREE_ROWS = [
-    [
-        { type: "tree.oak.log_square", build: () => buildLogGrid({ ...OAK_LOG, radius: null }) },
-        { type: "tree.oak.log_round", build: () => buildLogGrid({ ...OAK_LOG, radius: LOG_RADIUS, cornerLeaves: OAK_LEAVES }), bounds: LOG_ROUND_BOUNDS },
-        { type: "tree.oak.leaves", build: () => buildLeafGrid(OAK_LEAVES) },
-    ],
-    [
-        { type: "tree.birch.log_square", build: () => buildLogGrid({ ...BIRCH_LOG, radius: null }) },
-        { type: "tree.birch.log_round", build: () => buildLogGrid({ ...BIRCH_LOG, radius: LOG_RADIUS, cornerLeaves: BIRCH_LEAVES }), bounds: LOG_ROUND_BOUNDS },
-        { type: "tree.birch.leaves", build: () => buildLeafGrid(BIRCH_LEAVES) },
-    ],
-];
 
 // A skeletal tree's collision hull is just its trunk circle - the twig/branch spikes layered on
 // top (buildSpikeGrid) are thin enough that hulling them in would balloon the hitbox out to
@@ -404,7 +289,7 @@ const SKELETAL_TREE_ROWS = [
 // "Small" stones render sub-tile, exactly like CactusStructure's plants: one
 // or more overlapping circular blobs, ring-banded from their own centre, with
 // a tight convex-hull collision polygon computed from the same blobs (see
-// gen-cactus-sprites.mjs, which this mirrors).
+// gen-desert-structures.mjs, which this mirrors).
 //
 // "Large"/"huge" boulders are multi-tile instead: a single big circle shared
 // across a 2x2 or 3x3 block of tiles (see `buildBoulderPieceGrid`), sliced
@@ -743,7 +628,7 @@ const COMPASS_3 = [
 /**
  * one small-stone tile row entry: builds both its color grid and its
  * blob-shaped collision bounds from the same blob set - mirrors
- * gen-cactus-sprites.mjs's `saguaroTile`/`barrelTile` pattern.
+ * gen-desert-structures.mjs's `saguaroTile`/`barrelTile` pattern.
  *
  * @param {string} type - sprite type name.
  * @param {{cx: number, cy: number, radius: number}[]} blobs - this variant's blobs.
@@ -782,7 +667,7 @@ const BOULDER_ROWS = [
     ...boulderPieceRows("huge", ROCK_WEATHERED, COMPASS_3),
 ];
 
-const TILE_ROWS = [...TREE_ROWS, ...SKELETAL_TREE_ROWS, ...BOULDER_ROWS];
+const TILE_ROWS = [...SKELETAL_TREE_ROWS, ...BOULDER_ROWS];
 
 const sheetW = CELL_PX * Math.max(...TILE_ROWS.map((row) => row.length));
 const sheetH = CELL_PX * TILE_ROWS.length;
@@ -797,7 +682,7 @@ const rowDescriptors = TILE_ROWS.flatMap((tiles, row) => tiles.map((tile, column
         type: tile.type,
         x,
         y,
-        interactable: Boolean(tile.bounds), // decorative props (trees) aren't; collidable stones are, like cacti
+        interactable: Boolean(tile.bounds), // skeletal trees/stones are; a snow-cap overlay isn't
         ...(tile.bounds ? { bounds: tile.bounds } : {}),
     };
 }));
@@ -808,6 +693,6 @@ const descriptor = {
     rows: rowDescriptors,
 };
 
-const { outPath, descriptorOutPath } = parseCliArgs("gen-structure-sprites.mjs", "static/structure-sprites.json");
+const { outPath, descriptorOutPath } = parseCliArgs("gen-tundra-structures.mjs", "static/tundra-structures.json");
 writeSpriteSheet(outPath, descriptorOutPath, sheetW, sheetH, sheet, descriptor);
-console.log("structure tiles:", TILE_ROWS.map((row) => row.map((tile) => tile.type).join(", ")).join(" | "));
+console.log("tundra structure tiles:", TILE_ROWS.map((row) => row.map((tile) => tile.type).join(", ")).join(" | "));
