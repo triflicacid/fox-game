@@ -1,4 +1,5 @@
 import { blitGrid, parseCliArgs, writeSpriteSheet } from "./lib/sprite-sheet.mjs";
+import { convexHull } from "./lib/convex-hull.mjs";
 
 const GRID = 16; // logical cells per tile edge - matches the ground tile grid, so structure tiles align 1:1 with it
 const BLOCK = 2; // real pixels per grid cell -> 32x32 per tile
@@ -10,6 +11,33 @@ const CELL_PX = GRID * BLOCK;
 // gen-cactus-sprites.mjs, which small stones otherwise mirror.
 const LOG_CENTER = (GRID - 1) / 2;
 const BLOB_CENTER = GRID / 2;
+
+/** points sampled around each blob's circumference before hulling - see {@link buildBounds}. */
+const BOUNDS_SAMPLES = 10;
+
+/**
+ * builds a convex collision polygon (in pixels, relative to the cell's
+ * centre) enclosing every given blob - the union of one or more circles,
+ * approximated by sampling each circle's circumference and hulling the
+ * result. Kept tight to the stone's actual silhouette rather than the whole
+ * tile, since these sprites render sub-tile - see `SpriteBounds`.
+ *
+ * @param {{cx: number, cy: number, radius: number}[]} blobs - circles to enclose, in the same cell-unit space the color geometry uses.
+ * @returns {{points: {x: number, y: number}[]}} the collision bounds.
+ */
+function buildBounds(blobs) {
+    const samples = [];
+    for (const blob of blobs) {
+        const pxCx = (blob.cx - BLOB_CENTER) * BLOCK;
+        const pxCy = (blob.cy - BLOB_CENTER) * BLOCK;
+        const pxR = blob.radius * BLOCK;
+        for (let k = 0; k < BOUNDS_SAMPLES; k++) {
+            const angle = (2 * Math.PI * k) / BOUNDS_SAMPLES;
+            samples.push({x: Math.round(pxCx + pxR * Math.cos(angle)), y: Math.round(pxCy + pxR * Math.sin(angle))});
+        }
+    }
+    return {points: convexHull(samples)};
+}
 
 /**
  * returns a deterministic pseudo-random value for a grid cell.
@@ -322,21 +350,34 @@ const SKELETAL_BRANCHES = {
     thickness: 2,
 };
 
+// A "round" trunk's own collision hull: a tight circle at LOG_RADIUS, computed once and shared
+// by both families - the "square" variant fills its tile edge-to-edge instead (see TREE_ROWS
+// below), so it's left with no authored bounds of its own and just falls back to the whole tile
+// square, which is already exactly its silhouette.
+const LOG_ROUND_BOUNDS = buildBounds([{ cx: BLOB_CENTER, cy: BLOB_CENTER, radius: LOG_RADIUS }]);
+
 // row 0: oak (square log, round log, leaves); row 1: birch (square log, round log, leaves) -
 // both multi-tile, `tree.<family>.<role>`-namespaced: a trunk anchor piece plus a separate
 // leaf piece stamped across several surrounding tiles by their manifest (see tree-structures.json).
 const TREE_ROWS = [
     [
         { type: "tree.oak.log_square", build: () => buildLogGrid({ ...OAK_LOG, radius: null }) },
-        { type: "tree.oak.log_round", build: () => buildLogGrid({ ...OAK_LOG, radius: LOG_RADIUS, cornerLeaves: OAK_LEAVES }) },
+        { type: "tree.oak.log_round", build: () => buildLogGrid({ ...OAK_LOG, radius: LOG_RADIUS, cornerLeaves: OAK_LEAVES }), bounds: LOG_ROUND_BOUNDS },
         { type: "tree.oak.leaves", build: () => buildLeafGrid(OAK_LEAVES) },
     ],
     [
         { type: "tree.birch.log_square", build: () => buildLogGrid({ ...BIRCH_LOG, radius: null }) },
-        { type: "tree.birch.log_round", build: () => buildLogGrid({ ...BIRCH_LOG, radius: LOG_RADIUS, cornerLeaves: BIRCH_LEAVES }) },
+        { type: "tree.birch.log_round", build: () => buildLogGrid({ ...BIRCH_LOG, radius: LOG_RADIUS, cornerLeaves: BIRCH_LEAVES }), bounds: LOG_ROUND_BOUNDS },
         { type: "tree.birch.leaves", build: () => buildLeafGrid(BIRCH_LEAVES) },
     ],
 ];
+
+// A skeletal tree's collision hull is just its trunk circle - the twig/branch spikes layered on
+// top (buildSpikeGrid) are thin enough that hulling them in would balloon the hitbox out to
+// nearly the whole tile, undoing the point of authoring a tight hull at all; a fox brushing past
+// a bare branch tip not "colliding" reads fine, the same way it doesn't for a saguaro's spines.
+const SKELETAL_TRUNK_BOUNDS = buildBounds([{ cx: BLOB_CENTER, cy: BLOB_CENTER, radius: SKELETAL_TRUNK_RADIUS }]);
+const SKELETAL_TRUNK_BOUNDS_WIDE = buildBounds([{ cx: BLOB_CENTER, cy: BLOB_CENTER, radius: SKELETAL_TRUNK_RADIUS + 0.4 }]);
 
 // A skeletal (dead) tree is a single-tile, standalone sprite.
 const SKELETAL_TREE_ROWS = [
@@ -344,17 +385,17 @@ const SKELETAL_TREE_ROWS = [
         { type: "skeletal_tree.1", build: () => mergeGrids(
             buildLogGrid({ ...SKELETAL_LOG, radius: SKELETAL_TRUNK_RADIUS + 0.4 }),
             buildSpikeGrid(SKELETAL_TRUNK_TWIGS),
-        ) },
+        ), bounds: SKELETAL_TRUNK_BOUNDS_WIDE },
         { type: "skeletal_tree.2", build: () => mergeGrids(
             buildLogGrid({ ...SKELETAL_LOG, radius: SKELETAL_TRUNK_RADIUS }),
             buildSpikeGrid({ ...SKELETAL_TRUNK_TWIGS, seed: SKELETAL_TRUNK_TWIGS.seed + 1 }),
-        ) },
+        ), bounds: SKELETAL_TRUNK_BOUNDS },
         // a fuller-branched variant, not a separate companion piece - still its own trunk,
         // like the other two, just paired with the longer/more numerous SKELETAL_BRANCHES set
         { type: "skeletal_tree.3", build: () => mergeGrids(
             buildLogGrid({ ...SKELETAL_LOG, radius: SKELETAL_TRUNK_RADIUS }),
             buildSpikeGrid(SKELETAL_BRANCHES),
-        ) },
+        ), bounds: SKELETAL_TRUNK_BOUNDS },
     ],
 ];
 
@@ -416,70 +457,6 @@ const ROCK_WEATHERED = {
 const ROCK_RING_WIDTH = 1.15; // finer than a log's own RING_WIDTH - stones are much smaller than a trunk
 const ROCK_PITH_RADIUS = 0.9;
 
-/** points sampled around each blob's circumference before hulling - see {@link buildBounds}. */
-const BOUNDS_SAMPLES = 10;
-
-/**
- * signed area (doubled) of the turn `o -> a -> b` - positive for a
- * counter-clockwise turn in a standard (y-up) axis sense.
- *
- * @param {{x: number, y: number}} o - turn's origin point.
- * @param {{x: number, y: number}} a - turn's first leg endpoint.
- * @param {{x: number, y: number}} b - turn's second leg endpoint.
- * @returns {number} the cross product `(a - o) x (b - o)`.
- */
-function crossProduct(o, a, b) {
-    return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-}
-
-/**
- * computes the convex hull of a point set (Andrew's monotone chain).
- *
- * @param {{x: number, y: number}[]} points - input points, not required to be sorted or de-duplicated.
- * @returns {{x: number, y: number}[]} the hull's vertices.
- */
-function convexHull(points) {
-    const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
-    const lower = [];
-    for (const p of sorted) {
-        while (lower.length >= 2 && crossProduct(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
-        lower.push(p);
-    }
-    const upper = [];
-    for (let i = sorted.length - 1; i >= 0; i--) {
-        const p = sorted[i];
-        while (upper.length >= 2 && crossProduct(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
-        upper.push(p);
-    }
-    upper.pop();
-    lower.pop();
-    return lower.concat(upper);
-}
-
-/**
- * builds a convex collision polygon (in pixels, relative to the cell's
- * centre) enclosing every given blob - the union of one or more circles,
- * approximated by sampling each circle's circumference and hulling the
- * result. Kept tight to the stone's actual silhouette rather than the whole
- * tile, since these sprites render sub-tile - see `SpriteBounds`.
- *
- * @param {{cx: number, cy: number, radius: number}[]} blobs - circles to enclose, in the same cell-unit space the color geometry uses.
- * @returns {{points: {x: number, y: number}[]}} the collision bounds.
- */
-function buildBounds(blobs) {
-    const samples = [];
-    for (const blob of blobs) {
-        const pxCx = (blob.cx - BLOB_CENTER) * BLOCK;
-        const pxCy = (blob.cy - BLOB_CENTER) * BLOCK;
-        const pxR = blob.radius * BLOCK;
-        for (let k = 0; k < BOUNDS_SAMPLES; k++) {
-            const angle = (2 * Math.PI * k) / BOUNDS_SAMPLES;
-            samples.push({x: Math.round(pxCx + pxR * Math.cos(angle)), y: Math.round(pxCy + pxR * Math.sin(angle))});
-        }
-    }
-    return {points: convexHull(samples)};
-}
-
 /**
  * builds a top-down radial "blob" tile out of one or more overlapping
  * circles, each ring-banded from its own centre so bands read as radiating
@@ -517,6 +494,23 @@ function buildRockBlobGrid(blobs, rock) {
 }
 
 /**
+ * a composite boulder's shared circle geometry, in the same
+ * `tilesPerEdge x tilesPerEdge`-tile grid space every per-piece builder
+ * below samples from - factored out so the rock/snow grids and the
+ * collision bounds (see {@link buildBoulderPieceBounds}) all draw the exact
+ * same circle rather than three separately-tuned approximations of it.
+ *
+ * @param {number} tilesPerEdge - how many tiles wide/tall the composite boulder spans (e.g. `2` or `3`).
+ * @returns {{compositeCenter: number, radius: number}} the shared circle's centre (on both axes) and radius, in grid cells.
+ */
+function boulderCompositeGeometry(tilesPerEdge) {
+    const compositeSize = tilesPerEdge * GRID;
+    const compositeCenter = compositeSize / 2;
+    const radius = compositeCenter - 1.5; // small transparent margin so the circle doesn't touch the composite's own bounding box
+    return { compositeCenter, radius };
+}
+
+/**
  * builds one tile-sized piece of a larger, multi-tile circular boulder. The
  * composite boulder is one big circle laid out in a shared
  * `tilesPerEdge x tilesPerEdge`-tile grid space (`GRID` cells per tile);
@@ -532,9 +526,7 @@ function buildRockBlobGrid(blobs, rock) {
  * @returns {(number[]|null)[]} this piece's tile colors in row-major order.
  */
 function buildBoulderPieceGrid(rock, tilesPerEdge, pieceCol, pieceRow) {
-    const compositeSize = tilesPerEdge * GRID;
-    const compositeCenter = compositeSize / 2;
-    const radius = compositeCenter - 1.5; // small transparent margin so the circle doesn't touch the composite's own bounding box
+    const { compositeCenter, radius } = boulderCompositeGeometry(tilesPerEdge);
 
     const grid = new Array(GRID * GRID).fill(null);
     for (let gy = 0; gy < GRID; gy++) {
@@ -592,9 +584,7 @@ const SNOW_CAP = {
  * @returns {(number[]|null)[]} this piece's tile colors in row-major order.
  */
 function buildBoulderSnowPieceGrid(snow, tilesPerEdge, pieceCol, pieceRow) {
-    const compositeSize = tilesPerEdge * GRID;
-    const compositeCenter = compositeSize / 2;
-    const radius = compositeCenter - 1.5; // matches buildBoulderPieceGrid's own margin, so the cap never pokes past the rock
+    const { compositeCenter, radius } = boulderCompositeGeometry(tilesPerEdge);
 
     const grid = new Array(GRID * GRID).fill(null);
     for (let gy = 0; gy < GRID; gy++) {
@@ -614,6 +604,96 @@ function buildBoulderSnowPieceGrid(snow, tilesPerEdge, pieceCol, pieceRow) {
     return grid;
 }
 
+/** points sampled around the shared composite circle before clipping - see {@link buildBoulderPieceBounds}. */
+const BOULDER_CIRCLE_SAMPLES = 48;
+
+/**
+ * clips convex polygon `subject` against the axis-aligned rectangle
+ * `[minX, maxX] x [minY, maxY]`, via the
+ * {@link https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm | Sutherland-Hodgman algorithm}:
+ * `subject` is walked once per rectangle edge, each pass keeping only the
+ * portion on that edge's inside, adding a fresh vertex wherever the polygon
+ * boundary crosses it. Both inputs being convex guarantees the result is
+ * too - a circle clipped by a piece's own tile square is exactly the
+ * boulder's collision hull for that piece (see {@link buildBoulderPieceBounds}).
+ *
+ * @param {{x: number, y: number}[]} subject - the polygon to clip, in the same space as the rectangle.
+ * @param {number} minX - rectangle's left edge.
+ * @param {number} minY - rectangle's top edge.
+ * @param {number} maxX - rectangle's right edge.
+ * @param {number} maxY - rectangle's bottom edge.
+ * @returns {{x: number, y: number}[]} the clipped polygon's vertices.
+ */
+function clipPolygonToRect(subject, minX, minY, maxX, maxY) {
+    const edges = [
+        { inside: (p) => p.x >= minX, cross: (a, b) => ({ x: minX, y: a.y + (minX - a.x) / (b.x - a.x) * (b.y - a.y) }) },
+        { inside: (p) => p.x <= maxX, cross: (a, b) => ({ x: maxX, y: a.y + (maxX - a.x) / (b.x - a.x) * (b.y - a.y) }) },
+        { inside: (p) => p.y >= minY, cross: (a, b) => ({ y: minY, x: a.x + (minY - a.y) / (b.y - a.y) * (b.x - a.x) }) },
+        { inside: (p) => p.y <= maxY, cross: (a, b) => ({ y: maxY, x: a.x + (maxY - a.y) / (b.y - a.y) * (b.x - a.x) }) },
+    ];
+
+    let output = subject;
+    for (const edge of edges) {
+        const input = output;
+        output = [];
+        for (let i = 0; i < input.length; i++) {
+            const current = input[i];
+            const previous = input[(i - 1 + input.length) % input.length];
+            const currentInside = edge.inside(current);
+            if (edge.inside(previous) !== currentInside) output.push(edge.cross(previous, current));
+            if (currentInside) output.push(current);
+        }
+    }
+    return output;
+}
+
+/**
+ * builds one boulder piece's collision hull: the shared composite circle
+ * (see {@link boulderCompositeGeometry}), clipped down to just the slice
+ * falling within this piece's own tile - a rounded corner for a piece
+ * sitting at the composite's rim, or the plain tile square for one (e.g. a
+ * "huge" boulder's `center` piece) entirely inside the circle, since
+ * clipping a convex shape by a rectangle wholly contained in it just
+ * returns that rectangle. Mirrors {@link buildBoulderPieceGrid}'s own
+ * per-piece slicing, but on the collision hull instead of the color grid.
+ *
+ * @param {number} tilesPerEdge - how many tiles wide/tall the composite boulder spans (e.g. `2` or `3`).
+ * @param {number} pieceCol - this piece's column within the composite, `0`-indexed.
+ * @param {number} pieceRow - this piece's row within the composite, `0`-indexed.
+ * @returns {{points: {x: number, y: number}[]}} the collision bounds, in pixels relative to this piece's own tile centre.
+ */
+function buildBoulderPieceBounds(tilesPerEdge, pieceCol, pieceRow) {
+    const { compositeCenter, radius } = boulderCompositeGeometry(tilesPerEdge);
+
+    const circle = [];
+    for (let k = 0; k < BOULDER_CIRCLE_SAMPLES; k++) {
+        const angle = (2 * Math.PI * k) / BOULDER_CIRCLE_SAMPLES;
+        circle.push({
+            x: compositeCenter + radius * Math.cos(angle),
+            y: compositeCenter + radius * Math.sin(angle),
+        });
+    }
+
+    const minX = pieceCol * GRID;
+    const minY = pieceRow * GRID;
+    const clipped = clipPolygonToRect(circle, minX, minY, minX + GRID, minY + GRID);
+
+    const pieceCenterX = minX + GRID / 2;
+    const pieceCenterY = minY + GRID / 2;
+    const rounded = clipped.map((p) => ({
+        x: Math.round((p.x - pieceCenterX) * BLOCK),
+        y: Math.round((p.y - pieceCenterY) * BLOCK),
+    }));
+    // rounding to whole pixels can collapse two distinct clipped vertices onto the same point
+    // (e.g. a circle-sample point landing right next to a rect corner) - drop the resulting
+    // zero-length edge rather than leaving it in for SAT to shrug off at runtime.
+    const deduped = rounded.filter((p, i) => {
+        const prev = rounded[(i - 1 + rounded.length) % rounded.length];
+        return p.x !== prev.x || p.y !== prev.y;
+    });
+    return { points: deduped };
+}
+
 /**
  * one composite boulder's full set of piece row entries, one row per grid
  * row so it slots directly into {@link TILE_ROWS}. Each row holds the rock
@@ -628,7 +708,7 @@ function buildBoulderSnowPieceGrid(snow, tilesPerEdge, pieceCol, pieceRow) {
  * @param {string} family - sprite type family, e.g. `"large"`/`"huge"`.
  * @param {{ringPalettes: [object[], object[]], pithColor: number[], seed: number}} rock - shared rock palette/seed for the whole composite.
  * @param {string[][]} compassGrid - row-major compass-direction names (e.g. `"nw"`/`"n"`/`"center"`) for every piece position - see {@link COMPASS_2}/{@link COMPASS_3}.
- * @returns {{type: string, build: () => (number[]|null)[]}[][]} one array of tile row entries per row of `compassGrid`, twice as wide as `compassGrid` itself (the rock composite followed by the snow composite).
+ * @returns {{type: string, build: () => (number[]|null)[], bounds?: {points: {x: number, y: number}[]}}[][]} one array of tile row entries per row of `compassGrid`, twice as wide as `compassGrid` itself (the rock composite followed by the snow composite).
  */
 function boulderPieceRows(family, rock, compassGrid) {
     const tilesPerEdge = compassGrid.length;
@@ -636,6 +716,9 @@ function boulderPieceRows(family, rock, compassGrid) {
         ...row.map((name, pieceCol) => ({
             type: `boulder.${family}.${name}`,
             build: () => buildBoulderPieceGrid(rock, tilesPerEdge, pieceCol, pieceRow),
+            // only the rock piece needs a hull - its paired snow-cap piece (below) shares its
+            // footprint and is never itself piece.sprites[0] (see World.structurePiecePolygon)
+            bounds: buildBoulderPieceBounds(tilesPerEdge, pieceCol, pieceRow),
         })),
         ...row.map((name, pieceCol) => ({
             type: `boulder.${family}.snow.${name}`,

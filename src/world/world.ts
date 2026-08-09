@@ -15,7 +15,7 @@ import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {FeatureTag} from "./generation/feature/feature-tag";
 import {BiomeSummary} from "./generation/biome/biome";
-import {SpriteFrame} from "../sprites/sprite";
+import {SpriteFrame, SpriteTile} from "../sprites/sprite";
 import {CoordMap, CoordSet} from "./coord-set";
 import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
@@ -75,6 +75,8 @@ export class World {
         getStructureSpriteBitmap: (sprite) => this.structureSpriteTypes.has(sprite)
             ? this.structureSpriteSheet.getTileBitmap(sprite as StructureSpriteType)
             : this.cactusSpriteSheet.getTileBitmap(sprite as CactusSpriteType),
+        getStructureCollisionPolygon: (sprite, centerX, centerY, tileSize) =>
+            this.structureCollisionPolygonForSprite(sprite, centerX, centerY, tileSize),
     };
 
     /** Total elapsed time on the shared clock animated background tiles (e.g. water) read their phase from - see {@link Tile.draw}. Advanced every {@link update}. */
@@ -960,9 +962,8 @@ export class World {
      * Sweeps every tile `entity`'s bounding rect touches, testing its
      * collision polygon (see {@link Entity.getCollisionPolygon}) against
      * each one's collidable tile (via {@link Tile.getCollision}) and
-     * collidable structure piece (via its whole occupied tile square, since
-     * piece sprites don't carry their own authored hull yet). Stops at the
-     * first overlap found and reacted to - the entity may have just moved,
+     * collidable structure piece (via {@link structurePiecePolygon}). Stops
+     * at the first overlap found and reacted to - the entity may have just moved,
      * so the remaining precomputed tile range no longer reliably reflects
      * its position; next tick's sweep picks up from wherever it ends up.
      *
@@ -988,7 +989,7 @@ export class World {
 
                 const piece = this.getReadyStructurePieceAt(tileX, tileY);
                 if (piece && piece.collision !== "none") {
-                    const piecePolygon = rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize);
+                    const piecePolygon = this.structurePiecePolygon(piece, tileX, tileY);
                     const structure = this.findStructure(piece.structureId);
                     if (this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprites.join(", "), tileX, tileY, structure)) {
                         return;
@@ -996,6 +997,53 @@ export class World {
                 }
             }
         }
+    }
+
+    /**
+     * `piece`'s collision polygon, in world pixels.
+     * Note that only the base sprite is used, ignoring layers on top of it.
+     *
+     * @param piece - The structure piece to build a collision polygon for.
+     * @param tileX - The piece's tile X, in tiles from the world origin.
+     * @param tileY - The piece's tile Y, in tiles from the world origin.
+     * @returns The piece's world-space collision polygon.
+     */
+    private structurePiecePolygon(piece: StructurePieceInstance, tileX: number, tileY: number): ConvexPolygon {
+        const centerX = tileX * this.tileSize + this.tileSize / 2;
+        const centerY = tileY * this.tileSize + this.tileSize / 2;
+        return this.structureCollisionPolygonForSprite(piece.sprites[0], centerX, centerY, this.tileSize)
+            ?? rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize);
+    }
+
+    /**
+     * `sprite`'s collision hull, scaled to `tileSize` and centred at
+     * `(centerX, centerY)`.
+     *
+     * @param sprite - The structure/cactus sprite type to look up.
+     * @param centerX - Tile centre X to place the polygon at, in canvas pixels.
+     * @param centerY - Tile centre Y to place the polygon at, in canvas pixels.
+     * @param tileSize - Width/height a tile renders at, in canvas pixels.
+     * @returns The sprite's collision polygon, or `undefined` if it has no authored hull.
+     */
+    private structureCollisionPolygonForSprite(sprite: string, centerX: number, centerY: number, tileSize: number): ConvexPolygon | undefined {
+        const {bounds, w} = this.locateStructureSprite(sprite);
+        if (!bounds) {
+            return undefined;
+        }
+        const scale = tileSize / w;
+        return bounds.points.map((point) => new Vector2d(centerX + point.x * scale, centerY + point.y * scale));
+    }
+
+    /**
+     * Locates `sprite` within whichever sheet actually defines it.
+     *
+     * @param sprite - The structure/cactus sprite type to locate.
+     * @returns Its located tile, including its collision {@link SpriteBounds} if it has any.
+     */
+    private locateStructureSprite(sprite: string): SpriteTile {
+        return this.structureSpriteTypes.has(sprite)
+            ? this.structureSpriteSheet.locateTile(sprite as StructureSpriteType)
+            : this.cactusSpriteSheet.locateTile(sprite as CactusSpriteType);
     }
 
     /**
