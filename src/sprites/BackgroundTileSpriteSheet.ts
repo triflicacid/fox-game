@@ -3,8 +3,8 @@ import {SpriteSheetDescriptor, SpriteTileDescriptor} from "./sprite-sheet-descri
 import {StaticSpriteSheet} from "./StaticSpriteSheet";
 
 /** Every ground tile type in `static/background-tile-sprites.png`/`.json`. */
-export type BackgroundTileType = "grass1" | "grass2" | "grass3" | "dirt" | "gravel" | "water.light" | "water.dark"
-    | "sand1" | "sand2" | "sand3" | "water.oasis.light" | "water.oasis.dark" | "forest1" | "forest2" | "forest3"
+export type BackgroundTileType = "plains.grass1" | "plains.grass2" | "plains.grass3" | "plains.dirt" | "plains.gravel" | "water.light" | "water.dark"
+    | "desert.sand1" | "desert.sand2" | "desert.sand3" | "water.oasis.light" | "water.oasis.dark" | "forest1" | "forest2" | "forest3"
     | "tundra.barren.light" | "tundra.barren.medium" | "tundra.barren.dark"
     | "tundra.icy.light" | "tundra.icy.dark";
 

@@ -98,13 +98,13 @@ describe("ChunkGenerator biome-interior terrain depth", () => {
         for (let localY = 0; localY < 16; localY++) {
             const lowNoise = localY < 8;
 
-            expect(plains[localY][15]).toMatchObject({biomeTag: "plains", groundType: "grass2"});
-            expect(plains[localY][14].groundType).toBe(lowNoise ? "grass1" : "grass2");
-            expect(plains[localY][13].groundType).toBe(lowNoise ? "grass1" : "grass3");
+            expect(plains[localY][15]).toMatchObject({biomeTag: "plains", groundType: "plains.grass2"});
+            expect(plains[localY][14].groundType).toBe(lowNoise ? "plains.grass1" : "plains.grass2");
+            expect(plains[localY][13].groundType).toBe(lowNoise ? "plains.grass1" : "plains.grass3");
 
-            expect(desert[localY][0]).toMatchObject({biomeTag: "desert", groundType: "sand1"});
-            expect(desert[localY][1].groundType).toBe(lowNoise ? "sand2" : "sand1");
-            expect(desert[localY][2].groundType).toBe(lowNoise ? "sand2" : "sand3");
+            expect(desert[localY][0]).toMatchObject({biomeTag: "desert", groundType: "desert.sand1"});
+            expect(desert[localY][1].groundType).toBe(lowNoise ? "desert.sand2" : "desert.sand1");
+            expect(desert[localY][2].groundType).toBe(lowNoise ? "desert.sand2" : "desert.sand3");
         }
     });
 
@@ -116,9 +116,9 @@ describe("ChunkGenerator biome-interior terrain depth", () => {
         for (let localY = 0; localY < 16; localY++) {
             const lowNoise = localY < 8;
 
-            expect(plains[localY][15]).toMatchObject({biomeTag: "plains", groundType: "grass2"});
-            expect(plains[localY][14].groundType).toBe(lowNoise ? "grass1" : "grass2");
-            expect(plains[localY][13].groundType).toBe(lowNoise ? "grass1" : "grass3");
+            expect(plains[localY][15]).toMatchObject({biomeTag: "plains", groundType: "plains.grass2"});
+            expect(plains[localY][14].groundType).toBe(lowNoise ? "plains.grass1" : "plains.grass2");
+            expect(plains[localY][13].groundType).toBe(lowNoise ? "plains.grass1" : "plains.grass3");
 
             expect(forest[localY][0]).toMatchObject({biomeTag: "forest", groundType: "forest2"});
             expect(forest[localY][1].groundType).toBe(lowNoise ? "forest1" : "forest2");
@@ -134,9 +134,9 @@ describe("ChunkGenerator biome-interior terrain depth", () => {
         for (let localY = 0; localY < 16; localY++) {
             const lowNoise = localY < 8;
 
-            expect(plains[localY][15]).toMatchObject({biomeTag: "plains", groundType: "grass2"});
-            expect(plains[localY][14].groundType).toBe(lowNoise ? "grass1" : "grass2");
-            expect(plains[localY][13].groundType).toBe(lowNoise ? "grass1" : "grass3");
+            expect(plains[localY][15]).toMatchObject({biomeTag: "plains", groundType: "plains.grass2"});
+            expect(plains[localY][14].groundType).toBe(lowNoise ? "plains.grass1" : "plains.grass2");
+            expect(plains[localY][13].groundType).toBe(lowNoise ? "plains.grass1" : "plains.grass3");
 
             expect(tundra[localY][0]).toMatchObject({biomeTag: "tundra", groundType: "tundra.barren.light"});
             expect(tundra[localY][1].groundType).toBe(lowNoise ? "tundra.barren.medium" : "tundra.barren.light");

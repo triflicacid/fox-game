@@ -23,7 +23,7 @@ export interface StructureHoverInfo {
 export interface TileHoverInfo {
     tileX: number;
     tileY: number;
-    /** The tile's ground sprite, e.g. `"grass2"` - or, for an animated tile, its currently-showing frame, e.g. `"water.dark.2"` - see `Tile.getDisplayGroundType`. */
+    /** The tile's ground sprite, e.g. `"plains.grass2"` - or, for an animated tile, its currently-showing frame, e.g. `"water.dark.2"` - see `Tile.getDisplayGroundType`. */
     groundType: string;
     biomeTag: BiomeTag;
     featureTag: FeatureTag;
