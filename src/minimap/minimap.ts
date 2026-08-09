@@ -2,6 +2,11 @@ import {Vector2d} from "../geometry/vector2d";
 import {requireNonNull} from "../util";
 import {MINIMAP_CONFIG} from "./minimap-config";
 
+/** What the centre marker represents (main entity or spectator.) */
+export type MinimapMarker =
+    | {readonly kind: "entity"; readonly facing: Vector2d}
+    | {readonly kind: "spectator"};
+
 /**
  * Everything {@link Minimap.draw} needs for one frame - gathered by `World`,
  * which decides what `sampleColor` currently colours by (biome, or a
@@ -10,19 +15,13 @@ import {MINIMAP_CONFIG} from "./minimap-config";
  * same `data`/`draw` split `DebugHud` already uses.
  */
 export interface MinimapData {
-    /** World tile position (fractional) to centre the minimap on - the player's current position. */
-    playerTileX: number;
-    playerTileY: number;
-    /** Player's facing direction, as a unit vector - drawn as the centre marker's wedge. */
-    facing: Vector2d;
+    /** World tile position (fractional) to centre the minimap on. */
+    centerTile: Vector2d;
+    /** What the centre marker represents this frame - see {@link MinimapMarker}. */
+    marker: MinimapMarker;
     /** How many world tiles one minimap pixel represents this frame (at 1x zoom) */
     worldTilesPerPixel: number;
-    /**
-     * Identifies what `sampleColor` currently colours by (e.g. `"biome"` or
-     * `"noise:temperature"`). A change from the previously drawn frame forces
-     * a full bitmap resample instead of a shift/patch, since a shift would
-     * blend two different colour languages into one bitmap.
-     */
+    /** Identifies what `sampleColor` currently colours by (e.g. `"biome"` or `"noise:temperature"`). */
     modeKey: string;
     /** Resolves one sample block's fill colour, given its centre world tile position (fractional). */
     sampleColor(tileX: number, tileY: number): readonly [number, number, number];
@@ -40,8 +39,7 @@ export class Minimap {
     private bitmapCtx: OffscreenCanvasRenderingContext2D;
 
     /** World tile position (fractional) {@link bitmap}'s centre currently represents. Meaningless until {@link hasBitmap} is `true`. */
-    private centerTileX = 0;
-    private centerTileY = 0;
+    private centerTile = Vector2d.ZERO;
     /** `data.modeKey` {@link bitmap} was last built for - `undefined` before the first build. */
     private modeKey: string | undefined;
     /** `data.worldTilesPerPixel` {@link bitmap} was last built for - meaningless until {@link hasBitmap} is `true`. */
@@ -100,7 +98,7 @@ export class Minimap {
         ctx.lineWidth = MINIMAP_CONFIG.borderWidth;
         ctx.strokeRect(boxLeft + 0.5, boxTop + 0.5, box - 1, box - 1);
 
-        this.drawPlayerMarker(ctx, boxLeft + box / 2, boxTop + box / 2, data.facing);
+        this.drawCenterMarker(ctx, boxLeft + box / 2, boxTop + box / 2, data.marker);
     }
 
     /**
@@ -119,26 +117,31 @@ export class Minimap {
         this.hasBitmap = false;
     }
 
-    /** Draws the centre dot + facing wedge directly onto the main canvas, on top of the bitmap/border. */
-    private drawPlayerMarker(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, facing: Vector2d): void {
-        ctx.fillStyle = MINIMAP_CONFIG.playerMarkerColor;
+    /** Draws the centre marker directly onto the main canvas. */
+    private drawCenterMarker(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, marker: MinimapMarker): void {
+        const color = marker.kind === "spectator" ? MINIMAP_CONFIG.spectatorMarkerColor : MINIMAP_CONFIG.playerMarkerColor;
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(centerX, centerY, MINIMAP_CONFIG.playerMarkerRadiusPx, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = MINIMAP_CONFIG.playerMarkerColor;
+        if (marker.kind === "spectator") {
+            return;
+        }
+
+        ctx.strokeStyle = color;
         ctx.lineWidth = MINIMAP_CONFIG.playerMarkerWedgeWidth;
         ctx.beginPath();
         ctx.moveTo(centerX, centerY);
         ctx.lineTo(
-            centerX + facing.x * MINIMAP_CONFIG.playerMarkerWedgeLengthPx,
-            centerY + facing.y * MINIMAP_CONFIG.playerMarkerWedgeLengthPx,
+            centerX + marker.facing.x * MINIMAP_CONFIG.playerMarkerWedgeLengthPx,
+            centerY + marker.facing.y * MINIMAP_CONFIG.playerMarkerWedgeLengthPx,
         );
         ctx.stroke();
     }
 
     /**
-     * Keeps {@link bitmap} representing the world around `data.playerTileX/Y`:
+     * Keeps {@link bitmap} representing the world around `data.centerTileX/Y`:
      * builds it fresh on the first call, on a mode change (see
      * {@link MinimapData.modeKey}), a scale change (see
      * {@link MinimapData.worldTilesPerPixel} - e.g. the camera zoomed), or on
@@ -157,55 +160,49 @@ export class Minimap {
             return;
         }
 
-        const {shiftPxX, shiftPxY} = this.computeBlockShift(data);
-        if (shiftPxX === 0 && shiftPxY === 0) {
+        const shiftPx = this.computeBlockShift(data);
+        if (shiftPx.x === 0 && shiftPx.y === 0) {
             return;
         }
-        if (Math.abs(shiftPxX) >= box || Math.abs(shiftPxY) >= box) {
+        if (Math.abs(shiftPx.x) >= box || Math.abs(shiftPx.y) >= box) {
             this.rebuild(data);
             return;
         }
 
-        this.centerTileX += shiftPxX * this.worldTilesPerPixel;
-        this.centerTileY += shiftPxY * this.worldTilesPerPixel;
-        // Self-blit: well-defined per the canvas spec (the source is
-        // effectively snapshotted before the destination is overwritten) -
-        // the standard technique behind any scrolling/infinite map view.
-        this.bitmapCtx.drawImage(this.bitmap, -shiftPxX, -shiftPxY);
-        this.patchEdges(shiftPxX, shiftPxY, data);
+        this.centerTile = this.centerTile.add(shiftPx.scale(this.worldTilesPerPixel));
+        this.bitmapCtx.drawImage(this.bitmap, -shiftPx.x, -shiftPx.y);
+        this.patchEdges(shiftPx, data);
     }
 
-    /** How far, in whole `MINIMAP_CONFIG.sampleBlockPx` steps (minimap pixels), the player has moved since {@link centerTileX}/{@link centerTileY} was last updated. */
-    private computeBlockShift(data: MinimapData): {shiftPxX: number; shiftPxY: number} {
+    /** How far, in whole `MINIMAP_CONFIG.sampleBlockPx` steps (minimap pixels), the centre has moved since {@link centerTile} was last updated. */
+    private computeBlockShift(data: MinimapData): Vector2d {
         const {sampleBlockPx} = MINIMAP_CONFIG;
-        const deltaPxX = (data.playerTileX - this.centerTileX) / this.worldTilesPerPixel;
-        const deltaPxY = (data.playerTileY - this.centerTileY) / this.worldTilesPerPixel;
-        return {
-            shiftPxX: Math.trunc(deltaPxX / sampleBlockPx) * sampleBlockPx,
-            shiftPxY: Math.trunc(deltaPxY / sampleBlockPx) * sampleBlockPx,
-        };
+        const deltaPx = data.centerTile.subtract(this.centerTile).scale(1 / this.worldTilesPerPixel);
+        return new Vector2d(
+            Math.trunc(deltaPx.x / sampleBlockPx) * sampleBlockPx,
+            Math.trunc(deltaPx.y / sampleBlockPx) * sampleBlockPx,
+        );
     }
 
-    /** Discards {@link bitmap}'s content and resamples the whole box, centred on `data`'s current player position. */
+    /** Discards {@link bitmap}'s content and resamples the whole box, centred on `data`'s current centre position. */
     private rebuild(data: MinimapData): void {
-        this.centerTileX = data.playerTileX;
-        this.centerTileY = data.playerTileY;
+        this.centerTile = data.centerTile;
         this.modeKey = data.modeKey;
         this.worldTilesPerPixel = data.worldTilesPerPixel;
         this.hasBitmap = true;
         this.paintRegion(0, 0, MINIMAP_CONFIG.boxSizePx, MINIMAP_CONFIG.boxSizePx, data);
     }
 
-    /** Resamples just the strip(s) exposed by a shift of `(shiftPxX, shiftPxY)` minimap pixels - at most one per axis. */
-    private patchEdges(shiftPxX: number, shiftPxY: number, data: MinimapData): void {
+    /** Resamples just the strip(s) exposed by a shift of `shiftPx` minimap pixels - at most one per axis. */
+    private patchEdges(shiftPx: Vector2d, data: MinimapData): void {
         const box = MINIMAP_CONFIG.boxSizePx;
-        if (shiftPxX !== 0) {
-            const stripX = shiftPxX > 0 ? box - shiftPxX : 0;
-            this.paintRegion(stripX, 0, Math.abs(shiftPxX), box, data);
+        if (shiftPx.x !== 0) {
+            const stripX = shiftPx.x > 0 ? box - shiftPx.x : 0;
+            this.paintRegion(stripX, 0, Math.abs(shiftPx.x), box, data);
         }
-        if (shiftPxY !== 0) {
-            const stripY = shiftPxY > 0 ? box - shiftPxY : 0;
-            this.paintRegion(0, stripY, box, Math.abs(shiftPxY), data);
+        if (shiftPx.y !== 0) {
+            const stripY = shiftPx.y > 0 ? box - shiftPx.y : 0;
+            this.paintRegion(0, stripY, box, Math.abs(shiftPx.y), data);
         }
     }
 
@@ -214,8 +211,8 @@ export class Minimap {
         const size = MINIMAP_CONFIG.sampleBlockPx;
         for (let py = y; py < y + h; py += size) {
             for (let px = x; px < x + w; px += size) {
-                const [tileX, tileY] = this.blockCenterTile(px, py);
-                const [r, g, b] = data.sampleColor(tileX, tileY);
+                const tile = this.blockCenterTile(px, py);
+                const [r, g, b] = data.sampleColor(tile.x, tile.y);
                 this.bitmapCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
                 this.bitmapCtx.fillRect(px, py, size, size);
             }
@@ -223,13 +220,12 @@ export class Minimap {
     }
 
     /** The world tile position (fractional) at the centre of the sample block whose top-left minimap-pixel corner is `(blockPx, blockPy)`. */
-    private blockCenterTile(blockPx: number, blockPy: number): [number, number] {
+    private blockCenterTile(blockPx: number, blockPy: number): Vector2d {
         const {boxSizePx, sampleBlockPx} = MINIMAP_CONFIG;
-        const offsetPxX = blockPx + sampleBlockPx / 2 - boxSizePx / 2;
-        const offsetPxY = blockPy + sampleBlockPx / 2 - boxSizePx / 2;
-        return [
-            this.centerTileX + offsetPxX * this.worldTilesPerPixel,
-            this.centerTileY + offsetPxY * this.worldTilesPerPixel,
-        ];
+        const offsetPx = new Vector2d(
+            blockPx + sampleBlockPx / 2 - boxSizePx / 2,
+            blockPy + sampleBlockPx / 2 - boxSizePx / 2,
+        );
+        return this.centerTile.add(offsetPx.scale(this.worldTilesPerPixel));
     }
 }

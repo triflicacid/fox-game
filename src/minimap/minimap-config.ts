@@ -20,14 +20,16 @@ export const MINIMAP_CONFIG = {
     /** Stroke width for the minimap's border, in canvas pixels. */
     borderWidth: 2,
 
-    /** Fill/stroke colour for the player marker (centre dot + facing wedge). */
+    /** Fill/stroke colour for the main entity's centre marker (dot + facing wedge). */
     playerMarkerColor: "#ff3333",
-    /** Radius of the player marker's centre dot, in canvas pixels. */
+    /** Radius of the centre marker's dot, in canvas pixels - shared by both the entity and spectator markers. */
     playerMarkerRadiusPx: 3,
-    /** Length of the player marker's facing wedge, in canvas pixels. */
+    /** Length of the entity marker's facing wedge, in canvas pixels. */
     playerMarkerWedgeLengthPx: 8,
-    /** Stroke width of the player marker's facing wedge, in canvas pixels. */
+    /** Stroke width of the entity marker's facing wedge, in canvas pixels. */
     playerMarkerWedgeWidth: 2,
+    /** Fill colour for the centre marker while spectating - no facing wedge, since spectating has no facing direction. */
+    spectatorMarkerColor: "#0099ff",
 
     /** Gap between the minimap's bottom edge and the stats HUD below it (debug mode only), in canvas pixels. */
     statsHudGap: 8,

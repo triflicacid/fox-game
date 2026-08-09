@@ -20,7 +20,7 @@ import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
 import {getFieldGradient, sampleGradient} from "./generation/noise-field-colors";
 import {BIOME_COLORS} from "./generation/biome/biome-colors";
-import {Minimap, MinimapData} from "../minimap/minimap";
+import {Minimap, MinimapData, MinimapMarker} from "../minimap/minimap";
 import {MINIMAP_CONFIG} from "../minimap/minimap-config";
 import {MinimapStatsHud, MinimapStatsHudData} from "../minimap/minimap-stats-hud";
 import {Structure, StructurePieceInstance} from "./generation/structure/structure";
@@ -1339,7 +1339,8 @@ export class World {
 
         let minimapData: MinimapData | undefined;
         if (this.minimapEnabled) {
-            minimapData = this.buildMinimapData(camera, debugEnabled, noiseFieldName);
+            const center = spectating ? camera.getCenter() : this.requireMainEntity().getPosition();
+            minimapData = this.buildMinimapData(center, spectating, camera, debugEnabled, noiseFieldName);
             this.minimap.draw(ctx, ctx.canvas.width, minimapData);
         }
 
@@ -1360,25 +1361,27 @@ export class World {
     /**
      * Gathers this frame's minimap data.
      *
+     * @param center - World-pixel point to centre the minimap on - the main
+     * entity's position normally, or the camera's centre while spectating
+     * (see `World.draw`).
+     * @param spectating - Whether spectator mode is currently active - determines the centre marker (see {@link MinimapMarker}).
      * @param camera - The active camera.
      * @param debugEnabled - Whether debug mode is currently on.
      * @param noiseFieldName - Name of the currently selected debug noise field, if any.
      * @returns This frame's minimap data - see {@link MinimapData}.
      */
-    private buildMinimapData(camera: Camera, debugEnabled: boolean, noiseFieldName?: string): MinimapData {
-        const mainEntity = this.requireMainEntity();
-        const position = mainEntity.getPosition();
-        const playerTileX = position.x / this.tileSize;
-        const playerTileY = position.y / this.tileSize;
-        const facing = mainEntity.getFacingVector();
+    private buildMinimapData(center: Vector2d, spectating: boolean, camera: Camera, debugEnabled: boolean, noiseFieldName?: string): MinimapData {
+        const centerTile = center.scale(1 / this.tileSize);
+        const marker: MinimapMarker = spectating
+            ? {kind: "spectator"}
+            : {kind: "entity", facing: this.requireMainEntity().getFacingVector()};
         const worldTilesPerPixel = MINIMAP_CONFIG.worldTilesPerPixel / camera.getZoom();
 
         if (debugEnabled && noiseFieldName) {
             const gradient = getFieldGradient(noiseFieldName);
             return {
-                playerTileX,
-                playerTileY,
-                facing,
+                centerTile,
+                marker,
                 worldTilesPerPixel,
                 modeKey: `noise:${noiseFieldName}`,
                 sampleColor: (tileX, tileY) => sampleGradient(gradient, this.getNoiseFieldSample(noiseFieldName, tileX, tileY) ?? 0),
@@ -1386,9 +1389,8 @@ export class World {
         }
 
         return {
-            playerTileX,
-            playerTileY,
-            facing,
+            centerTile,
+            marker,
             worldTilesPerPixel,
             modeKey: "biome",
             sampleColor: (tileX, tileY) => BIOME_COLORS[this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)],
@@ -1408,12 +1410,12 @@ export class World {
      * @returns This frame's minimap stats data - see {@link MinimapStatsHudData}.
      */
     private buildMinimapStatsData(minimapData: MinimapData): MinimapStatsHudData {
-        const {playerTileX, playerTileY, worldTilesPerPixel} = minimapData;
+        const {centerTile, worldTilesPerPixel} = minimapData;
         const halfSpanTiles = (MINIMAP_CONFIG.boxSizePx / 2) * worldTilesPerPixel;
-        const minTileX = playerTileX - halfSpanTiles;
-        const minTileY = playerTileY - halfSpanTiles;
-        const maxTileX = playerTileX + halfSpanTiles;
-        const maxTileY = playerTileY + halfSpanTiles;
+        const minTileX = centerTile.x - halfSpanTiles;
+        const minTileY = centerTile.y - halfSpanTiles;
+        const maxTileX = centerTile.x + halfSpanTiles;
+        const maxTileY = centerTile.y + halfSpanTiles;
 
         const biomeCounts: Record<BiomeTag, number> = {plains: 0, desert: 0, forest: 0, tundra: 0};
         const grid = MINIMAP_CONFIG.statsBiomeSampleGrid;
