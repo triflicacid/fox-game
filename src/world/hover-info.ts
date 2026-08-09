@@ -6,11 +6,11 @@ import {TileAnimationInfo} from "./tile";
 
 /** The structure piece (if any) occupying a hovered tile - see {@link TileHoverInfo.structure}. */
 export interface StructureHoverInfo {
-    /** The piece's sprite type, e.g. `"tree.oak.log_round"`. */
-    sprite: string;
+    /** Sprites stacked at this piece, bottom to top, e.g. `["boulder.large.nw", "boulder.large.snow.nw"]`. */
+    sprites: readonly string[];
     /** Which `Structure` produced this piece, e.g. `"tree"`/`"cactus"` - see {@link Structure.getStructureId}. */
     structureId: string;
-    /** Whether this piece draws before or after entities - see {@link StructureManifestPiece.role}/`Structure`'s class doc. */
+    /** Whether this piece draws before or after entities - see {@link StructureManifestPiece.layer}/`Structure`'s class doc. */
     layer: StructureLayer;
     /** How an entity overlapping this piece's tile reacts, or `undefined` if it isn't collidable - see {@link StructurePieceInstance.collision}. */
     collision: Exclude<CollisionResponseKind, "none"> | undefined;

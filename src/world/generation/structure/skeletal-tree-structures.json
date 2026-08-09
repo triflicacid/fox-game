@@ -1,0 +1,22 @@
+{
+  "skeletal": [
+    {
+      "id": "skeletal-1",
+      "pieces": [
+        {"x": 0, "y": 0, "roles": ["1"], "layer": "foreground", "collision": "solid"}
+      ]
+    },
+    {
+      "id": "skeletal-2",
+      "pieces": [
+        {"x": 0, "y": 0, "roles": ["2"], "layer": "foreground", "collision": "solid"}
+      ]
+    },
+    {
+      "id": "skeletal-3",
+      "pieces": [
+        {"x": 0, "y": 0, "roles": ["3"], "layer": "foreground", "collision": "solid"}
+      ]
+    }
+  ]
+}

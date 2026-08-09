@@ -134,7 +134,7 @@ export class Chunk {
             this.structureOccupancy.set(piece.worldX, piece.worldY, piece);
         }
 
-        const distinctSprites = [...new Set(this.structurePieces.map((piece) => piece.sprite))];
+        const distinctSprites = [...new Set(this.structurePieces.flatMap((piece) => piece.sprites))];
         await Promise.all(distinctSprites.map(async (sprite) => {
             this.structureBitmaps.set(sprite, await spriteSheets.getStructureSpriteBitmap(sprite));
         }));
@@ -244,10 +244,12 @@ export class Chunk {
             if (piece.layer !== layer) {
                 continue;
             }
-            const bitmap = requireNonNull(this.structureBitmaps.get(piece.sprite));
             const localX = (piece.worldX - chunkOriginX) * tileSize;
             const localY = (piece.worldY - chunkOriginY) * tileSize;
-            ctx.drawImage(bitmap, localX, localY, tileSize, tileSize);
+            for (const sprite of piece.sprites) {
+                const bitmap = requireNonNull(this.structureBitmaps.get(sprite));
+                ctx.drawImage(bitmap, localX, localY, tileSize, tileSize);
+            }
         }
     }
 
