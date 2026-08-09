@@ -222,16 +222,16 @@ const TUNDRA_ICY_DARK = {
 // row 0: plains terrain; row 1: desert terrain; row 2: forest terrain; row 3: tundra terrain
 const TILE_ROWS = [
     [
-        { type: "grass1", ...GRASS_VARIANTS[0] },
-        { type: "grass2", ...GRASS_VARIANTS[1] },
-        { type: "grass3", ...GRASS_VARIANTS[2] },
-        { type: "dirt", ...DIRT },
-        { type: "gravel", ...GRAVEL },
+        { type: "plains.grass1", ...GRASS_VARIANTS[0] },
+        { type: "plains.grass2", ...GRASS_VARIANTS[1] },
+        { type: "plains.grass3", ...GRASS_VARIANTS[2] },
+        { type: "plains.dirt", ...DIRT },
+        { type: "plains.gravel", ...GRAVEL },
     ],
     [
-        { type: "sand1", ...SAND_VARIANTS[1] }, // brightest palette - see SAND_VARIANTS
-        { type: "sand2", ...SAND_VARIANTS[0] },
-        { type: "sand3", ...SAND_VARIANTS[2] }, // darkest palette
+        { type: "desert.sand1", ...SAND_VARIANTS[1] }, // brightest palette - see SAND_VARIANTS
+        { type: "desert.sand2", ...SAND_VARIANTS[0] },
+        { type: "desert.sand3", ...SAND_VARIANTS[2] }, // darkest palette
     ],
     [
         { type: "forest1", ...FOREST_VARIANTS[0] },

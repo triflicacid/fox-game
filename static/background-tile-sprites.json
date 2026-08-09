@@ -3,49 +3,49 @@
   "cellHeight": 32,
   "rows": [
     {
-      "type": "grass1",
+      "type": "plains.grass1",
       "x": 0,
       "y": 0,
       "interactable": false
     },
     {
-      "type": "grass2",
+      "type": "plains.grass2",
       "x": 32,
       "y": 0,
       "interactable": false
     },
     {
-      "type": "grass3",
+      "type": "plains.grass3",
       "x": 64,
       "y": 0,
       "interactable": false
     },
     {
-      "type": "dirt",
+      "type": "plains.dirt",
       "x": 96,
       "y": 0,
       "interactable": false
     },
     {
-      "type": "gravel",
+      "type": "plains.gravel",
       "x": 128,
       "y": 0,
       "interactable": false
     },
     {
-      "type": "sand1",
+      "type": "desert.sand1",
       "x": 0,
       "y": 32,
       "interactable": false
     },
     {
-      "type": "sand2",
+      "type": "desert.sand2",
       "x": 32,
       "y": 32,
       "interactable": false
     },
     {
-      "type": "sand3",
+      "type": "desert.sand3",
       "x": 64,
       "y": 32,
       "interactable": false
