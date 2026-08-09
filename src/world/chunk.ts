@@ -10,6 +10,7 @@ import {CoordMap} from "./coord-set";
 import {requireNonNull} from "../util";
 import {NoiseField} from "./generation/noise-field";
 import {GradientStop, sampleGradient} from "./generation/noise-field-colors";
+import {ConvexPolygon, rectPolygon} from "../geometry/convex-polygon";
 
 export type {ChunkSpriteSheets};
 export {CHUNK_SIZE};
@@ -99,7 +100,7 @@ export class Chunk {
         public readonly chunkX: number,
         public readonly chunkY: number,
         generation: Promise<ChunkGenerationResult>,
-        spriteSheets: ChunkSpriteSheets,
+        private readonly spriteSheets: ChunkSpriteSheets,
         tileSize: number,
     ) {
         void this.hydrate(generation, spriteSheets, tileSize);
@@ -537,11 +538,20 @@ export class Chunk {
     }
 
     /**
-     * Outlines every tile edge where structure-piece occupancy differs from
-     * the neighbouring tile. Unlike {@link drawFeatureOutlines}, this also
-     * covers the chunk's own outer edge: {@link structureOccupancy} already
-     * includes halo-sourced pieces anchored in a neighbouring chunk, so a
-     * tree spilling across the boundary still outlines correctly here.
+     * Outlines every structure piece touching this chunk: a collidable piece
+     * (see {@link StructurePieceInstance.collision}) draws its own actual
+     * collision hull (see {@link ChunkSpriteSheets.getStructureCollisionPolygon} -
+     * the very shape `World.handleEntityCollisions` collides against, not
+     * just its occupied tile square), so this overlay can never drift out of
+     * sync with real collision the way a separately-drawn approximation
+     * could. A non-collidable piece (e.g. a leaf tile) has no such hull to
+     * show, so it instead joins a merged tile-edge trace with its
+     * like-kind neighbours - outlining every tile edge where non-collidable
+     * occupancy differs from the neighbouring tile, the same as before this
+     * split existed. Unlike {@link drawFeatureOutlines}, both also cover the
+     * chunk's own outer edge: {@link structureOccupancy} already includes
+     * halo-sourced pieces anchored in a neighbouring chunk, so a tree
+     * spilling across the boundary still outlines correctly here.
      *
      * @param ctx - Canvas context to draw into.
      * @param originX - Canvas X position of this chunk's top-left corner.
@@ -554,31 +564,46 @@ export class Chunk {
 
         const chunkOriginX = this.chunkX * CHUNK_SIZE;
         const chunkOriginY = this.chunkY * CHUNK_SIZE;
-        const occupied = (worldX: number, worldY: number): boolean => this.structureOccupancy.has(worldX, worldY);
+        // Non-collidable pieces alone, for the merged edge-trace below - a collidable piece never
+        // participates in it, since it draws its own independent hull instead (see the loop below).
+        const nonCollidableOccupied = (worldX: number, worldY: number): boolean => {
+            const piece = this.structureOccupancy.get(worldX, worldY);
+            return piece !== undefined && piece.collision === "none";
+        };
 
         for (let y = 0; y < CHUNK_SIZE; y++) {
             for (let x = 0; x < CHUNK_SIZE; x++) {
                 const worldX = chunkOriginX + x;
                 const worldY = chunkOriginY + y;
-                if (!occupied(worldX, worldY)) {
+                const piece = this.structureOccupancy.get(worldX, worldY);
+                if (!piece) {
                     continue;
                 }
 
                 const left = originX + x * tileSize;
                 const top = originY + y * tileSize;
+
+                if (piece.collision !== "none") {
+                    const polygon = this.spriteSheets.getStructureCollisionPolygon(
+                        piece.sprites[0], left + tileSize / 2, top + tileSize / 2, tileSize,
+                    ) ?? rectPolygon(left, top, tileSize, tileSize);
+                    this.strokePolygon(ctx, polygon);
+                    continue;
+                }
+
                 const right = left + tileSize;
                 const bottom = top + tileSize;
 
-                if (!occupied(worldX - 1, worldY)) {
+                if (!nonCollidableOccupied(worldX - 1, worldY)) {
                     this.strokeLine(ctx, left, top, left, bottom);
                 }
-                if (!occupied(worldX + 1, worldY)) {
+                if (!nonCollidableOccupied(worldX + 1, worldY)) {
                     this.strokeLine(ctx, right, top, right, bottom);
                 }
-                if (!occupied(worldX, worldY - 1)) {
+                if (!nonCollidableOccupied(worldX, worldY - 1)) {
                     this.strokeLine(ctx, left, top, right, top);
                 }
-                if (!occupied(worldX, worldY + 1)) {
+                if (!nonCollidableOccupied(worldX, worldY + 1)) {
                     this.strokeLine(ctx, left, bottom, right, bottom);
                 }
             }
@@ -596,6 +621,25 @@ export class Chunk {
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
+        ctx.stroke();
+    }
+
+    /**
+     * Strokes `polygon` as a closed loop.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param polygon - The polygon to stroke, in the same canvas-pixel space as `ctx`.
+     */
+    private strokePolygon(ctx: DrawContext, polygon: ConvexPolygon): void {
+        ctx.beginPath();
+        polygon.forEach((point, i) => {
+            if (i === 0) {
+                ctx.moveTo(point.x, point.y);
+            } else {
+                ctx.lineTo(point.x, point.y);
+            }
+        });
+        ctx.closePath();
         ctx.stroke();
     }
 }
