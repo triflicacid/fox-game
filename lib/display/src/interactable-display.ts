@@ -1,5 +1,5 @@
 import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from "./display";
-import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HrInput, HrLength, Input, NumberInput, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
+import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HrInput, HrLength, Input, NumberInput, PieChartClass, PieChartInput, PieChartLegend, PieChartLegendSide, PieChartLegendValueDisplay, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
 import {ChromeTheme} from "./chrome-theme";
 import {ResolvedStateStyle, resolveStateStyle} from "./state-style";
 import {Alignment, TextSegment, TextStyle} from "./text-style";
@@ -41,6 +41,8 @@ export interface InteractableDisplayDefaults extends DisplayDefaults {
     buttonPressedTextOffset: number;
     /** Fill colour of the sheen painted over a disabled input to grey it out - its whole box for a number/select input, or just the marker/box for a radio option/checkbox. Buttons have no box to grey out - a disabled one just stops highlighting/activating. */
     disabledOverlayColor: string;
+    /** Width/height of a pie chart legend row's colour swatch, in canvas pixels, before that chart's own `scale`. */
+    pieChartLegendSwatchSize: number;
 }
 
 /** A resolved, measured plain-text item within a line. */
@@ -61,6 +63,70 @@ interface ResolvedHrElement {
     background: string | undefined;
     /** See {@link HrInput.length}. */
     length: HrLength;
+}
+
+/**
+ * One resolved wedge - `startAngle`/`endAngle` in radians, ready for
+ * `ctx.arc`. Colours already reflect focus.
+ */
+interface ResolvedPieChartWedge {
+    startAngle: number;
+    endAngle: number;
+    fillColor: string;
+    outlineColor: string | undefined;
+    /** `1` unless dimmed - see {@link InteractableDisplay.resolvePieChartWedges}. */
+    opacity: number;
+}
+
+/** One resolved, measured legend row within a {@link ResolvedPieChartElement}. */
+interface ResolvedPieChartLegendRow {
+    /** Swatch colour. */
+    color: string;
+    runs: MeasuredRun[];
+    labelWidth: number;
+    /** Largest font size used in the label, in canvas pixels. */
+    fontSize: number;
+    /** The represented class's `onClick`, or `undefined` if it set none. */
+    onClick: (() => void) | undefined;
+}
+
+/** One legend row's class plus any override fields - all `undefined` for an `auto` row. */
+interface PieChartLegendSource {
+    class: PieChartClass;
+    colorOverride: string | undefined;
+    contentOverride: (string | TextSegment[]) | undefined;
+    styleOverride: TextStyle | undefined;
+}
+
+/**
+ * A resolved, measured {@link PieChartInput}: its wedges plus its legend
+ * rows, if any. Has no box of its own to focus/click, so its rows are laid
+ * out separately, via {@link InteractableDisplay.layoutPieChartLegend}.
+ */
+interface ResolvedPieChartElement {
+    kind: "piechart";
+    /** Pie radius, in canvas pixels, `scale` already applied. */
+    radius: number;
+    /** Wedge outline thickness, in canvas pixels, `scale` already applied. */
+    outlineThickness: number;
+    wedges: ResolvedPieChartWedge[];
+    /** `null` when the chart has no `legend`. */
+    legend: ResolvedPieChartLegendRow[] | null;
+    /** Whether `legend`'s rows are individually focusable - `true` for any non-empty legend. */
+    legendFocusable: boolean;
+    legendSide: PieChartLegendSide;
+    /** Gap between the pie and the legend, in canvas pixels, `scale` already applied. */
+    legendGap: number;
+    /** Width/height of each legend row's colour swatch, in canvas pixels, `scale` already applied. */
+    swatchSize: number;
+    /** The legend block's own width, independent of the pie - `0` when there's no legend. */
+    legendWidth: number;
+    /** The legend block's own height, independent of the pie - `0` when there's no legend. */
+    legendHeight: number;
+    /** Overall bounding width: the pie and legend block side by side (`left`/`right`) or stacked (`top`/`bottom`), `legendGap` apart. */
+    width: number;
+    /** Overall bounding height, per the same layout as `width`. */
+    height: number;
 }
 
 /** A single resolved, measured option within a resolved radio input. */
@@ -249,7 +315,7 @@ interface LineItemMeta {
     margin: ResolvedSpacing;
 }
 
-type ResolvedElement = (ResolvedTextElement | ResolvedHrElement | ResolvedFocusableElement) & LineItemMeta;
+type ResolvedElement = (ResolvedTextElement | ResolvedHrElement | ResolvedPieChartElement | ResolvedFocusableElement) & LineItemMeta;
 
 /** A line's resolved elements, plus its measured layout - see {@link InteractableDisplay.resolveElements}. */
 export interface ResolvedElementLine {
@@ -330,11 +396,20 @@ export const DEFAULT_INTERACTABLE_DISPLAY_DEFAULTS: InteractableDisplayDefaults 
     buttonPaddingY: 4,
     buttonPressedTextOffset: 1,
     disabledOverlayColor: "rgba(128, 128, 128, 0.5)",
+    pieChartLegendSwatchSize: 10,
 };
 
-/** Determines if `item` is an {@link Input} (any kind - they all carry a `kind` field). */
+/** Every literal `kind` value {@link Input} can carry - a {@link PieChartInput} also has a `kind` but isn't one. */
+const INPUT_KINDS: ReadonlySet<string> = new Set<Input["kind"]>(["radio", "checkbox", "number", "textbox", "button", "select", "hr"]);
+
+/** Determines if `item` is an {@link Input} (any kind). */
 function isInput(item: DisplayLineItem): item is Input {
-    return "kind" in item;
+    return "kind" in item && INPUT_KINDS.has(item.kind);
+}
+
+/** Determines if `item` is a {@link PieChartInput}. */
+function isPieChart(item: DisplayLineItem): item is PieChartInput {
+    return "kind" in item && item.kind === "piechart";
 }
 
 /**
@@ -916,6 +991,151 @@ export class InteractableDisplay extends Display {
     }
 
     /**
+     * Resolves a legend's ordered row sources: every non-`hidden` class for
+     * `auto`, or each `entries` row's matching class otherwise (dropping
+     * any entry that matches none). Shared by {@link resolvePieChartFocus}
+     * and {@link resolvePieChartLegendRows} so both walk the same rows in
+     * the same order.
+     */
+    private resolvePieChartLegendSources(item: PieChartInput, legend: PieChartLegend): PieChartLegendSource[] {
+        if (legend.auto) {
+            return item.classes.filter((c) => !c.hidden).map((c) => ({class: c, colorOverride: undefined, contentOverride: undefined, styleOverride: undefined}));
+        }
+        const classByKey = new Map(item.classes.map((c) => [c.key, c]));
+        return legend.entries.filter((e) => !e.hidden).flatMap((e): PieChartLegendSource[] => {
+            const c = classByKey.get(e.key);
+            if (c === undefined || c.hidden) {
+                return [];
+            }
+            return [{class: c, colorOverride: e.color, contentOverride: e.content, styleOverride: e.style}];
+        });
+    }
+
+    /**
+     * Consumes one focus-index slot per legend row source, in order -
+     * mirrors {@link layoutPieChartLegend}'s own order.
+     *
+     * @returns Each class's `key` mapped to whether its row is focused.
+     */
+    private resolvePieChartFocus(sources: PieChartLegendSource[]): ReadonlyMap<string, boolean> {
+        const focusByKey = new Map<string, boolean>();
+        for (const {class: c} of sources) {
+            focusByKey.set(c.key, this.wasFocusedIndex(this.nextResolveIndex()));
+        }
+        return focusByKey;
+    }
+
+    /**
+     * Resolves wedge angles (clockwise from 12 o'clock), proportional to
+     * each visible class's share of the total. A focused class draws with
+     * its `selected*Color`; every other legend-linked class dims to
+     * `dimOpacity`, if set, while any one of them is focused.
+     */
+    private resolvePieChartWedges(classes: PieChartClass[], focusByKey: ReadonlyMap<string, boolean>, dimOpacity: number | undefined): ResolvedPieChartWedge[] {
+        const visible = classes.filter((c) => !c.hidden && c.value > 0);
+        const total = visible.reduce((sum, c) => sum + c.value, 0);
+        if (total <= 0) {
+            return [];
+        }
+        const anyFocused = [...focusByKey.values()].some((focused) => focused);
+        let angle = -Math.PI / 2;
+        return visible.map((c) => {
+            const sweep = (c.value / total) * Math.PI * 2;
+            const focused = focusByKey.get(c.key) ?? false;
+            // A class with no legend row (not in `focusByKey`) is never
+            // dimmed - it can't be the focused one either, so it stays put.
+            const dim = dimOpacity !== undefined && anyFocused && focusByKey.has(c.key) && !focused;
+            const wedge: ResolvedPieChartWedge = {
+                startAngle: angle,
+                endAngle: angle + sweep,
+                fillColor: (focused ? c.selectedFillColor : undefined) ?? c.fillColor,
+                outlineColor: (focused ? c.selectedOutlineColor : undefined) ?? c.outlineColor,
+                opacity: dim ? dimOpacity : 1,
+            };
+            angle += sweep;
+            return wedge;
+        });
+    }
+
+    /** Formats one row's `showValue` suffix: `value`'s share of `total` as a rounded percentage, `value` itself, or nothing. */
+    private formatPieChartLegendValueSuffix(showValue: PieChartLegendValueDisplay, value: number, total: number): string {
+        switch (showValue) {
+            case "percentage":
+                return ` (${total > 0 ? Math.round((value / total) * 100) : 0}%)`;
+            case "value":
+                return ` (${value})`;
+            case "none":
+                return "";
+        }
+    }
+
+    /** Appends the formatted suffix to `content` - a no-op when it's empty. */
+    private appendPieChartLegendValueSuffix(content: string | TextSegment[], showValue: PieChartLegendValueDisplay, value: number, total: number): string | TextSegment[] {
+        const suffix = this.formatPieChartLegendValueSuffix(showValue, value, total);
+        if (suffix === "") {
+            return content;
+        }
+        return typeof content === "string" ? content + suffix : [...content, {content: suffix}];
+    }
+
+    /**
+     * Styles and measures each legend row: label defaults to the class's
+     * `label`/`key` (entry `content` overrides it), suffixed per
+     * `showValue`, plus `selectedStyle` while focused. `scale` grows the
+     * font via `fontSizeDelta`.
+     */
+    private resolvePieChartLegendRows(ctx: CanvasRenderingContext2D, item: PieChartInput, legend: PieChartLegend, scale: number, sources: PieChartLegendSource[], focusByKey: ReadonlyMap<string, boolean>): ResolvedPieChartLegendRow[] {
+        const showValue = legend.showValue ?? "none";
+        const total = item.classes.filter((c) => !c.hidden).reduce((sum, c) => sum + c.value, 0);
+
+        return sources.map(({class: c, colorOverride, contentOverride, styleOverride}) => {
+            const focused = focusByKey.get(c.key) ?? false;
+            const content = this.appendPieChartLegendValueSuffix(contentOverride ?? c.label ?? c.key, showValue, c.value, total);
+            const ambientStyle = this.mergeStyle(legend.style, styleOverride, focused ? c.selectedStyle : undefined);
+            const styled = this.withAmbientStyle(this.normaliseContent(content), ambientStyle);
+            const scaled = scale === 1 ? styled : this.withAmbientStyle(styled, {fontSizeDelta: (size) => size * scale});
+            const {runs, width: labelWidth, maxFontSize} = this.resolveLine(ctx, scaled);
+            return {color: colorOverride ?? c.fillColor, runs, labelWidth, fontSize: maxFontSize, onClick: c.onClick};
+        });
+    }
+
+    /** Resolves a pie chart's wedges, legend rows, and bounding box. `scale` multiplies every dimension. */
+    private resolvePieChart(ctx: CanvasRenderingContext2D, item: PieChartInput): ResolvedPieChartElement {
+        const scale = item.scale ?? 1;
+        const radius = item.radius * scale;
+        const outlineThickness = (item.outlineThickness ?? 1) * scale;
+        const sources = item.legend ? this.resolvePieChartLegendSources(item, item.legend) : [];
+        const focusByKey = this.resolvePieChartFocus(sources);
+        const wedges = this.resolvePieChartWedges(item.classes, focusByKey, item.legend?.dimOpacity);
+        const pieSize = radius * 2;
+
+        const legendSide = item.legend?.side ?? "right";
+        const legendGap = (item.legend?.gap ?? 8) * scale;
+        const swatchSize = this.defaults.pieChartLegendSwatchSize * scale;
+        const legend = item.legend ? this.resolvePieChartLegendRows(ctx, item, item.legend, scale, sources, focusByKey) : null;
+        const legendFocusable = legend !== null && legend.length > 0;
+        const horizontal = legendSide === "top" || legendSide === "bottom";
+
+        let legendWidth = 0;
+        let legendHeight = 0;
+        if (legend !== null && legend.length > 0) {
+            if (horizontal) {
+                legendWidth = legend.reduce((sum, row) => sum + swatchSize + this.defaults.checkboxGap + row.labelWidth, 0) + legendGap * (legend.length - 1);
+                legendHeight = Math.max(...legend.map((row) => Math.max(swatchSize, row.fontSize)));
+            } else {
+                legendWidth = Math.max(...legend.map((row) => swatchSize + this.defaults.checkboxGap + row.labelWidth));
+                legendHeight = legend.reduce((sum, row) => sum + Math.max(swatchSize, row.fontSize), 0) + legendGap * (legend.length - 1);
+            }
+        }
+
+        const hasLegend = legendWidth > 0 || legendHeight > 0;
+        const width = !hasLegend ? pieSize : (horizontal ? Math.max(pieSize, legendWidth) : pieSize + legendGap + legendWidth);
+        const height = !hasLegend ? pieSize : (horizontal ? pieSize + legendGap + legendHeight : Math.max(pieSize, legendHeight));
+
+        return {kind: "piechart", radius, outlineThickness, wedges, legend, legendFocusable, legendSide, legendGap, swatchSize, legendWidth, legendHeight, width, height};
+    }
+
+    /**
      * Resolves and measures an {@link Input} (any kind but {@link HrInput},
      * which {@link resolveElements} handles separately since it isn't
      * focusable) into its {@link ResolvedInputElement}, dispatching on `kind`.
@@ -937,13 +1157,14 @@ export class InteractableDisplay extends Display {
         }
     }
 
-    /** This element's own box height before padding/margin: a button/number/textbox/select's own padded `height`, or every other kind's font size. */
+    /** This element's own box height before padding/margin: a button/number/textbox/select/piechart's own padded `height`, or every other kind's font size. */
     private ownHeight(element: ResolvedElement): number {
         switch (element.kind) {
             case "button":
             case "number":
             case "textbox":
             case "select":
+            case "piechart":
                 return element.height;
             default:
                 return element.fontSize;
@@ -975,9 +1196,10 @@ export class InteractableDisplay extends Display {
      * flatten to styled runs; `interactive` text and inputs resolve via
      * {@link resolveInteractiveText}/{@link resolveInput}; an {@link
      * HrInput} resolves via {@link resolveHr} (its bar stays `0` wide until
-     * {@link resolveHrLengths} sizes it). A `hidden` item contributes
-     * nothing, as if absent. Line height fits the largest font or an
-     * element's own outer (padded/margined) height, whichever is taller.
+     * {@link resolveHrLengths} sizes it); a {@link PieChartInput} resolves
+     * via {@link resolvePieChart}. A `hidden` item contributes nothing, as
+     * if absent. Line height fits the largest font or an element's own
+     * outer (padded/margined) height, whichever is taller.
      */
     public resolveElements(ctx: CanvasRenderingContext2D, line: DisplayLine): ResolvedElementLine {
         let width = 0;
@@ -997,6 +1219,17 @@ export class InteractableDisplay extends Display {
                 const element = this.resolveHr(item);
                 maxFontSize = Math.max(maxFontSize, element.thickness);
                 const resolved: ResolvedElement = {...element, fontSize: element.thickness, align, padding, margin};
+                width += this.outerWidth(resolved);
+                maxOuterHeight = Math.max(maxOuterHeight, this.outerHeight(resolved));
+                return [resolved];
+            }
+
+            if (isPieChart(item)) {
+                if (item.hidden) {
+                    return [];
+                }
+                const element = this.resolvePieChart(ctx, item);
+                const resolved: ResolvedElement = {...element, fontSize: 0, align, padding, margin};
                 width += this.outerWidth(resolved);
                 maxOuterHeight = Math.max(maxOuterHeight, this.outerHeight(resolved));
                 return [resolved];
@@ -1114,6 +1347,128 @@ export class InteractableDisplay extends Display {
             const midY = y + element.thickness / 2;
             this.theme.drawLine(ctx, x, midY, x + element.width, midY, element.thickness);
         }
+    }
+
+    /** The wedges' shared centre point in a resolved pie chart's `(x, y)` box, offset per `legendSide`. */
+    private pieChartWedgeCenter(element: ResolvedPieChartElement, x: number, y: number): {x: number; y: number} {
+        if (element.legend === null) {
+            return {x: x + element.radius, y: y + element.radius};
+        }
+        const pieSize = element.radius * 2;
+        switch (element.legendSide) {
+            case "left":
+                return {x: x + element.legendWidth + element.legendGap + element.radius, y: y + element.height / 2};
+            case "top":
+                return {x: x + element.width / 2, y: y + element.legendHeight + element.legendGap + element.radius};
+            case "bottom":
+                return {x: x + element.width / 2, y: y + element.radius};
+            case "right":
+            default:
+                return {x: x + element.radius, y: y + element.height / 2};
+        }
+    }
+
+    /** The legend block's top-left origin in a resolved pie chart's `(x, y)` box, per `legendSide` - `null` with no legend. */
+    private pieChartLegendOrigin(element: ResolvedPieChartElement, x: number, y: number): {x: number; y: number} | null {
+        if (element.legend === null) {
+            return null;
+        }
+        const pieSize = element.radius * 2;
+        switch (element.legendSide) {
+            case "left":
+                return {x, y: y + (element.height - element.legendHeight) / 2};
+            case "top":
+                return {x: x + (element.width - element.legendWidth) / 2, y};
+            case "bottom":
+                return {x: x + (element.width - element.legendWidth) / 2, y: y + pieSize + element.legendGap};
+            case "right":
+            default:
+                return {x: x + pieSize + element.legendGap, y: y + (element.height - element.legendHeight) / 2};
+        }
+    }
+
+    /** Each legend row's rect (swatch + gap + label), walked from `(x, y)`. Shared by paint and layout, so they can't drift apart. */
+    private pieChartLegendRowRects(element: ResolvedPieChartElement, x: number, y: number): BoundingRect[] {
+        if (element.legend === null) {
+            return [];
+        }
+        const horizontal = element.legendSide === "top" || element.legendSide === "bottom";
+        let rowX = x;
+        let rowY = y;
+        return element.legend.map((row) => {
+            const rowHeight = Math.max(element.swatchSize, row.fontSize);
+            const rowWidth = element.swatchSize + this.defaults.checkboxGap + row.labelWidth;
+            const rect: BoundingRect = {x: rowX, y: rowY, w: rowWidth, h: rowHeight};
+            if (horizontal) {
+                rowX += rowWidth + element.legendGap;
+            } else {
+                rowY += rowHeight + element.legendGap;
+            }
+            return rect;
+        });
+    }
+
+    /** Draws a resolved pie chart's wedges only, centred at `(cx, cy)`. Resets `globalAlpha` to `1` afterwards so a dimmed wedge doesn't leak into later painting. */
+    private paintPieChartWedges(ctx: CanvasRenderingContext2D, element: ResolvedPieChartElement, cx: number, cy: number): void {
+        for (const wedge of element.wedges) {
+            ctx.globalAlpha = wedge.opacity;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, element.radius, wedge.startAngle, wedge.endAngle);
+            ctx.closePath();
+            ctx.fillStyle = wedge.fillColor;
+            ctx.fill();
+            if (wedge.outlineColor) {
+                ctx.strokeStyle = wedge.outlineColor;
+                ctx.lineWidth = element.outlineThickness;
+                ctx.stroke();
+            }
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    /** Draws each legend row's swatch and label from `(x, y)`. No-op with no legend. */
+    private paintPieChartLegend(ctx: CanvasRenderingContext2D, element: ResolvedPieChartElement, x: number, y: number): void {
+        if (element.legend === null) {
+            return;
+        }
+        const rects = this.pieChartLegendRowRects(element, x, y);
+        element.legend.forEach((row, i) => {
+            const rect = rects[i];
+            ctx.fillStyle = row.color;
+            ctx.fillRect(rect.x, rect.y + (rect.h - element.swatchSize) / 2, element.swatchSize, element.swatchSize);
+
+            const labelX = rect.x + element.swatchSize + this.defaults.checkboxGap;
+            this.drawLine(ctx, row.runs, labelX, rect.y, row.fontSize);
+        });
+    }
+
+    /** Draws a resolved pie chart's wedges plus its legend, if any - `x`/`y` is the chart's top-left content origin. */
+    private paintPieChart(ctx: CanvasRenderingContext2D, element: ResolvedPieChartElement, x: number, y: number): void {
+        const center = this.pieChartWedgeCenter(element, x, y);
+        this.paintPieChartWedges(ctx, element, center.x, center.y);
+
+        const legendOrigin = this.pieChartLegendOrigin(element, x, y);
+        if (legendOrigin !== null) {
+            this.paintPieChartLegend(ctx, element, legendOrigin.x, legendOrigin.y);
+        }
+    }
+
+    /** One focusable per legend row; activating invokes its class's `onClick`, if any. */
+    private layoutPieChartLegend(element: ResolvedPieChartElement, x: number, y: number): FocusableElement[] {
+        if (!element.legendFocusable || element.legend === null) {
+            return [];
+        }
+        const origin = this.pieChartLegendOrigin(element, x, y);
+        if (origin === null) {
+            return [];
+        }
+        const rects = this.pieChartLegendRowRects(element, origin.x, origin.y);
+        return element.legend.map((row, i) => ({
+            rect: rects[i],
+            activate: () => row.onClick?.(),
+            disabled: false,
+        }));
     }
 
     /** Draws a checkbox's box (themed, tinted by `style`'s background) plus a tick mark (coloured by `style`'s foreground) when `checked`, centred vertically within `rect` - the same rect its focus/selection highlight fills. */
@@ -1726,7 +2081,9 @@ export class InteractableDisplay extends Display {
         for (const element of line.elements) {
             const elemY = y + this.verticalOffset(element.align, this.outerHeight(element), line.height);
             const {x: contentX, y: contentY} = this.contentPosition(elemX, elemY, element.padding, element.margin);
-            if (element.kind !== "text" && element.kind !== "hr") {
+            if (element.kind === "piechart") {
+                focusables.push(...this.layoutPieChartLegend(element, contentX, contentY));
+            } else if (element.kind !== "text" && element.kind !== "hr") {
                 focusables.push(...this.layoutInput(element, contentX, contentY, element.padding));
             }
             elemX += this.outerWidth(element);
@@ -1769,6 +2126,8 @@ export class InteractableDisplay extends Display {
                 this.strokeDebugRect(ctx, {x: contentX, y: contentY, w: element.width, h: element.fontSize}, CONTENT_DEBUG_COLOR);
             } else if (element.kind === "hr") {
                 this.paintHr(ctx, element, contentX, contentY, element.padding);
+            } else if (element.kind === "piechart") {
+                this.paintPieChart(ctx, element, contentX, contentY);
             } else {
                 this.paintInput(ctx, element, contentX, contentY, focusedRect, pressedRect, editText, editCursorPos, editSelection, openRect, element.padding);
             }

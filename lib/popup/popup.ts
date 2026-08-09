@@ -38,6 +38,7 @@ const INTERACTABLE_DEFAULTS: InteractableDisplayDefaults = {
     buttonPaddingY: POPUP_CONFIG.buttonPaddingY,
     buttonPressedTextOffset: POPUP_CONFIG.buttonPressedTextOffset,
     disabledOverlayColor: POPUP_CONFIG.disabledOverlayColor,
+    pieChartLegendSwatchSize: POPUP_CONFIG.pieChartLegendSwatchSize,
 };
 
 /**
