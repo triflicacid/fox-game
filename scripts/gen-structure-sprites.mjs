@@ -137,7 +137,7 @@ function buildLeafGrid({ seed, palette, gapChance }) {
  * @param {number} branches.maxLength - longest branch length, in grid cells from centre.
  * @returns {(number[]|null)[]} the tile's colors in row-major order.
  */
-function buildSpikeGrid({ seed, palette, count, minLength, maxLength }) {
+function buildSpikeGrid({ seed, palette, count, minLength, maxLength, thickness = 1 }) {
     const grid = new Array(GRID * GRID).fill(null);
 
     /**
@@ -159,8 +159,15 @@ function buildSpikeGrid({ seed, palette, count, minLength, maxLength }) {
         const length = minLength + hash(seed, i, 1) * (maxLength - minLength);
         const dx = Math.cos(angle);
         const dy = Math.sin(angle);
+        // sideways nudge added alongside the main stroke to bulk a hairline branch into a
+        // visibly bold one - forks stay thin, so the main limbs still read as the thicker ones
+        const perpDx = -dy * 0.6;
+        const perpDy = dx * 0.6;
         for (let step = 0.5; step <= length; step += 0.5) {
-            if (!plot(Math.round(LOG_CENTER + dx * step), Math.round(LOG_CENTER + dy * step))) break;
+            const x = LOG_CENTER + dx * step;
+            const y = LOG_CENTER + dy * step;
+            if (!plot(Math.round(x), Math.round(y))) break;
+            if (thickness > 1) plot(Math.round(x + perpDx), Math.round(y + perpDy));
         }
 
         // most branches get one short forked offshoot partway along, so each reads as a
@@ -252,11 +259,11 @@ const SKELETAL_LOG = {
 };
 
 /**
- * Much narrower than {@link LOG_RADIUS} (a live trunk's own mask radius) -
- * a skeletal tree's trunk should read as a bare stick, not a log, with most
- * of its tile left transparent around it.
+ * Narrower than {@link LOG_RADIUS} (a live trunk's own mask radius) - a
+ * skeletal tree's trunk should still read as a bare stick, not a log - but
+ * big enough that the tile doesn't look undersized next to a live trunk.
  */
-const SKELETAL_TRUNK_RADIUS = 1.7;
+const SKELETAL_TRUNK_RADIUS = 3.5;
 
 // shared ebony palette for every stick-like bit of a skeletal tree that isn't the trunk's own
 // ring-banded core - trunk-tile twig nubs and the dedicated branches tile alike. No leaf/gap
@@ -268,14 +275,15 @@ const SKELETAL_BRANCH_PALETTE = [
     { color: [86, 90, 92, 255], weight: 4 }, // faint frost/lichen fleck
 ];
 
-// a couple of short twig nubs breaking free of the trunk mask on its own tile - distinct
-// (shorter, fewer) from the dedicated branches tile below, which carries the bulk of the silhouette
+// a handful of twig nubs breaking free of the trunk mask on its own tile - distinct
+// (shorter, fewer) from the dedicated branches tile below, which carries the bulk of the silhouette.
 const SKELETAL_TRUNK_TWIGS = {
     seed: 8004,
-    count: 3,
-    minLength: 1.5,
-    maxLength: 4,
+    count: 4,
+    minLength: 4.5,
+    maxLength: 6.5,
     palette: SKELETAL_BRANCH_PALETTE,
+    thickness: 2,
 };
 
 // deliberately darker and more saturated than every forest-floor variant (see
@@ -307,10 +315,11 @@ const BIRCH_LEAVES = {
 // SKELETAL_TRUNK_TWIGS, just longer/more of them, since this tile carries the bulk of the tree's silhouette
 const SKELETAL_BRANCHES = {
     seed: 7003,
-    count: 4,
-    minLength: 4,
-    maxLength: 7,
+    count: 6,
+    minLength: 5.5,
+    maxLength: 7.5,
     palette: SKELETAL_BRANCH_PALETTE,
+    thickness: 2,
 };
 
 // row 0: oak (square log, round log, leaves); row 1: birch (square log, round log, leaves) -
@@ -606,40 +615,33 @@ function buildBoulderSnowPieceGrid(snow, tilesPerEdge, pieceCol, pieceRow) {
 }
 
 /**
- * one composite boulder's full set of snow-cap piece row entries - every
- * position gets one, not just a subset: a top-down sprite has no "north
- * side" to single out, so the whole visible surface can carry snow (see
- * {@link buildBoulderSnowPieceGrid}'s radial coverage). Mirrors
- * {@link boulderPieceRows}'s own row layout exactly, so a piece's snow
- * overlay always lines up with its rock piece.
- *
- * @param {string} family - sprite type family, matching the base boulder's own (`"large"`/`"huge"`).
- * @param {number} tilesPerEdge - how many tiles wide/tall the composite boulder spans.
- * @param {string[][]} compassGrid - row-major compass-direction names for every piece position - see {@link COMPASS_2}/{@link COMPASS_3}.
- * @returns {{type: string, build: () => (number[]|null)[]}[][]} one array of snow-cap tile row entries per row of `compassGrid`.
- */
-function boulderSnowCapRows(family, tilesPerEdge, compassGrid) {
-    return compassGrid.map((row, pieceRow) => row.map((name, pieceCol) => ({
-        type: `boulder.${family}.snow.${name}`,
-        build: () => buildBoulderSnowPieceGrid(SNOW_CAP, tilesPerEdge, pieceCol, pieceRow),
-    })));
-}
-
-/**
  * one composite boulder's full set of piece row entries, one row per grid
- * row so it slots directly into {@link TILE_ROWS}.
+ * row so it slots directly into {@link TILE_ROWS}. Each row holds the rock
+ * composite's own pieces first (contiguous, so the shape still reads as one
+ * whole circle at a glance), then that same row's snow-cap pieces
+ * immediately after (see {@link buildBoulderSnowPieceGrid}) - two whole
+ * composites side by side on the same rows, rather than either interleaved
+ * piece-by-piece (which would chop each composite's own silhouette apart in
+ * the sheet) or pushed down into separate rows further below (which is what
+ * made the sheet needlessly tall).
  *
  * @param {string} family - sprite type family, e.g. `"large"`/`"huge"`.
  * @param {{ringPalettes: [object[], object[]], pithColor: number[], seed: number}} rock - shared rock palette/seed for the whole composite.
  * @param {string[][]} compassGrid - row-major compass-direction names (e.g. `"nw"`/`"n"`/`"center"`) for every piece position - see {@link COMPASS_2}/{@link COMPASS_3}.
- * @returns {{type: string, build: () => (number[]|null)[]}[][]} one array of tile row entries per row of `compassGrid`.
+ * @returns {{type: string, build: () => (number[]|null)[]}[][]} one array of tile row entries per row of `compassGrid`, twice as wide as `compassGrid` itself (the rock composite followed by the snow composite).
  */
 function boulderPieceRows(family, rock, compassGrid) {
     const tilesPerEdge = compassGrid.length;
-    return compassGrid.map((row, pieceRow) => row.map((name, pieceCol) => ({
-        type: `boulder.${family}.${name}`,
-        build: () => buildBoulderPieceGrid(rock, tilesPerEdge, pieceCol, pieceRow),
-    })));
+    return compassGrid.map((row, pieceRow) => [
+        ...row.map((name, pieceCol) => ({
+            type: `boulder.${family}.${name}`,
+            build: () => buildBoulderPieceGrid(rock, tilesPerEdge, pieceCol, pieceRow),
+        })),
+        ...row.map((name, pieceCol) => ({
+            type: `boulder.${family}.snow.${name}`,
+            build: () => buildBoulderSnowPieceGrid(SNOW_CAP, tilesPerEdge, pieceCol, pieceRow),
+        })),
+    ]);
 }
 
 /** compass-direction piece names for a 2x2 composite boulder - only corners exist at this size. */
@@ -683,11 +685,10 @@ const STONE_CLUSTER = [
 ];
 
 // row 0: small, single-tile sub-tile stones (solo, pair, cluster)
-// rows 1-2: "large" - a 2x2 rounded composite boulder (4 corner pieces, no edges/centre at this size)
-// rows 3-5: "huge" - a 3x3 rounded composite boulder (4 corners, 4 edge midpoints, 1 centre)
-// rows 6-8: optional snow caps for "large"/"huge", one full compass grid each (every
-// position, not just a subset - see boulderSnowCapRows) - separate sprites, layered over the
-// matching rock piece rather than baked into it, so a boulder can spawn with or without snow
+// rows 1-2: "large" - a 2x2 rounded composite boulder (4 corner pieces, no edges/centre at
+// this size), each rock piece paired with its own snow-cap piece right next to it
+// rows 3-5: "huge" - a 3x3 rounded composite boulder (4 corners, 4 edge midpoints, 1 centre),
+// same rock+snow pairing per position - see boulderPieceRows
 const BOULDER_ROWS = [
     [
         stoneTile("boulder.small.solo", STONE_SOLO),
@@ -696,8 +697,6 @@ const BOULDER_ROWS = [
     ],
     ...boulderPieceRows("large", ROCK_STONE, COMPASS_2),
     ...boulderPieceRows("huge", ROCK_WEATHERED, COMPASS_3),
-    ...boulderSnowCapRows("large", 2, COMPASS_2),
-    ...boulderSnowCapRows("huge", 3, COMPASS_3),
 ];
 
 const TILE_ROWS = [...TREE_ROWS, ...SKELETAL_TREE_ROWS, ...BOULDER_ROWS];
