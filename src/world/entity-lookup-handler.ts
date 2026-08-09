@@ -40,9 +40,11 @@ export class EntityLookupHandler extends FieldLookupHandler {
      * @param tileSize - The world's current tile size, in pixels.
      */
     private toTileAccessor(pixelField: Accessor<number>, tileSize: number): Accessor<number> {
+        // captured for type safety
+        const setPixel = pixelField.set;
         return {
             get: () => pixelToTile(pixelField.get(), tileSize),
-            set: pixelField.set && ((value: number) => pixelField.set!(tileToPixel(value, tileSize))),
+            set: setPixel && ((value: number) => setPixel(tileToPixel(value, tileSize))),
         };
     }
 
