@@ -1,4 +1,4 @@
-import {PopupController} from "@lib/popup/popup-controller";
+import {PopupController} from "@popup";
 import {KeyBinding} from "../help/key-binding";
 
 /**

@@ -14,7 +14,7 @@ import {requireNonNull} from "./util";
 import {HelpController} from "./help/help-controller";
 import {KeyBinding} from "./help/key-binding";
 import {SettingsController} from "./settings/settings-controller";
-import {PopupController} from "@lib/popup/popup-controller";
+import {PopupController} from "@popup";
 import {KeyBindingPopupController} from "./popup/key-binding-popup-controller";
 import {keyboard} from "./input/keyboard-instance";
 import {FOX_CONSTANTS} from './entities/fox-constants';
