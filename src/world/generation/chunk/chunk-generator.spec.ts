@@ -273,4 +273,21 @@ describe("TundraBiome climate matching", () => {
     });
 });
 
+describe("ChunkGenerator.resolveBiomeTagAt", () => {
+    it("matches a generated chunk's own tile.biomeTag for an interior point, on both sides of a biome border", () => {
+        const {generator} = controlledGenerator();
+        const plainsTiles = generator.generate(-1, 0).tiles;
+        const desertTiles = generator.generate(0, 0).tiles;
+
+        // Interior points, well away from the halo the terrain-depth padding samples beyond the border.
+        expect(generator.resolveBiomeTagAt(-10, 5)).toBe(plainsTiles[5][6].biomeTag);
+        expect(generator.resolveBiomeTagAt(10, 5)).toBe(desertTiles[5][10].biomeTag);
+    });
+
+    it("is a pure, deterministic function of world position - repeated calls agree", () => {
+        const {generator} = controlledGenerator();
+        expect(generator.resolveBiomeTagAt(10, 5)).toBe(generator.resolveBiomeTagAt(10, 5));
+    });
+});
+
 

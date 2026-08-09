@@ -5,6 +5,9 @@ import {NoiseField} from "../noise-field";
 /** Stable biome identity retained on generated tiles. */
 export type BiomeTag = "plains" | "desert" | "forest" | "tundra";
 
+/** Every {@link BiomeTag}. */
+export const BIOME_TAGS: readonly BiomeTag[] = ["plains", "desert", "forest", "tundra"];
+
 /** Non-authoritative debug summary of the biome tags within one chunk. */
 export type BiomeSummary = BiomeTag | "mixed";
 

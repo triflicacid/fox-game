@@ -2,6 +2,7 @@ import {button, checkbox, hr, line, numberBox, select, textbox} from "../src/bui
 import {DisplayLine} from "../src/input";
 import {InteractableDisplay} from "../src/interactable-display";
 import {WIN98_THEME} from "../src/win98-theme";
+import {TextFormat} from "../src/text-style";
 
 const LINE_SPACING = 18;
 const PANEL_PADDING = 24;
@@ -82,6 +83,7 @@ function buildLines(): DisplayLine[] {
             onSelect: (key) => {
                 state.palette = key;
             },
+            align: 'centre'
         })),
         line().content(checkbox({
             checked: state.debugHud,
@@ -90,6 +92,29 @@ function buildLines(): DisplayLine[] {
                 state.debugHud = checked;
             },
         })),
+        line().content({content: "Palette mix:", align: "centre"}).content({
+            kind: "piechart",
+            radius: 42,
+            classes: [
+                {
+                    key: "forest", value: 6, fillColor: "#2e7d32", outlineColor: "#1b5e20",
+                    selectedFillColor: "#66bb6a", selectedOutlineColor: "#ffffff",
+                    selectedStyle: {foreground: "#66bb6a", format: TextFormat.BOLD},
+                    onClick: () => console.log("Clicked class" + "forest"),
+                },
+                {
+                    key: "autumn", value: 3, fillColor: "#e65100", outlineColor: "#bf360c",
+                    selectedFillColor: "#ffb74d", selectedOutlineColor: "#ffffff",
+                    selectedStyle: {foreground: "#ffb74d", format: TextFormat.BOLD},
+                    onClick: () => console.log("Clicked class" + "autumn"),
+                },
+                {
+                    key: "night", value: 1, fillColor: "#1a237e", outlineColor: "#0d1642",
+                    selectedFillColor: "#5c6bc0", selectedOutlineColor: "#ffffff",
+                },
+            ],
+            legend: {auto: true, style: {foreground: "black"}, showValue: "percentage", dimOpacity: 0.25},
+        }),
         line().content(button({
             content: "Ping",
             onClick: () => {

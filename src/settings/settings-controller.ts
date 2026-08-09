@@ -18,6 +18,8 @@ export class SettingsController extends KeyBindingPopupController {
      * @param setSpectating - Invoked when the user toggles the spectator mode checkbox.
      * @param getDebugEnabled - Called on every {@link draw} to read whether debug mode is on.
      * @param setDebugEnabled - Invoked when the user toggles the debug mode checkbox.
+     * @param getMinimapEnabled - Called on every {@link draw} to read whether the minimap is currently shown.
+     * @param setMinimapEnabled - Invoked when the user toggles the minimap checkbox.
      * @param getGenerationEnabled - Called on every {@link draw} to read whether chunk generation is enabled.
      * @param setGenerationEnabled - Invoked when the user toggles the chunk generation checkbox.
      * @param getTargetFps - Called on every {@link draw} to read the current target FPS.
@@ -40,6 +42,8 @@ export class SettingsController extends KeyBindingPopupController {
         private readonly setSpectating: (spectating: boolean) => void,
         private readonly getDebugEnabled: () => boolean,
         private readonly setDebugEnabled: (enabled: boolean) => void,
+        private readonly getMinimapEnabled: () => boolean,
+        private readonly setMinimapEnabled: (enabled: boolean) => void,
         private readonly getGenerationEnabled: () => boolean,
         private readonly setGenerationEnabled: (enabled: boolean) => void,
         private readonly getTargetFps: () => number,
@@ -132,6 +136,7 @@ export class SettingsController extends KeyBindingPopupController {
                 })),
             line().content(checkbox({checked: this.getSpectating(), onToggle: this.setSpectating, content: "Spectator mode"})),
             line().content(checkbox({checked: this.getDebugEnabled(), onToggle: this.setDebugEnabled, content: "Debug mode"})),
+            line().content(checkbox({checked: this.getMinimapEnabled(), onToggle: this.setMinimapEnabled, content: "Minimap"})),
             line()
                 .content("Target FPS: ")
                 .content(numberBox({value: this.getTargetFps(), step: 1, min: 1, onChange: this.setTargetFps})),

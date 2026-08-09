@@ -5,11 +5,13 @@ import {NumberInput, TextInput} from "./text-box";
 import {ButtonInput} from "./button";
 import {SelectInput} from "./select";
 import {HrInput} from "./hr";
+import {PieChartInput} from "./piechart";
 
 export * from "./base";
 export * from "./button";
 export * from "./checkbox";
 export * from "./hr";
+export * from "./piechart";
 export * from "./radio";
 export * from "./select";
 export * from "./text-box";
@@ -17,12 +19,12 @@ export * from "./text-box";
 /**
  * Every kind of input an {@link InteractableDisplay} can embed alongside
  * plain text - interactive controls, plus the non-interactive {@link
- * HrInput} divider. Each kind carries its own `kind` literal.
+ * HrInput} divider (TODO remove from Input)
  */
 export type Input = RadioInput | CheckboxInput | NumberInput | TextInput | ButtonInput | SelectInput | HrInput;
 
-/** A single item within a {@link DisplayLine}: styled text, or an {@link Input}. */
-export type DisplayLineItem = TextSegment | Input;
+/** A single item within a {@link DisplayLine}: styled text, an {@link Input}, or a {@link PieChartInput}. */
+export type DisplayLineItem = TextSegment | Input | PieChartInput;
 
 /**
  * Builder-friendly wrapper form of a display line.
