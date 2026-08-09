@@ -32,6 +32,19 @@ For more info on comments, read [this](comment-guidelines.md).
   Read-only local git inspection (`git status`, `git log`, `git diff`) is
   fine. Track plans and progress in repo markdown docs, not GitHub issues.
 
+## Sprites / collision bounds
+
+- Every interactable sprite (cactus, boulder, tree trunk, skeletal tree,
+  etc.) must author a tight collision hull (`SpriteBounds`/`bounds` in its
+  sprite-sheet descriptor) that traces its actual silhouette - never leave it
+  to fall back to a plain rect covering the sprite's full tile dimensions.
+  See `scripts/gen-cactus-sprites.mjs`/`gen-structure-sprites.mjs`'s
+  `buildBounds`/`buildBoulderPieceBounds` for the pattern (sample the drawn
+  shape's own geometry - blob circles, a composite boulder's shared circle,
+  etc. - and hull/clip it), and `World.structureCollisionPolygonForSprite`
+  for how a missing `bounds` silently degrades to the full-tile-square
+  fallback instead of erroring, so an unauthored sprite is easy to miss.
+
 ## TypeScript / code style
 
 - Add TSDoc/JSDoc-style comments to every function and method, not just
