@@ -239,6 +239,18 @@
       "interactable": false
     },
     {
+      "type": "boulder.large.snow.nw",
+      "x": 64,
+      "y": 128,
+      "interactable": false
+    },
+    {
+      "type": "boulder.large.snow.ne",
+      "x": 96,
+      "y": 128,
+      "interactable": false
+    },
+    {
       "type": "boulder.large.sw",
       "x": 0,
       "y": 160,
@@ -247,6 +259,18 @@
     {
       "type": "boulder.large.se",
       "x": 32,
+      "y": 160,
+      "interactable": false
+    },
+    {
+      "type": "boulder.large.snow.sw",
+      "x": 64,
+      "y": 160,
+      "interactable": false
+    },
+    {
+      "type": "boulder.large.snow.se",
+      "x": 96,
       "y": 160,
       "interactable": false
     },
@@ -269,6 +293,24 @@
       "interactable": false
     },
     {
+      "type": "boulder.huge.snow.nw",
+      "x": 96,
+      "y": 192,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.snow.n",
+      "x": 128,
+      "y": 192,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.snow.ne",
+      "x": 160,
+      "y": 192,
+      "interactable": false
+    },
+    {
       "type": "boulder.huge.w",
       "x": 0,
       "y": 224,
@@ -283,6 +325,24 @@
     {
       "type": "boulder.huge.e",
       "x": 64,
+      "y": 224,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.snow.w",
+      "x": 96,
+      "y": 224,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.snow.center",
+      "x": 128,
+      "y": 224,
+      "interactable": false
+    },
+    {
+      "type": "boulder.huge.snow.e",
+      "x": 160,
       "y": 224,
       "interactable": false
     },
@@ -305,81 +365,21 @@
       "interactable": false
     },
     {
-      "type": "boulder.large.snow.nw",
-      "x": 0,
-      "y": 288,
-      "interactable": false
-    },
-    {
-      "type": "boulder.large.snow.ne",
-      "x": 32,
-      "y": 288,
-      "interactable": false
-    },
-    {
-      "type": "boulder.large.snow.sw",
-      "x": 0,
-      "y": 320,
-      "interactable": false
-    },
-    {
-      "type": "boulder.large.snow.se",
-      "x": 32,
-      "y": 320,
-      "interactable": false
-    },
-    {
-      "type": "boulder.huge.snow.nw",
-      "x": 0,
-      "y": 352,
-      "interactable": false
-    },
-    {
-      "type": "boulder.huge.snow.n",
-      "x": 32,
-      "y": 352,
-      "interactable": false
-    },
-    {
-      "type": "boulder.huge.snow.ne",
-      "x": 64,
-      "y": 352,
-      "interactable": false
-    },
-    {
-      "type": "boulder.huge.snow.w",
-      "x": 0,
-      "y": 384,
-      "interactable": false
-    },
-    {
-      "type": "boulder.huge.snow.center",
-      "x": 32,
-      "y": 384,
-      "interactable": false
-    },
-    {
-      "type": "boulder.huge.snow.e",
-      "x": 64,
-      "y": 384,
-      "interactable": false
-    },
-    {
       "type": "boulder.huge.snow.sw",
-      "x": 0,
-      "y": 416,
+      "x": 96,
+      "y": 256,
       "interactable": false
     },
     {
       "type": "boulder.huge.snow.s",
-      "x": 32,
-      "y": 416,
+      "x": 128,
+      "y": 256,
       "interactable": false
     },
     {
       "type": "boulder.huge.snow.se",
-      "x": 64,
-      "y": 416,
+      "x": 160,
+      "y": 256,
       "interactable": false
     }
   ]
