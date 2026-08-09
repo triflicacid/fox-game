@@ -307,8 +307,8 @@ describe("InteractableDisplay integration flows", () => {
         // (unfocused, no selected colours/style set) is untouched.
         const focused = resolvedPieChart();
         expect(focused.wedges).toEqual([
-            {startAngle: -Math.PI / 2, endAngle: Math.PI / 2, fillColor: "#00ff00", outlineColor: "#ffffff"},
-            {startAngle: Math.PI / 2, endAngle: Math.PI * 1.5, fillColor: "#ff8000", outlineColor: undefined},
+            {startAngle: -Math.PI / 2, endAngle: Math.PI / 2, fillColor: "#00ff00", outlineColor: "#ffffff", opacity: 1},
+            {startAngle: Math.PI / 2, endAngle: Math.PI * 1.5, fillColor: "#ff8000", outlineColor: undefined, opacity: 1},
         ]);
         expect(focused.legend?.[0].runs[0]?.run.foreground).toBe("#00ff00");
 
@@ -326,6 +326,43 @@ describe("InteractableDisplay integration flows", () => {
         // "autumn" has no onClick - activating it is a safe no-op.
         expect(() => triggerKeyDown(listeners, "Enter")).not.toThrow();
         expect(onForestClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("dims every other legend-linked wedge while one is focused, exempting a class with no legend row", () => {
+        const display = new InteractableDisplay({}, FLAT_THEME, "always")
+            .setKeyboardEventSource(window);
+
+        const lines: DisplayLine[] = [[{
+            kind: "piechart",
+            radius: 10,
+            classes: [
+                {key: "a", value: 1, fillColor: "#ff0000"},
+                {key: "b", value: 1, fillColor: "#00ff00"},
+                {key: "c", value: 1, fillColor: "#0000ff"},
+            ],
+            // "c" has no legend row at all - it should never dim.
+            legend: {entries: [{key: "a", content: "A"}, {key: "b", content: "B"}], dimOpacity: 0.3},
+        }]];
+
+        function resolvedPieChart() {
+            const {ctx} = createMockCanvasContext();
+            display.beginResolvePass();
+            const element = display.resolveElements(ctx, lines[0]).elements[0];
+            if (element.kind !== "piechart") {
+                throw new Error("Expected a resolved piechart element");
+            }
+            return element;
+        }
+
+        layoutFrame(display, lines);
+        display.setActive(true);
+
+        // Cursor starts on "a"'s row: "a" stays full opacity, "b" (also
+        // legend-linked) dims, "c" (no row to focus) is exempt.
+        expect(resolvedPieChart().wedges.map((w) => w.opacity)).toEqual([1, 0.3, 1]);
+
+        triggerKeyDown(listeners, "ArrowDown");
+        expect(resolvedPieChart().wedges.map((w) => w.opacity)).toEqual([0.3, 1, 1]);
     });
 
     it("focuses and activates a manual pie chart legend row via keyboard, tied to its referenced class", () => {

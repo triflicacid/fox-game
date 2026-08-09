@@ -74,6 +74,8 @@ interface ResolvedPieChartWedge {
     endAngle: number;
     fillColor: string;
     outlineColor: string | undefined;
+    /** `1` unless dimmed - see {@link InteractableDisplay.resolvePieChartWedges}. */
+    opacity: number;
 }
 
 /** One resolved, measured legend row within a {@link ResolvedPieChartElement}. */
@@ -1026,23 +1028,29 @@ export class InteractableDisplay extends Display {
     /**
      * Resolves wedge angles (clockwise from 12 o'clock), proportional to
      * each visible class's share of the total. A focused class draws with
-     * its `selected*Color`, falling back to its plain colours.
+     * its `selected*Color`; every other legend-linked class dims to
+     * `dimOpacity`, if set, while any one of them is focused.
      */
-    private resolvePieChartWedges(classes: PieChartClass[], focusByKey: ReadonlyMap<string, boolean>): ResolvedPieChartWedge[] {
+    private resolvePieChartWedges(classes: PieChartClass[], focusByKey: ReadonlyMap<string, boolean>, dimOpacity: number | undefined): ResolvedPieChartWedge[] {
         const visible = classes.filter((c) => !c.hidden && c.value > 0);
         const total = visible.reduce((sum, c) => sum + c.value, 0);
         if (total <= 0) {
             return [];
         }
+        const anyFocused = [...focusByKey.values()].some((focused) => focused);
         let angle = -Math.PI / 2;
         return visible.map((c) => {
             const sweep = (c.value / total) * Math.PI * 2;
             const focused = focusByKey.get(c.key) ?? false;
+            // A class with no legend row (not in `focusByKey`) is never
+            // dimmed - it can't be the focused one either, so it stays put.
+            const dim = dimOpacity !== undefined && anyFocused && focusByKey.has(c.key) && !focused;
             const wedge: ResolvedPieChartWedge = {
                 startAngle: angle,
                 endAngle: angle + sweep,
                 fillColor: (focused ? c.selectedFillColor : undefined) ?? c.fillColor,
                 outlineColor: (focused ? c.selectedOutlineColor : undefined) ?? c.outlineColor,
+                opacity: dim ? dimOpacity : 1,
             };
             angle += sweep;
             return wedge;
@@ -1098,7 +1106,7 @@ export class InteractableDisplay extends Display {
         const outlineThickness = (item.outlineThickness ?? 1) * scale;
         const sources = item.legend ? this.resolvePieChartLegendSources(item, item.legend) : [];
         const focusByKey = this.resolvePieChartFocus(sources);
-        const wedges = this.resolvePieChartWedges(item.classes, focusByKey);
+        const wedges = this.resolvePieChartWedges(item.classes, focusByKey, item.legend?.dimOpacity);
         const pieSize = radius * 2;
 
         const legendSide = item.legend?.side ?? "right";
@@ -1400,9 +1408,10 @@ export class InteractableDisplay extends Display {
         });
     }
 
-    /** Draws a resolved pie chart's wedges only, centred at `(cx, cy)`. */
+    /** Draws a resolved pie chart's wedges only, centred at `(cx, cy)`. Resets `globalAlpha` to `1` afterwards so a dimmed wedge doesn't leak into later painting. */
     private paintPieChartWedges(ctx: CanvasRenderingContext2D, element: ResolvedPieChartElement, cx: number, cy: number): void {
         for (const wedge of element.wedges) {
+            ctx.globalAlpha = wedge.opacity;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
             ctx.arc(cx, cy, element.radius, wedge.startAngle, wedge.endAngle);
@@ -1415,6 +1424,7 @@ export class InteractableDisplay extends Display {
                 ctx.stroke();
             }
         }
+        ctx.globalAlpha = 1;
     }
 
     /** Draws each legend row's swatch and label from `(x, y)`. No-op with no legend. */

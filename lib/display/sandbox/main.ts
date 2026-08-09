@@ -113,7 +113,7 @@ function buildLines(): DisplayLine[] {
                     selectedFillColor: "#5c6bc0", selectedOutlineColor: "#ffffff",
                 },
             ],
-            legend: {auto: true, style: {foreground: "black"}, showValue: "percentage"},
+            legend: {auto: true, style: {foreground: "black"}, showValue: "percentage", dimOpacity: 0.25},
         }),
         line().content(button({
             content: "Ping",
