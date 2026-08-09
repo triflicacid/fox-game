@@ -1,11 +1,5 @@
 import {fieldRegistry, nonNegativeInteger, positiveNumber} from "../fields/field-registry";
 
-/**
- * Layout, scale, and colour constants for the always-on biome-overview
- * minimap (see `Minimap`), registered for live tuning the same way
- * `debug-config.ts`/`fox-constants.ts`/`spectator-constants.ts` are. Edit
- * these values to restyle/rescale it; nothing else needs to change.
- */
 export const MINIMAP_CONFIG = {
     /** Width/height of the minimap's square box, in canvas pixels. */
     boxSizePx: 180,
@@ -13,16 +7,12 @@ export const MINIMAP_CONFIG = {
     margin: 12,
     /** Gap between the minimap's left edge and the noise-field legend, when both are showing, in canvas pixels. */
     legendGap: 8,
-    /** How many world tiles one minimap pixel represents - independent of the camera's own zoom. */
-    worldTilesPerPixel: 3,
     /**
-     * How many minimap pixels square one biome/noise-field sample covers - a
-     * block this size is filled from a single `resolveBiomeTagAt`/noise-field
-     * lookup, cutting sample count by its square for a given box size.
-     * Deliberately not derived from `CHUNK_SIZE` - see `plans/minimap.md`
-     * 3.1. Ought to evenly divide `boxSizePx` for a clean grid, though
-     * nothing breaks if it doesn't.
+     * How many world tiles one minimap pixel represents at the camera's
+     * default zoom (1x). This is devided by the camera's zoom.
      */
+    worldTilesPerPixel: 3,
+    /** Size, in minimap screen pixels, of the square patch that shares one colour sample */
     sampleBlockPx: 4,
 
     /** Stroke colour for the minimap's border. */

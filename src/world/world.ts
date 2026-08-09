@@ -21,6 +21,7 @@ import {requireNonNull} from "../util";
 import {getFieldGradient, sampleGradient} from "./generation/noise-field-colors";
 import {BIOME_COLORS} from "./generation/biome/biome-colors";
 import {Minimap, MinimapData} from "../minimap/minimap";
+import {MINIMAP_CONFIG} from "../minimap/minimap-config";
 import {Structure, StructurePieceInstance} from "./generation/structure/structure";
 import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
@@ -1335,7 +1336,7 @@ export class World {
         ctx.restore();
 
         if (this.minimapEnabled) {
-            this.minimap.draw(ctx, ctx.canvas.width, this.buildMinimapData(debugEnabled, noiseFieldName));
+            this.minimap.draw(ctx, ctx.canvas.width, this.buildMinimapData(camera, debugEnabled, noiseFieldName));
         }
 
         if (debugEnabled) {
@@ -1357,16 +1358,18 @@ export class World {
      * {@link drawNoiseFieldLegend} - so the minimap never shows a different
      * colour language from the rest of the debug view for the same data.
      *
+     * @param camera - The active camera.
      * @param debugEnabled - Whether debug mode is currently on.
      * @param noiseFieldName - Name of the currently selected debug noise field, if any.
      * @returns This frame's minimap data - see {@link MinimapData}.
      */
-    private buildMinimapData(debugEnabled: boolean, noiseFieldName?: string): MinimapData {
+    private buildMinimapData(camera: Camera, debugEnabled: boolean, noiseFieldName?: string): MinimapData {
         const mainEntity = this.requireMainEntity();
         const position = mainEntity.getPosition();
         const playerTileX = position.x / this.tileSize;
         const playerTileY = position.y / this.tileSize;
         const facing = mainEntity.getFacingVector();
+        const worldTilesPerPixel = MINIMAP_CONFIG.worldTilesPerPixel / camera.getZoom();
 
         if (debugEnabled && noiseFieldName) {
             const gradient = getFieldGradient(noiseFieldName);
@@ -1374,6 +1377,7 @@ export class World {
                 playerTileX,
                 playerTileY,
                 facing,
+                worldTilesPerPixel,
                 modeKey: `noise:${noiseFieldName}`,
                 sampleColor: (tileX, tileY) => sampleGradient(gradient, this.getNoiseFieldSample(noiseFieldName, tileX, tileY) ?? 0),
             };
@@ -1383,6 +1387,7 @@ export class World {
             playerTileX,
             playerTileY,
             facing,
+            worldTilesPerPixel,
             modeKey: "biome",
             sampleColor: (tileX, tileY) => BIOME_COLORS[this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)],
         };

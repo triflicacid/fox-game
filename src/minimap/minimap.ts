@@ -15,6 +15,8 @@ export interface MinimapData {
     playerTileY: number;
     /** Player's facing direction, as a unit vector - drawn as the centre marker's wedge. */
     facing: Vector2d;
+    /** How many world tiles one minimap pixel represents this frame (at 1x zoom) */
+    worldTilesPerPixel: number;
     /**
      * Identifies what `sampleColor` currently colours by (e.g. `"biome"` or
      * `"noise:temperature"`). A change from the previously drawn frame forces
@@ -42,6 +44,8 @@ export class Minimap {
     private centerTileY = 0;
     /** `data.modeKey` {@link bitmap} was last built for - `undefined` before the first build. */
     private modeKey: string | undefined;
+    /** `data.worldTilesPerPixel` {@link bitmap} was last built for - meaningless until {@link hasBitmap} is `true`. */
+    private worldTilesPerPixel = MINIMAP_CONFIG.worldTilesPerPixel;
     private hasBitmap = false;
 
     public constructor() {
@@ -136,8 +140,10 @@ export class Minimap {
     /**
      * Keeps {@link bitmap} representing the world around `data.playerTileX/Y`:
      * builds it fresh on the first call, on a mode change (see
-     * {@link MinimapData.modeKey}), or on a jump wider than the box itself
-     * (e.g. a teleport); otherwise self-blits the still-valid part and
+     * {@link MinimapData.modeKey}), a scale change (see
+     * {@link MinimapData.worldTilesPerPixel} - e.g. the camera zoomed), or on
+     * a jump wider than the box itself (e.g. a teleport); otherwise
+     * self-blits the still-valid part and
      * resamples only the newly-exposed edge strip(s), in whole
      * `MINIMAP_CONFIG.sampleBlockPx` steps so no partial block is ever split
      * across the blit boundary. A no-op if the player hasn't crossed a whole
@@ -146,7 +152,7 @@ export class Minimap {
     private updateBitmap(data: MinimapData): void {
         const box = MINIMAP_CONFIG.boxSizePx;
 
-        if (!this.hasBitmap || this.modeKey !== data.modeKey) {
+        if (!this.hasBitmap || this.modeKey !== data.modeKey || this.worldTilesPerPixel !== data.worldTilesPerPixel) {
             this.rebuild(data);
             return;
         }
@@ -160,8 +166,8 @@ export class Minimap {
             return;
         }
 
-        this.centerTileX += shiftPxX * MINIMAP_CONFIG.worldTilesPerPixel;
-        this.centerTileY += shiftPxY * MINIMAP_CONFIG.worldTilesPerPixel;
+        this.centerTileX += shiftPxX * this.worldTilesPerPixel;
+        this.centerTileY += shiftPxY * this.worldTilesPerPixel;
         // Self-blit: well-defined per the canvas spec (the source is
         // effectively snapshotted before the destination is overwritten) -
         // the standard technique behind any scrolling/infinite map view.
@@ -171,9 +177,9 @@ export class Minimap {
 
     /** How far, in whole `MINIMAP_CONFIG.sampleBlockPx` steps (minimap pixels), the player has moved since {@link centerTileX}/{@link centerTileY} was last updated. */
     private computeBlockShift(data: MinimapData): {shiftPxX: number; shiftPxY: number} {
-        const {worldTilesPerPixel, sampleBlockPx} = MINIMAP_CONFIG;
-        const deltaPxX = (data.playerTileX - this.centerTileX) / worldTilesPerPixel;
-        const deltaPxY = (data.playerTileY - this.centerTileY) / worldTilesPerPixel;
+        const {sampleBlockPx} = MINIMAP_CONFIG;
+        const deltaPxX = (data.playerTileX - this.centerTileX) / this.worldTilesPerPixel;
+        const deltaPxY = (data.playerTileY - this.centerTileY) / this.worldTilesPerPixel;
         return {
             shiftPxX: Math.trunc(deltaPxX / sampleBlockPx) * sampleBlockPx,
             shiftPxY: Math.trunc(deltaPxY / sampleBlockPx) * sampleBlockPx,
@@ -185,6 +191,7 @@ export class Minimap {
         this.centerTileX = data.playerTileX;
         this.centerTileY = data.playerTileY;
         this.modeKey = data.modeKey;
+        this.worldTilesPerPixel = data.worldTilesPerPixel;
         this.hasBitmap = true;
         this.paintRegion(0, 0, MINIMAP_CONFIG.boxSizePx, MINIMAP_CONFIG.boxSizePx, data);
     }
@@ -217,12 +224,12 @@ export class Minimap {
 
     /** The world tile position (fractional) at the centre of the sample block whose top-left minimap-pixel corner is `(blockPx, blockPy)`. */
     private blockCenterTile(blockPx: number, blockPy: number): [number, number] {
-        const {boxSizePx, sampleBlockPx, worldTilesPerPixel} = MINIMAP_CONFIG;
+        const {boxSizePx, sampleBlockPx} = MINIMAP_CONFIG;
         const offsetPxX = blockPx + sampleBlockPx / 2 - boxSizePx / 2;
         const offsetPxY = blockPy + sampleBlockPx / 2 - boxSizePx / 2;
         return [
-            this.centerTileX + offsetPxX * worldTilesPerPixel,
-            this.centerTileY + offsetPxY * worldTilesPerPixel,
+            this.centerTileX + offsetPxX * this.worldTilesPerPixel,
+            this.centerTileY + offsetPxY * this.worldTilesPerPixel,
         ];
     }
 }
