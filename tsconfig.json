@@ -6,7 +6,6 @@
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
-    "baseUrl": ".",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
@@ -16,10 +15,10 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@display/*": ["lib/display/src/*"],
-      "@frames": ["lib/frames/src/index.ts"],
-      "@keyboard": ["lib/keyboard/src/index.ts"],
-      "@popup": ["lib/popup/index.ts"]
+      "@display/*": ["./lib/display/src/*"],
+      "@frames": ["./lib/frames/src/index.ts"],
+      "@keyboard": ["./lib/keyboard/src/index.ts"],
+      "@popup": ["./lib/popup/index.ts"]
     }
   },
   "include": ["src", "lib"]
