@@ -3,7 +3,7 @@ import {StructureManifest} from "./structure-manifest";
 import manifestJson from "./tree-structures.json";
 import {Biome, BiomeTag} from "../biome/biome";
 import {FbmField, NoiseField} from "../noise-field";
-import {TreeSpriteType} from "../../../sprites/StructureSpriteSheet";
+import {ForestStructureSpriteType} from "../../../sprites/ForestStructureSpriteSheet";
 import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 
 const manifest = manifestJson as StructureManifest;
@@ -76,7 +76,7 @@ const TREE_CONFIG = {
 } as const;
 
 /** Trees: a `Structure` whose families (oak/birch) and shapes come from {@link manifest}. */
-export class TreeStructure extends Structure<TreeSpriteType> {
+export class TreeStructure extends Structure<ForestStructureSpriteType> {
     private readonly grove: NoiseField;
 
     /**
@@ -152,11 +152,11 @@ export class TreeStructure extends Structure<TreeSpriteType> {
         role: string,
         anchorWorldX: number,
         anchorWorldY: number,
-    ): TreeSpriteType {
+    ): ForestStructureSpriteType {
         if (role === "leaf") {
-            return `tree.${family}.leaves` as TreeSpriteType;
+            return `tree.${family}.leaves` as ForestStructureSpriteType;
         }
         const round = this.roll(anchorWorldX, anchorWorldY, TREE_CONFIG.trunkStyleSalt) < 0.5;
-        return `tree.${family}.log_${round ? "round" : "square"}` as TreeSpriteType;
+        return `tree.${family}.log_${round ? "round" : "square"}` as ForestStructureSpriteType;
     }
 }

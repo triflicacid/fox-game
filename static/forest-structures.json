@@ -1,0 +1,130 @@
+{
+  "cellWidth": 32,
+  "cellHeight": 32,
+  "rows": [
+    {
+      "type": "tree.oak.log_square",
+      "x": 0,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "tree.oak.log_round",
+      "x": 32,
+      "y": 0,
+      "interactable": true,
+      "bounds": {
+        "points": [
+          {
+            "x": -14,
+            "y": 0
+          },
+          {
+            "x": -11,
+            "y": -8
+          },
+          {
+            "x": -4,
+            "y": -13
+          },
+          {
+            "x": 4,
+            "y": -13
+          },
+          {
+            "x": 11,
+            "y": -8
+          },
+          {
+            "x": 14,
+            "y": 0
+          },
+          {
+            "x": 11,
+            "y": 8
+          },
+          {
+            "x": 4,
+            "y": 13
+          },
+          {
+            "x": -4,
+            "y": 13
+          },
+          {
+            "x": -11,
+            "y": 8
+          }
+        ]
+      }
+    },
+    {
+      "type": "tree.oak.leaves",
+      "x": 64,
+      "y": 0,
+      "interactable": false
+    },
+    {
+      "type": "tree.birch.log_square",
+      "x": 0,
+      "y": 32,
+      "interactable": false
+    },
+    {
+      "type": "tree.birch.log_round",
+      "x": 32,
+      "y": 32,
+      "interactable": true,
+      "bounds": {
+        "points": [
+          {
+            "x": -14,
+            "y": 0
+          },
+          {
+            "x": -11,
+            "y": -8
+          },
+          {
+            "x": -4,
+            "y": -13
+          },
+          {
+            "x": 4,
+            "y": -13
+          },
+          {
+            "x": 11,
+            "y": -8
+          },
+          {
+            "x": 14,
+            "y": 0
+          },
+          {
+            "x": 11,
+            "y": 8
+          },
+          {
+            "x": 4,
+            "y": 13
+          },
+          {
+            "x": -4,
+            "y": 13
+          },
+          {
+            "x": -11,
+            "y": 8
+          }
+        ]
+      }
+    },
+    {
+      "type": "tree.birch.leaves",
+      "x": 64,
+      "y": 32,
+      "interactable": false
+    }
+  ]
+}
