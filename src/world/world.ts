@@ -8,7 +8,7 @@ import {DebugHud, ChunkState} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
-import {TreeSpriteSheet, TreeSpriteType} from "../sprites/TreeSpriteSheet";
+import {StructureSpriteSheet, StructureSpriteType} from "../sprites/StructureSpriteSheet";
 import {CactusSpriteSheet, CactusSpriteType} from "../sprites/CactusSpriteSheet";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
@@ -66,14 +66,14 @@ export class World {
 
     private readonly chunks = new CoordMap<Chunk>();
     private readonly entities: Entity[] = [];
-    private readonly treeSpriteSheet = new TreeSpriteSheet();
+    private readonly structureSpriteSheet = new StructureSpriteSheet();
     private readonly cactusSpriteSheet = new CactusSpriteSheet();
-    private readonly treeSpriteTypes = new Set<string>(this.treeSpriteSheet.getSpriteTypes());
+    private readonly structureSpriteTypes = new Set<string>(this.structureSpriteSheet.getSpriteTypes());
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
         animatedBackgroundTile: new AnimatedBackgroundTileSpriteSheet(),
-        getStructureSpriteBitmap: (sprite) => this.treeSpriteTypes.has(sprite)
-            ? this.treeSpriteSheet.getTileBitmap(sprite as TreeSpriteType)
+        getStructureSpriteBitmap: (sprite) => this.structureSpriteTypes.has(sprite)
+            ? this.structureSpriteSheet.getTileBitmap(sprite as StructureSpriteType)
             : this.cactusSpriteSheet.getTileBitmap(sprite as CactusSpriteType),
     };
 
@@ -540,7 +540,7 @@ export class World {
             collision: tile.getCollision(tileX, tileY, this.tileSize)?.response,
             animated: tile.getAnimationInfo(),
             structure: piece && {
-                sprite: piece.sprite,
+                sprites: piece.sprites,
                 structureId: piece.structureId,
                 layer: piece.layer,
                 collision: piece.collision !== "none" ? piece.collision : undefined,
@@ -764,13 +764,16 @@ export class World {
     }
 
     /**
-     * Looks up the structure sprite at the given world tile position,
+     * Looks up the structure sprite(s) at the given world tile position,
      * generating its containing chunk first if necessary. Safe to call on a
      * chunk that's still generating - returns `"none"` instead of throwing.
+     * A piece with more than one sprite stacked on it reports them joined with
+     * `", "`, so it still reads as one dominance-grouping tag - see
+     * {@link getDominantStructureLabel}.
      *
      * @param tileX - Tile's X position, in tiles from the world origin.
      * @param tileY - Tile's Y position, in tiles from the world origin.
-     * @returns The structure piece's sprite name at that position, or `"none"` if there's no piece there (or the containing chunk isn't ready yet).
+     * @returns The structure piece sprite name(s) at that position, or `"none"` if there's no piece there (or the containing chunk isn't ready yet).
      */
     private getStructureTag(tileX: number, tileY: number): string {
         const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
@@ -778,7 +781,7 @@ export class World {
         if (!chunk.isReady()) {
             return "none";
         }
-        return chunk.getStructurePieceAt(tileX, tileY)?.sprite ?? "none";
+        return chunk.getStructurePieceAt(tileX, tileY)?.sprites.join(", ") ?? "none";
     }
 
     /**
@@ -987,7 +990,7 @@ export class World {
                 if (piece && piece.collision !== "none") {
                     const piecePolygon = rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize);
                     const structure = this.findStructure(piece.structureId);
-                    if (this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprite, tileX, tileY, structure)) {
+                    if (this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprites.join(", "), tileX, tileY, structure)) {
                         return;
                     }
                 }

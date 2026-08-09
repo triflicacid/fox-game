@@ -6,9 +6,12 @@ import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "../biome/biome";
 import {DesertBiome} from "../biome/desert-biome";
 import {ForestBiome} from "../biome/forest-biome";
 import {PlainsBiome} from "../biome/plains-biome";
+import {TundraBiome} from "../biome/tundra-biome";
 import {Feature, FeatureProvider} from "../feature/feature";
 import {TreeStructure} from "../structure/tree-structure";
 import {CactusStructure} from "../structure/cactus-structure";
+import {SkeletalTreeStructure} from "../structure/skeletal-tree-structure";
+import {BoulderStructure} from "../structure/boulder-structure";
 import {Structure, StructurePieceInstance} from "../structure/structure";
 import {CoordMap} from "../../coord-set";
 import {ClimateFields} from "../biome/climate-fields";
@@ -73,9 +76,11 @@ export class ChunkGenerator {
 
         const forestBiome = new ForestBiome(worldSeed, this.terrainDepthConfig);
         const desertBiome = new DesertBiome(worldSeed, this.terrainDepthConfig);
+        const tundraBiome = new TundraBiome(worldSeed, this.climate.moisture, this.terrainDepthConfig);
         this.biomes = [
             desertBiome,
             forestBiome,
+            tundraBiome,
             new PlainsBiome(worldSeed, this.terrainDepthConfig),
         ];
         for (const biome of this.biomes) {
@@ -97,6 +102,8 @@ export class ChunkGenerator {
         this.structures = [
             new TreeStructure(worldSeed, isFeatureSite, forestBiome),
             new CactusStructure(worldSeed, isFeatureSite),
+            new SkeletalTreeStructure(worldSeed, isFeatureSite, tundraBiome),
+            new BoulderStructure(worldSeed, isFeatureSite),
         ];
         for (const structure of this.structures) {
             for (const field of structure.getFields()) {

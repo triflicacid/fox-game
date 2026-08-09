@@ -9,8 +9,8 @@ export interface StructureManifestPiece {
     readonly x: number;
     /** Offset Y from the anchor, in tiles. */
     readonly y: number;
-    /** Free-form per-structure-type label (e.g. `"trunk"`/`"leaf"`) a `Structure` subclass maps to a concrete sprite. */
-    readonly role: string;
+    /** Sprite roles stacked at this one position, drawn in order (base to top). */
+    readonly roles: readonly string[];
     /** Which render layer this piece belongs to. */
     readonly layer: StructureLayer;
     /** How this piece reacts to an overlapping entity - see `world/collision.ts`'s handler registry. Defaults to `"none"` when omitted. */

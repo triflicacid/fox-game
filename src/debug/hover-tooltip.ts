@@ -48,6 +48,11 @@ export class HoverTooltip {
         return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
     }
 
+    /** Several string-valued segments (e.g. stacked structure sprites), each its own colour, joined by plain `", "` separators rather than one comma-included blob. */
+    private stringValueList(values: readonly string[]): TextSegment[] {
+        return values.flatMap((value, index) => index === 0 ? [this.stringValue(value)] : [this.text(", "), this.stringValue(value)]);
+    }
+
     /** A coloured true/false segment - lime when `true`, tomato when `false` - reusing the HUD's collision colours for any other boolean reading (e.g. "is this collidable"). */
     private boolValue(value: boolean): TextSegment {
         return {
@@ -100,7 +105,7 @@ export class HoverTooltip {
             }
             if (tile.structure) {
                 lines.push([
-                    this.text("structure: "), this.stringValue(tile.structure.sprite),
+                    this.text("structure: "), ...this.stringValueList(tile.structure.sprites),
                     this.text(" ("), this.stringValue(tile.structure.structureId), this.text("/"),
                     this.stringValue(tile.structure.layer), this.text(")"),
                 ]);
