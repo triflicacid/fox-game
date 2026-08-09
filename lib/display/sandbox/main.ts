@@ -82,6 +82,7 @@ function buildLines(): DisplayLine[] {
             onSelect: (key) => {
                 state.palette = key;
             },
+            align: 'centre'
         })),
         line().content(checkbox({
             checked: state.debugHud,
@@ -90,6 +91,16 @@ function buildLines(): DisplayLine[] {
                 state.debugHud = checked;
             },
         })),
+        line().content({content: "Palette mix:", align: "centre"}).content({
+            kind: "piechart",
+            radius: 42,
+            classes: [
+                {key: "forest", value: 6, fillColor: "#2e7d32", outlineColor: "#1b5e20"},
+                {key: "autumn", value: 3, fillColor: "#e65100", outlineColor: "#bf360c"},
+                {key: "night", value: 1, fillColor: "#1a237e", outlineColor: "#0d1642"},
+            ],
+            legend: {auto: true, style: {foreground: "black"}, showValue: "percentage"},
+        }),
         line().content(button({
             content: "Ping",
             onClick: () => {

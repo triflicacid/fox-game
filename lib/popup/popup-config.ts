@@ -64,6 +64,9 @@ export const POPUP_CONFIG = {
     /** Fill colour of the sheen painted over a disabled input, e.g. a translucent grey. */
     disabledOverlayColor: "rgba(128, 128, 128, 0.5)",
 
+    /** Width/height of a pie chart legend row's colour swatch, in canvas pixels, before that chart's own `scale`. */
+    pieChartLegendSwatchSize: 10,
+
     /** Padding around the popup's content, in canvas pixels. */
     padding: 12,
 } as const;
