@@ -1,7 +1,7 @@
 import { blitGrid, parseCliArgs, writeSpriteSheet } from "./lib/sprite-sheet.mjs";
 import { convexHull } from "./lib/convex-hull.mjs";
 
-const GRID = 16; // logical cells per tile edge - matches the ground tile grid, so cactus tiles align 1:1 with it
+const GRID = 16; // logical cells per tile edge - matches the ground tile grid, so desert tiles align 1:1 with it
 const BLOCK = 2; // real pixels per grid cell -> 32x32 per tile
 const CELL_PX = GRID * BLOCK;
 const CENTER = GRID / 2;
@@ -309,6 +309,6 @@ const descriptor = {
     rows: rowDescriptors,
 };
 
-const { outPath, descriptorOutPath } = parseCliArgs("gen-cactus-sprites.mjs", "static/cactus-sprites.json");
+const { outPath, descriptorOutPath } = parseCliArgs("gen-desert-structures.mjs", "static/desert-structures.json");
 writeSpriteSheet(outPath, descriptorOutPath, sheetW, sheetH, sheet, descriptor);
-console.log("cactus tiles:", TILE_ROWS.map((row) => row.map((tile) => tile.type).join(", ")).join(" | "));
+console.log("desert structure tiles:", TILE_ROWS.map((row) => row.map((tile) => tile.type).join(", ")).join(" | "));

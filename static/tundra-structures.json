@@ -3,133 +3,9 @@
   "cellHeight": 32,
   "rows": [
     {
-      "type": "tree.oak.log_square",
-      "x": 0,
-      "y": 0,
-      "interactable": false
-    },
-    {
-      "type": "tree.oak.log_round",
-      "x": 32,
-      "y": 0,
-      "interactable": true,
-      "bounds": {
-        "points": [
-          {
-            "x": -14,
-            "y": 0
-          },
-          {
-            "x": -11,
-            "y": -8
-          },
-          {
-            "x": -4,
-            "y": -13
-          },
-          {
-            "x": 4,
-            "y": -13
-          },
-          {
-            "x": 11,
-            "y": -8
-          },
-          {
-            "x": 14,
-            "y": 0
-          },
-          {
-            "x": 11,
-            "y": 8
-          },
-          {
-            "x": 4,
-            "y": 13
-          },
-          {
-            "x": -4,
-            "y": 13
-          },
-          {
-            "x": -11,
-            "y": 8
-          }
-        ]
-      }
-    },
-    {
-      "type": "tree.oak.leaves",
-      "x": 64,
-      "y": 0,
-      "interactable": false
-    },
-    {
-      "type": "tree.birch.log_square",
-      "x": 0,
-      "y": 32,
-      "interactable": false
-    },
-    {
-      "type": "tree.birch.log_round",
-      "x": 32,
-      "y": 32,
-      "interactable": true,
-      "bounds": {
-        "points": [
-          {
-            "x": -14,
-            "y": 0
-          },
-          {
-            "x": -11,
-            "y": -8
-          },
-          {
-            "x": -4,
-            "y": -13
-          },
-          {
-            "x": 4,
-            "y": -13
-          },
-          {
-            "x": 11,
-            "y": -8
-          },
-          {
-            "x": 14,
-            "y": 0
-          },
-          {
-            "x": 11,
-            "y": 8
-          },
-          {
-            "x": 4,
-            "y": 13
-          },
-          {
-            "x": -4,
-            "y": 13
-          },
-          {
-            "x": -11,
-            "y": 8
-          }
-        ]
-      }
-    },
-    {
-      "type": "tree.birch.leaves",
-      "x": 64,
-      "y": 32,
-      "interactable": false
-    },
-    {
       "type": "skeletal_tree.1",
       "x": 0,
-      "y": 64,
+      "y": 0,
       "interactable": true,
       "bounds": {
         "points": [
@@ -179,7 +55,7 @@
     {
       "type": "skeletal_tree.2",
       "x": 32,
-      "y": 64,
+      "y": 0,
       "interactable": true,
       "bounds": {
         "points": [
@@ -229,7 +105,7 @@
     {
       "type": "skeletal_tree.3",
       "x": 64,
-      "y": 64,
+      "y": 0,
       "interactable": true,
       "bounds": {
         "points": [
@@ -279,7 +155,7 @@
     {
       "type": "boulder.small.solo",
       "x": 0,
-      "y": 96,
+      "y": 32,
       "interactable": true,
       "bounds": {
         "points": [
@@ -329,7 +205,7 @@
     {
       "type": "boulder.small.pair",
       "x": 32,
-      "y": 96,
+      "y": 32,
       "interactable": true,
       "bounds": {
         "points": [
@@ -387,7 +263,7 @@
     {
       "type": "boulder.small.cluster",
       "x": 64,
-      "y": 96,
+      "y": 32,
       "interactable": true,
       "bounds": {
         "points": [
@@ -449,7 +325,7 @@
     {
       "type": "boulder.large.nw",
       "x": 0,
-      "y": 128,
+      "y": 64,
       "interactable": true,
       "bounds": {
         "points": [
@@ -515,7 +391,7 @@
     {
       "type": "boulder.large.ne",
       "x": 32,
-      "y": 128,
+      "y": 64,
       "interactable": true,
       "bounds": {
         "points": [
@@ -581,19 +457,19 @@
     {
       "type": "boulder.large.snow.nw",
       "x": 64,
-      "y": 128,
+      "y": 64,
       "interactable": false
     },
     {
       "type": "boulder.large.snow.ne",
       "x": 96,
-      "y": 128,
+      "y": 64,
       "interactable": false
     },
     {
       "type": "boulder.large.sw",
       "x": 0,
-      "y": 160,
+      "y": 96,
       "interactable": true,
       "bounds": {
         "points": [
@@ -659,7 +535,7 @@
     {
       "type": "boulder.large.se",
       "x": 32,
-      "y": 160,
+      "y": 96,
       "interactable": true,
       "bounds": {
         "points": [
@@ -725,19 +601,19 @@
     {
       "type": "boulder.large.snow.sw",
       "x": 64,
-      "y": 160,
+      "y": 96,
       "interactable": false
     },
     {
       "type": "boulder.large.snow.se",
       "x": 96,
-      "y": 160,
+      "y": 96,
       "interactable": false
     },
     {
       "type": "boulder.huge.nw",
       "x": 0,
-      "y": 192,
+      "y": 128,
       "interactable": true,
       "bounds": {
         "points": [
@@ -787,7 +663,7 @@
     {
       "type": "boulder.huge.n",
       "x": 32,
-      "y": 192,
+      "y": 128,
       "interactable": true,
       "bounds": {
         "points": [
@@ -833,7 +709,7 @@
     {
       "type": "boulder.huge.ne",
       "x": 64,
-      "y": 192,
+      "y": 128,
       "interactable": true,
       "bounds": {
         "points": [
@@ -883,25 +759,25 @@
     {
       "type": "boulder.huge.snow.nw",
       "x": 96,
-      "y": 192,
+      "y": 128,
       "interactable": false
     },
     {
       "type": "boulder.huge.snow.n",
       "x": 128,
-      "y": 192,
+      "y": 128,
       "interactable": false
     },
     {
       "type": "boulder.huge.snow.ne",
       "x": 160,
-      "y": 192,
+      "y": 128,
       "interactable": false
     },
     {
       "type": "boulder.huge.w",
       "x": 0,
-      "y": 224,
+      "y": 160,
       "interactable": true,
       "bounds": {
         "points": [
@@ -947,7 +823,7 @@
     {
       "type": "boulder.huge.center",
       "x": 32,
-      "y": 224,
+      "y": 160,
       "interactable": true,
       "bounds": {
         "points": [
@@ -973,7 +849,7 @@
     {
       "type": "boulder.huge.e",
       "x": 64,
-      "y": 224,
+      "y": 160,
       "interactable": true,
       "bounds": {
         "points": [
@@ -1019,25 +895,25 @@
     {
       "type": "boulder.huge.snow.w",
       "x": 96,
-      "y": 224,
+      "y": 160,
       "interactable": false
     },
     {
       "type": "boulder.huge.snow.center",
       "x": 128,
-      "y": 224,
+      "y": 160,
       "interactable": false
     },
     {
       "type": "boulder.huge.snow.e",
       "x": 160,
-      "y": 224,
+      "y": 160,
       "interactable": false
     },
     {
       "type": "boulder.huge.sw",
       "x": 0,
-      "y": 256,
+      "y": 192,
       "interactable": true,
       "bounds": {
         "points": [
@@ -1087,7 +963,7 @@
     {
       "type": "boulder.huge.s",
       "x": 32,
-      "y": 256,
+      "y": 192,
       "interactable": true,
       "bounds": {
         "points": [
@@ -1133,7 +1009,7 @@
     {
       "type": "boulder.huge.se",
       "x": 64,
-      "y": 256,
+      "y": 192,
       "interactable": true,
       "bounds": {
         "points": [
@@ -1183,19 +1059,19 @@
     {
       "type": "boulder.huge.snow.sw",
       "x": 96,
-      "y": 256,
+      "y": 192,
       "interactable": false
     },
     {
       "type": "boulder.huge.snow.s",
       "x": 128,
-      "y": 256,
+      "y": 192,
       "interactable": false
     },
     {
       "type": "boulder.huge.snow.se",
       "x": 160,
-      "y": 256,
+      "y": 192,
       "interactable": false
     }
   ]

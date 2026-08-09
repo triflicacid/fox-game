@@ -3,7 +3,7 @@ import {StructureManifest} from "./structure-manifest";
 import manifestJson from "./boulder-structures.json";
 import {BiomeTag} from "../biome/biome";
 import {NoiseField} from "../noise-field";
-import {BoulderSpriteType} from "../../../sprites/StructureSpriteSheet";
+import {BoulderSpriteType} from "../../../sprites/TundraStructureSpriteSheet";
 
 const manifest = manifestJson as StructureManifest;
 

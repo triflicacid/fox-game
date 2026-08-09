@@ -8,8 +8,7 @@ import {DebugHud, ChunkState} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
-import {StructureSpriteSheet, StructureSpriteType} from "../sprites/StructureSpriteSheet";
-import {CactusSpriteSheet, CactusSpriteType} from "../sprites/CactusSpriteSheet";
+import {buildStructureSheetRegistry} from "./structure-sheet-dispatch";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
@@ -66,15 +65,14 @@ export class World {
 
     private readonly chunks = new CoordMap<Chunk>();
     private readonly entities: Entity[] = [];
-    private readonly structureSpriteSheet = new StructureSpriteSheet();
-    private readonly cactusSpriteSheet = new CactusSpriteSheet();
-    private readonly structureSpriteTypes = new Set<string>(this.structureSpriteSheet.getSpriteTypes());
+
+    /** Routes a structure piece's sprite string to whichever biome sheet actually defines it. */
+    private readonly structureSheetRegistry = buildStructureSheetRegistry();
+
     private readonly chunkSpriteSheets: ChunkSpriteSheets = {
         backgroundTile: new BackgroundTileSpriteSheet(),
         animatedBackgroundTile: new AnimatedBackgroundTileSpriteSheet(),
-        getStructureSpriteBitmap: (sprite) => this.structureSpriteTypes.has(sprite)
-            ? this.structureSpriteSheet.getTileBitmap(sprite as StructureSpriteType)
-            : this.cactusSpriteSheet.getTileBitmap(sprite as CactusSpriteType),
+        getStructureSpriteBitmap: (sprite) => this.structureSheetRegistry.findSheet(sprite).getTileBitmap(sprite),
         getStructureCollisionPolygon: (sprite, centerX, centerY, tileSize) =>
             this.structureCollisionPolygonForSprite(sprite, centerX, centerY, tileSize),
     };
@@ -1037,13 +1035,11 @@ export class World {
     /**
      * Locates `sprite` within whichever sheet actually defines it.
      *
-     * @param sprite - The structure/cactus sprite type to locate.
+     * @param sprite - The structure sprite type to locate.
      * @returns Its located tile, including its collision {@link SpriteBounds} if it has any.
      */
     private locateStructureSprite(sprite: string): SpriteTile {
-        return this.structureSpriteTypes.has(sprite)
-            ? this.structureSpriteSheet.locateTile(sprite as StructureSpriteType)
-            : this.cactusSpriteSheet.locateTile(sprite as CactusSpriteType);
+        return this.structureSheetRegistry.findSheet(sprite).locateTile(sprite);
     }
 
     /**
