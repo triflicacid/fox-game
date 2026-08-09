@@ -1057,11 +1057,11 @@ export class InteractableDisplay extends Display {
         });
     }
 
-    /** Formats one row's `showValue` suffix: `value`'s share of `total` as a rounded percentage, `value` itself, or nothing. */
-    private formatPieChartLegendValueSuffix(showValue: PieChartLegendValueDisplay, value: number, total: number): string {
+    /** Formats one row's `showValue` suffix: `value`'s share of `total` as a percentage (to `percentageDecimals` places), `value` itself, or nothing. */
+    private formatPieChartLegendValueSuffix(showValue: PieChartLegendValueDisplay, value: number, total: number, percentageDecimals: number): string {
         switch (showValue) {
             case "percentage":
-                return ` (${total > 0 ? Math.round((value / total) * 100) : 0}%)`;
+                return ` (${total > 0 ? ((value / total) * 100).toFixed(percentageDecimals) : (0).toFixed(percentageDecimals)}%)`;
             case "value":
                 return ` (${value})`;
             case "none":
@@ -1070,8 +1070,8 @@ export class InteractableDisplay extends Display {
     }
 
     /** Appends the formatted suffix to `content` - a no-op when it's empty. */
-    private appendPieChartLegendValueSuffix(content: string | TextSegment[], showValue: PieChartLegendValueDisplay, value: number, total: number): string | TextSegment[] {
-        const suffix = this.formatPieChartLegendValueSuffix(showValue, value, total);
+    private appendPieChartLegendValueSuffix(content: string | TextSegment[], showValue: PieChartLegendValueDisplay, value: number, total: number, percentageDecimals: number): string | TextSegment[] {
+        const suffix = this.formatPieChartLegendValueSuffix(showValue, value, total, percentageDecimals);
         if (suffix === "") {
             return content;
         }
@@ -1086,11 +1086,12 @@ export class InteractableDisplay extends Display {
      */
     private resolvePieChartLegendRows(ctx: CanvasRenderingContext2D, item: PieChartInput, legend: PieChartLegend, scale: number, sources: PieChartLegendSource[], focusByKey: ReadonlyMap<string, boolean>): ResolvedPieChartLegendRow[] {
         const showValue = legend.showValue ?? "none";
+        const percentageDecimals = legend.percentageDecimals ?? 0;
         const total = item.classes.filter((c) => !c.hidden).reduce((sum, c) => sum + c.value, 0);
 
         return sources.map(({class: c, colorOverride, contentOverride, styleOverride}) => {
             const focused = focusByKey.get(c.key) ?? false;
-            const content = this.appendPieChartLegendValueSuffix(contentOverride ?? c.label ?? c.key, showValue, c.value, total);
+            const content = this.appendPieChartLegendValueSuffix(contentOverride ?? c.label ?? c.key, showValue, c.value, total, percentageDecimals);
             const ambientStyle = this.mergeStyle(legend.style, styleOverride, focused ? c.selectedStyle : undefined);
             const styled = this.withAmbientStyle(this.normaliseContent(content), ambientStyle);
             const scaled = scale === 1 ? styled : this.withAmbientStyle(styled, {fontSizeDelta: (size) => size * scale});

@@ -164,6 +164,30 @@ describe("InteractableDisplay pie chart", () => {
         expect(noneElement.legend?.map((row) => row.runs[0]?.run.text)).toEqual(["a", "b"]);
     });
 
+    it("formats `showValue: \"percentage\"` to `percentageDecimals` places, defaulting to whole percentages", () => {
+        const display = new InteractableDisplay({}, FLAT_THEME, "always");
+        const classes = [
+            {key: "a", value: 1, fillColor: "#ff0000"},
+            {key: "b", value: 2, fillColor: "#00ff00"},
+        ];
+
+        const defaultLine: DisplayLine = [{kind: "piechart", radius: 10, classes, legend: {auto: true, showValue: "percentage"}}];
+        display.beginResolvePass();
+        const defaultElement = display.resolveElements(createMockCanvasContext().ctx, defaultLine).elements[0];
+        if (defaultElement.kind !== "piechart") {
+            throw new Error("Expected a resolved piechart element");
+        }
+        expect(defaultElement.legend?.map((row) => row.runs[0]?.run.text)).toEqual(["a (33%)", "b (67%)"]);
+
+        const decimalLine: DisplayLine = [{kind: "piechart", radius: 10, classes, legend: {auto: true, showValue: "percentage", percentageDecimals: 1}}];
+        display.beginResolvePass();
+        const decimalElement = display.resolveElements(createMockCanvasContext().ctx, decimalLine).elements[0];
+        if (decimalElement.kind !== "piechart") {
+            throw new Error("Expected a resolved piechart element");
+        }
+        expect(decimalElement.legend?.map((row) => row.runs[0]?.run.text)).toEqual(["a (33.3%)", "b (66.7%)"]);
+    });
+
     it("applies `showValue` to a manual legend row too, since every row is tied to a class - and drops an entry whose `key` matches no class", () => {
         const display = new InteractableDisplay({}, FLAT_THEME, "always");
         const {ctx} = createMockCanvasContext();

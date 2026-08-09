@@ -13,7 +13,7 @@ import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {FeatureTag} from "./generation/feature/feature-tag";
-import {BiomeSummary} from "./generation/biome/biome";
+import {BiomeSummary, BiomeTag} from "./generation/biome/biome";
 import {SpriteFrame, SpriteTile} from "../sprites/sprite";
 import {CoordMap, CoordSet} from "./coord-set";
 import {Effect} from "../effects/effect";
@@ -22,6 +22,7 @@ import {getFieldGradient, sampleGradient} from "./generation/noise-field-colors"
 import {BIOME_COLORS} from "./generation/biome/biome-colors";
 import {Minimap, MinimapData} from "../minimap/minimap";
 import {MINIMAP_CONFIG} from "../minimap/minimap-config";
+import {MinimapStatsHud, MinimapStatsHudData} from "../minimap/minimap-stats-hud";
 import {Structure, StructurePieceInstance} from "./generation/structure/structure";
 import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
@@ -90,6 +91,7 @@ export class World {
     private minChunkGenerationDelayMs = 0;
     private readonly debugHud = new DebugHud();
     private readonly minimap = new Minimap();
+    private readonly minimapStatsHud = new MinimapStatsHud();
 
     /** Whether the minimap is currently shown - independent of {@link DebugController.isEnabled}, defaults to visible. See {@link getMinimapEnabled}/{@link setMinimapEnabled}. */
     private minimapEnabled = true;
@@ -1335,8 +1337,10 @@ export class World {
 
         ctx.restore();
 
+        let minimapData: MinimapData | undefined;
         if (this.minimapEnabled) {
-            this.minimap.draw(ctx, ctx.canvas.width, this.buildMinimapData(camera, debugEnabled, noiseFieldName));
+            minimapData = this.buildMinimapData(camera, debugEnabled, noiseFieldName);
+            this.minimap.draw(ctx, ctx.canvas.width, minimapData);
         }
 
         if (debugEnabled) {
@@ -1347,16 +1351,14 @@ export class World {
                     : ctx.canvas.width - DEBUG_CONFIG.noiseLegendMargin;
                 this.drawNoiseFieldLegend(ctx, legendRightEdge, noiseFieldName);
             }
+            if (minimapData) {
+                this.minimapStatsHud.draw(ctx, ctx.canvas.width, this.buildMinimapStatsData(minimapData));
+            }
         }
     }
 
     /**
-     * Gathers this frame's minimap data: the player's centre position/facing,
-     * plus a colour source that switches from biome colour to the selected
-     * debug noise field's own gradient while `debugEnabled && noiseFieldName`
-     * - the same condition that already gates {@link drawNoiseFieldOverlay}/
-     * {@link drawNoiseFieldLegend} - so the minimap never shows a different
-     * colour language from the rest of the debug view for the same data.
+     * Gathers this frame's minimap data.
      *
      * @param camera - The active camera.
      * @param debugEnabled - Whether debug mode is currently on.
@@ -1391,6 +1393,41 @@ export class World {
             modeKey: "biome",
             sampleColor: (tileX, tileY) => BIOME_COLORS[this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)],
         };
+    }
+
+    /**
+     * Gathers this frame's minimap stats HUD data: the world-tile bounds the
+     * minimap currently covers (derived from `minimapData`'s own centre/scale
+     * - the same geometry `Minimap`'s bitmap sampling uses), plus a tally of
+     * biome tags sampled across that area on a fixed grid, independent of
+     * whether the minimap's own bitmap is currently showing biome colour or
+     * a debug noise field (3.6) - the biome breakdown is always genuine
+     * biome data, resolved the same way the biome colour layer itself is.
+     *
+     * @param minimapData - This frame's minimap data, already built by {@link buildMinimapData}.
+     * @returns This frame's minimap stats data - see {@link MinimapStatsHudData}.
+     */
+    private buildMinimapStatsData(minimapData: MinimapData): MinimapStatsHudData {
+        const {playerTileX, playerTileY, worldTilesPerPixel} = minimapData;
+        const halfSpanTiles = (MINIMAP_CONFIG.boxSizePx / 2) * worldTilesPerPixel;
+        const minTileX = playerTileX - halfSpanTiles;
+        const minTileY = playerTileY - halfSpanTiles;
+        const maxTileX = playerTileX + halfSpanTiles;
+        const maxTileY = playerTileY + halfSpanTiles;
+
+        const biomeCounts: Record<BiomeTag, number> = {plains: 0, desert: 0, forest: 0, tundra: 0};
+        const grid = MINIMAP_CONFIG.statsBiomeSampleGrid;
+        const spanX = maxTileX - minTileX;
+        const spanY = maxTileY - minTileY;
+        for (let iy = 0; iy < grid; iy++) {
+            const tileY = minTileY + ((iy + 0.5) / grid) * spanY;
+            for (let ix = 0; ix < grid; ix++) {
+                const tileX = minTileX + ((ix + 0.5) / grid) * spanX;
+                biomeCounts[this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)]++;
+            }
+        }
+
+        return {minTileX, minTileY, maxTileX, maxTileY, worldTilesPerPixel, biomeCounts};
     }
 
     /**

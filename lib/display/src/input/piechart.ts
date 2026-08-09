@@ -59,6 +59,8 @@ interface PieChartLegendBase {
     style?: TextStyle;
     /** Appends each row's share of the total as a percentage, its class's raw `value`, or nothing. Defaults to `"none"`. */
     showValue?: PieChartLegendValueDisplay;
+    /** Decimal places shown when `showValue` is `"percentage"` (e.g. `1` for `"12.3%"`). Ignored otherwise. Defaults to `0`. */
+    percentageDecimals?: number;
     /** Opacity applied to every wedge other than the focused class's, while any legend-linked class is focused. Unset never dims; a class with no legend row is never dimmed either. */
     dimOpacity?: number;
 }

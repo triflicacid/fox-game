@@ -28,6 +28,13 @@ export const MINIMAP_CONFIG = {
     playerMarkerWedgeLengthPx: 8,
     /** Stroke width of the player marker's facing wedge, in canvas pixels. */
     playerMarkerWedgeWidth: 2,
+
+    /** Gap between the minimap's bottom edge and the stats HUD below it (debug mode only), in canvas pixels. */
+    statsHudGap: 8,
+    /** Radius of the stats HUD's biome-distribution pie chart, in canvas pixels. */
+    statsPieRadiusPx: 32,
+    /** Samples per axis (so `statsBiomeSampleGrid`² total) used to tally biome distribution for the stats HUD - independent of `sampleBlockPx`, since it doesn't need to match the bitmap's own resolution, only be cheap enough for a per-frame, debug-only readout. */
+    statsBiomeSampleGrid: 16,
 };
 
 fieldRegistry.registerFields("minimap", MINIMAP_CONFIG, {
@@ -40,4 +47,7 @@ fieldRegistry.registerFields("minimap", MINIMAP_CONFIG, {
     playerMarkerRadiusPx: nonNegativeInteger(),
     playerMarkerWedgeLengthPx: nonNegativeInteger(),
     playerMarkerWedgeWidth: nonNegativeInteger(),
+    statsHudGap: nonNegativeInteger(),
+    statsPieRadiusPx: nonNegativeInteger(),
+    statsBiomeSampleGrid: nonNegativeInteger(),
 });
