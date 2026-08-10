@@ -679,9 +679,24 @@ the current generation-triggering debug behavior.
 `World`, their behavior has focused tests, and existing public calls still work
 through the facade.
 
-### Phase 5: Extract simulation systems
+### Phase 5 (Done): Extract simulation systems
+
+_Status: completed on 2026-08-10._
 
 Move entity ownership and collision policy after query contracts are stable.
+
+#### Deviations from original plan
+
+- `src/entities/entity-lookup-handler.ts` still accepts concrete `World`, unchanged.
+  `EntityCollectionView` exists and `World` already delegates to it internally, but
+  nothing outside `World` had a way to obtain the view on its own (`registry-init.ts`
+  only holds `WorldController`), and `World.getEntities()` still has a real caller in
+  the meantime. Migrating the handler is deferred to Phase 7, when `getEntities()` is
+  actually removed and a real replacement wiring path is needed anyway.
+- `WorldCollisionSystem.getCanMoveOntoGeneratingChunks()` exists (per plan), but `World`
+  does not gain a matching public getter facade - only `setCanMoveOntoGeneratingChunks()`
+  is forwarded, matching `World`'s pre-existing public surface (no getter existed before
+  this phase either).
 
 #### `src/entities/entity-collection.ts`
 

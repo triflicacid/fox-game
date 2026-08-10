@@ -3,6 +3,7 @@ import {Camera} from "../camera/camera";
 import type {Effect} from "../effects/effect";
 import {Vector2d} from "../geometry/vector2d";
 import type {Tile} from "./tiles/tile";
+import {StructureResolver} from "./collision/structure-resolver";
 import type {ChunkSpriteSheets} from "./rendering/chunk-sprite-sheets";
 import {World} from "./world";
 import type {ChunkSpriteSheetsFactory} from "./world-dependencies";
@@ -20,27 +21,28 @@ afterEach(() => {
 
 describe("World construction", () => {
     it("requires and retains the complete injected dependency graph", () => {
-        let suppliedRegistry: unknown;
-        let suppliedCollisionLookup: unknown;
-        const chunkSpriteSheetsFactory: ChunkSpriteSheetsFactory = (registry, collisionLookup): ChunkSpriteSheets => {
-            suppliedRegistry = registry;
-            suppliedCollisionLookup = collisionLookup;
+        let suppliedResolver: StructureResolver | undefined;
+        const chunkSpriteSheetsFactory: ChunkSpriteSheetsFactory = (structureResolver): ChunkSpriteSheets => {
+            suppliedResolver = structureResolver;
             return {
                 backgroundTile: {} as ChunkSpriteSheets["backgroundTile"],
                 animatedBackgroundTile: {} as ChunkSpriteSheets["animatedBackgroundTile"],
-                getStructureSpriteBitmap: () => new Promise(() => undefined),
-                getStructureCollisionPolygon: collisionLookup,
+                getStructureSpriteBitmap: (sprite) => structureResolver.getSpriteBitmap(sprite),
+                getStructureCollisionPolygon: (sprite, centerX, centerY, tileSize) =>
+                    structureResolver.collisionPolygonForSprite(sprite, centerX, centerY, tileSize),
             };
         };
         const dependencies = createTestWorldDependencies(42, {chunkSpriteSheetsFactory});
+        const findSheet = vi.spyOn(dependencies.structureSheetRegistry, "findSheet");
 
         const world = new World(16, dependencies);
 
         expect(world.tileSize).toBe(16);
         expect(world.getWorldSeed()).toBe(42);
         expect(world.getChunkWorkerClient()).toBe(dependencies.chunkWorkerClient);
-        expect(suppliedRegistry).toBe(dependencies.structureSheetRegistry);
-        expect(suppliedCollisionLookup).toBeTypeOf("function");
+        expect(suppliedResolver).toBeInstanceOf(StructureResolver);
+        void suppliedResolver?.getSpriteBitmap("some-sprite");
+        expect(findSheet).toHaveBeenCalledWith("some-sprite");
     });
 
     it("uses the worker result and injected factory once per chunk coordinate", () => {

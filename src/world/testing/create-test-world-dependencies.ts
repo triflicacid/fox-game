@@ -118,11 +118,12 @@ export function createTestWorldDependencies(
         chunkWorkerClient: worker,
         chunkFactory: (chunkX, chunkY, generation, spriteSheets, tileSize) =>
             new LoadedChunk(chunkX, chunkY, generation, spriteSheets, tileSize),
-        chunkSpriteSheetsFactory: (_structureSheetRegistry, getStructureCollisionPolygon): ChunkSpriteSheets => ({
+        chunkSpriteSheetsFactory: (structureResolver): ChunkSpriteSheets => ({
             backgroundTile: {} as ChunkSpriteSheets["backgroundTile"],
             animatedBackgroundTile: {} as ChunkSpriteSheets["animatedBackgroundTile"],
-            getStructureSpriteBitmap: () => new Promise(() => undefined),
-            getStructureCollisionPolygon,
+            getStructureSpriteBitmap: (sprite) => structureResolver.getSpriteBitmap(sprite),
+            getStructureCollisionPolygon: (sprite, centerX, centerY, tileSize) =>
+                structureResolver.collisionPolygonForSprite(sprite, centerX, centerY, tileSize),
         }),
         structureSheetRegistry: {
             findSheet: () => ({

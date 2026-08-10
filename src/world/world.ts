@@ -1,4 +1,4 @@
-import type {Chunk, ChunkSpriteSheets, DrawableChunk} from "./chunks/chunk";
+import type {ChunkSpriteSheets, DrawableChunk} from "./chunks/chunk";
 import {CHUNK_SIZE} from "./chunks/chunk";
 import {
     bufferChunkRange,
@@ -10,29 +10,25 @@ import {
 } from "./chunks/chunk-streaming-math";
 import {DefaultWorldGridView} from "./tiles/world-grid-view";
 import {Entity} from "../entities/entity";
+import {EntityCollection} from "../entities/entity-collection";
 import {MovableEntity} from "../entities/movable-entity";
 import {Camera} from "../camera/camera";
 import {Vector2d} from "../geometry/vector2d";
 import {DebugHudRenderer} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {FeatureTag} from "./generation/feature/feature-tag";
-import {SpriteFrame, SpriteTile} from "../sprites/sprite";
 import {CoordMap} from "./coordinates/coord-set";
 import {Effect} from "../effects/effect";
-import {requireNonNull} from "../util";
 import {getFieldGradient} from "./generation/noise-field-colors";
 import {Minimap, MinimapRenderer} from "../minimap/minimap";
 import {MinimapStatsHudRenderer} from "../minimap/minimap-stats-hud";
-import {Structure, StructurePieceInstance} from "./generation/structure/structure";
-import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
-import {CollisionResponseKind} from "../geometry/collision-response";
-import {applyCollisionResponse, CollisionContext} from "./collision/collision";
+import {StructureResolver} from "./collision/structure-resolver";
+import {WorldCollisionSystem} from "./collision/world-collision-system";
 import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./inspection/hover-info";
 import {ChunkCoordinate} from "./coordinates/chunk-coordinate";
 import {pixelRectToTileRange, tileToChunk} from "./coordinates/world-grid-math";
 import {randomWorldSeed} from "./generation/random-world-seed";
 import type {ChunkGenerationWorker} from "./generation/chunk/chunk-generation-worker";
-import type {StructureSheetRegistry} from "./rendering/structure-sheet-dispatch";
 import type {ChunkFactory, WorldDependencies} from "./world-dependencies";
 import {WorldEffects} from "./effects/world-effects";
 import {WorldGenerationView} from "./generation/world-generation-view";
@@ -50,10 +46,9 @@ export class World {
     private static readonly VOID_COLOR = "#000000";
 
     private readonly chunks = new CoordMap<DrawableChunk>();
-    private readonly entities: Entity[] = [];
+    private readonly entityCollection = new EntityCollection();
 
-    /** Routes a structure piece's sprite string to whichever biome sheet actually defines it. */
-    private readonly structureSheetRegistry: StructureSheetRegistry;
+    private readonly structureResolver: StructureResolver;
     private readonly chunkSpriteSheets: ChunkSpriteSheets;
     private readonly chunkFactory: ChunkFactory;
     private readonly worldGrid: DefaultWorldGridView<DrawableChunk>;
@@ -76,18 +71,7 @@ export class World {
     private readonly minimapBuilder: MinimapDataBuilder;
     private readonly hoverInspector: WorldHoverInspector;
     private readonly debugSnapshotBuilder: WorldDebugSnapshotBuilder;
-
-    /**
-     * The entity currently under player control - `undefined` until
-     * {@link setMainEntity} is called at least once.
-     */
-    private mainEntity: MovableEntity | undefined;
-
-    /**
-     * Most recent collision pair for the debug HUD indicator. Stays set until
-     * the colliding entity moves again - see {@link handleCollisions}.
-     */
-    private lastCollision: {entityLabel: string; obstacleLabel: string} | undefined;
+    private readonly collisionSystem: WorldCollisionSystem;
 
     /** Sum of every generated chunk's {@link Chunk.generationTimeMs}. */
     private totalChunkGenerationTimeMs = 0;
@@ -104,30 +88,22 @@ export class World {
     /** Whether new chunks may be generated. */
     private generationEnabled = true;
 
-    /**
-     * Whether entities may move onto a chunk that hasn't finished generating
-     * yet. `false` by default - see {@link constrainEntitiesToChunks}.
-     */
-    private canMoveOntoGeneratingChunks = false;
-
     public constructor(public readonly tileSize: number, dependencies: WorldDependencies) {
         this.worldSeed = dependencies.worldSeed;
         this.generationView = new WorldGenerationView(dependencies.chunkGenerator);
         this.chunkWorkerClient = dependencies.chunkWorkerClient;
         this.chunkFactory = dependencies.chunkFactory;
-        this.structureSheetRegistry = dependencies.structureSheetRegistry;
-        this.chunkSpriteSheets = dependencies.chunkSpriteSheetsFactory(
-            this.structureSheetRegistry,
-            this.structureCollisionPolygonForSprite.bind(this),
-        );
+        this.structureResolver = new StructureResolver(dependencies.structureSheetRegistry, () => this.generationView.getStructures());
+        this.chunkSpriteSheets = dependencies.chunkSpriteSheetsFactory(this.structureResolver);
         this.worldGrid = new DefaultWorldGridView<DrawableChunk>(
             this.requestChunk.bind(this),
             (chunkX, chunkY) => this.chunks.get(chunkX, chunkY),
         );
         this.worldEffects = new WorldEffects();
-        this.minimapBuilder = new MinimapDataBuilder(tileSize, this.generationView, () => this.requireMainEntity());
-        this.hoverInspector = new WorldHoverInspector(tileSize, this.worldGrid, this.generationView, () => this.entities);
+        this.minimapBuilder = new MinimapDataBuilder(tileSize, this.generationView, () => this.entityCollection.getMainEntity());
+        this.hoverInspector = new WorldHoverInspector(tileSize, this.worldGrid, this.generationView, () => this.entityCollection.getEntities());
         this.debugSnapshotBuilder = new WorldDebugSnapshotBuilder(tileSize, this.worldGrid, this.worldGrid);
+        this.collisionSystem = new WorldCollisionSystem(this.worldGrid, this.entityCollection, this.structureResolver, tileSize);
         this.debugHud = dependencies.debugHud;
         this.minimap = dependencies.minimap;
         this.minimapStatsHud = dependencies.minimapStatsHud;
@@ -279,58 +255,7 @@ export class World {
 
     /** Enables or disables movement onto still-generating chunks. */
     public setCanMoveOntoGeneratingChunks(canMove: boolean): void {
-        this.canMoveOntoGeneratingChunks = canMove;
-    }
-
-    /**
-     * Whether every chunk overlapped by a `frame`-sized rectangle at `position`
-     * is both loaded and satisfies `predicate`.
-     */
-    private isPositionOnValidGround(position: Vector2d, frame: SpriteFrame, predicate: (chunk: Chunk) => boolean): boolean {
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const startChunkX = Math.floor((position.x - frame.w / 2) / chunkPixelSize);
-        const startChunkY = Math.floor((position.y - frame.h / 2) / chunkPixelSize);
-        const endChunkX = Math.floor((position.x + frame.w / 2 - 1) / chunkPixelSize);
-        const endChunkY = Math.floor((position.y + frame.h / 2 - 1) / chunkPixelSize);
-
-        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
-            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                const chunk = this.chunks.get(chunkX, chunkY);
-                if (!chunk || !predicate(chunk)) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    /** Slides or pushes back every {@link MovableEntity} that ended the tick on invalid ground. */
-    private constrainEntitiesToChunks(previousPositions: ReadonlyMap<MovableEntity, Vector2d>, predicate: (chunk: Chunk) => boolean): void {
-        for (const entity of this.entities) {
-            if (!(entity instanceof MovableEntity)) {
-                continue;
-            }
-            const previous = previousPositions.get(entity);
-            if (!previous) {
-                continue;
-            }
-
-            const current = entity.getPosition();
-            const frame = entity.getCurrentFrame();
-            if (this.isPositionOnValidGround(current, frame, predicate)) {
-                continue;
-            }
-
-            const slideX = new Vector2d(current.x, previous.y);
-            const slideY = new Vector2d(previous.x, current.y);
-            if (this.isPositionOnValidGround(slideX, frame, predicate)) {
-                entity.teleportTo(slideX);
-            } else if (this.isPositionOnValidGround(slideY, frame, predicate)) {
-                entity.teleportTo(slideY);
-            } else {
-                entity.teleportTo(previous);
-            }
-        }
+        this.collisionSystem.setCanMoveOntoGeneratingChunks(canMove);
     }
 
     /** Returns hover data for the tile at a world tile position, or `undefined` while its chunk is unready. */
@@ -366,12 +291,12 @@ export class World {
 
     /** Every entity currently in the world. */
     public getEntities(): readonly Entity[] {
-        return this.entities;
+        return this.entityCollection.getEntities();
     }
 
     /** The entity currently under player control. Throws if none has been set. */
     public getMainEntity(): MovableEntity {
-        return this.requireMainEntity();
+        return this.entityCollection.getMainEntity();
     }
 
     /**
@@ -379,26 +304,8 @@ export class World {
      * @returns `this`, for chaining.
      */
     public setMainEntity(entity: MovableEntity): this {
-        if (this.mainEntity) {
-            this.destroyEntity(this.mainEntity);
-        }
-        this.mainEntity = entity;
-        this.entities.push(entity);
+        this.entityCollection.setMainEntity(entity);
         return this;
-    }
-
-    /** Removes `entity` and clears its effect dispatcher. */
-    private destroyEntity(entity: MovableEntity): void {
-        entity.effectDispatcher.clear();
-        const index = this.entities.indexOf(entity);
-        if (index !== -1) {
-            this.entities.splice(index, 1);
-        }
-    }
-
-    /** Returns the main entity, throwing if none has been set. */
-    private requireMainEntity(): MovableEntity {
-        return requireNonNull(this.mainEntity);
     }
 
     /**
@@ -406,137 +313,23 @@ export class World {
      * bypassing collision. Works on any world position regardless of chunk state.
      */
     public teleportMainEntityTo(target: Vector2d): void {
-        this.requireMainEntity().teleportTo(target);
+        this.entityCollection.teleportMainEntityTo(target);
     }
 
     /** Advances entities, effects, chunk streaming, and collision for one tick. */
     public update(deltaMs: number, camera: Camera, spectating: boolean): void {
         this.animationElapsedMs += deltaMs;
-        const previousPositions = new Map<MovableEntity, Vector2d>();
-        for (const entity of this.entities) {
-            if (entity instanceof MovableEntity) {
-                previousPositions.set(entity, entity.getPosition());
-            }
-            entity.update(deltaMs);
-        }
+        const previousPositions = this.entityCollection.update(deltaMs);
         this.worldEffects.update(deltaMs);
         const focus = this.getChunkGenerationFocus(camera, spectating);
         this.updateLoadedChunks(camera, focus);
         this.reorderChunkGenerationQueueIfFocusMoved(focus);
-        if (!this.generationEnabled) {
-            this.constrainEntitiesToChunks(previousPositions, () => true);
-        } else if (!this.canMoveOntoGeneratingChunks) {
-            this.constrainEntitiesToChunks(previousPositions, (chunk) => chunk.isReady());
-        }
-        this.handleCollisions(previousPositions);
-    }
-
-    /** Sweeps each movable entity against collidable tiles and structure pieces. */
-    private handleCollisions(previousPositions: ReadonlyMap<MovableEntity, Vector2d>): void {
-        for (const entity of this.entities) {
-            if (!(entity instanceof MovableEntity)) {
-                continue;
-            }
-            const previousPosition = previousPositions.get(entity);
-            if (!previousPosition) {
-                continue;
-            }
-            if (entity.isMoving()) {
-                this.lastCollision = undefined;
-            }
-            this.handleEntityCollisions(entity, previousPosition);
-        }
-    }
-
-    /** Tests `entity` against every tile and structure piece in its bounding rect, stopping at the first handled collision. */
-    private handleEntityCollisions(entity: MovableEntity, previousPosition: Vector2d): void {
-        const rect = entity.getBoundingRect();
-        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(rect.x, rect.y, rect.w, rect.h, this.tileSize);
-
-        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
-            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const tile = this.worldGrid.getReadyTile(tileX, tileY);
-                const tileCollision = tile?.getCollision(tileX, tileY, this.tileSize);
-                if (tile && tileCollision) {
-                    if (this.resolveObstacleCollision(entity, previousPosition, tileCollision.polygon, tileCollision.response, "tile", tile.groundType, tileX, tileY, undefined)) {
-                        return;
-                    }
-                }
-
-                const piece = this.worldGrid.getReadyStructurePieceAt(tileX, tileY);
-                if (piece && piece.collision !== "none") {
-                    const piecePolygon = this.structurePiecePolygon(piece, tileX, tileY);
-                    const structure = this.findStructure(piece.structureId);
-                    if (this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprites.join(", "), tileX, tileY, structure)) {
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    /** Returns `piece`'s world-space collision polygon centred at its tile. */
-    private structurePiecePolygon(piece: StructurePieceInstance, tileX: number, tileY: number): ConvexPolygon {
-        const centerX = tileX * this.tileSize + this.tileSize / 2;
-        const centerY = tileY * this.tileSize + this.tileSize / 2;
-        return this.structureCollisionPolygonForSprite(piece.sprites[0], centerX, centerY, this.tileSize)
-            ?? rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize);
-    }
-
-    /** Returns `sprite`'s authored collision hull scaled to `tileSize`, or `undefined` if it has none. */
-    private structureCollisionPolygonForSprite(sprite: string, centerX: number, centerY: number, tileSize: number): ConvexPolygon | undefined {
-        const {bounds, w} = this.locateStructureSprite(sprite);
-        if (!bounds) {
-            return undefined;
-        }
-        const scale = tileSize / w;
-        return bounds.points.map((point) => new Vector2d(centerX + point.x * scale, centerY + point.y * scale));
-    }
-
-    /** Locates `sprite` in the sheet that defines it. */
-    private locateStructureSprite(sprite: string): SpriteTile {
-        return this.structureSheetRegistry.findSheet(sprite).locateTile(sprite);
-    }
-
-    /** Finds the {@link Structure} that produced pieces stamped with `structureId`. */
-    private findStructure(structureId: string): Structure | undefined {
-        return this.generationView.getStructures().find((structure) => structure.getStructureId() === structureId);
-    }
-
-    /**
-     * Tests `entity`'s current polygon against `obstaclePolygon` and on overlap
-     * gives `structure` first refusal, then applies `response` generically.
-     * Returns `true` if a collision was found and handled.
-     */
-    private resolveObstacleCollision(
-        entity: MovableEntity,
-        previousPosition: Vector2d,
-        obstaclePolygon: ConvexPolygon,
-        response: Exclude<CollisionResponseKind, "none">,
-        obstacleKind: string,
-        obstacleName: string,
-        tileX: number,
-        tileY: number,
-        structure: Structure | undefined,
-    ): boolean {
-        if (!convexPolygonsIntersect(entity.getCollisionPolygon(), obstaclePolygon)) {
-            return false;
-        }
-        this.lastCollision = {
-            entityLabel: entity.getDisplayName(),
-            obstacleLabel: `${obstacleKind} "${obstacleName}" (${tileX}, ${tileY})`,
-        };
-        const context: CollisionContext = {entity, previousPosition, obstaclePolygon, obstacleKind, obstacleName, tileX, tileY};
-        if (structure?.handleCollision && !structure.handleCollision(context)) {
-            return true;
-        }
-        applyCollisionResponse(response, context);
-        return true;
+        this.collisionSystem.update(previousPositions, this.generationEnabled);
     }
 
     /** Returns the world-pixel point new chunk requests are prioritised around. */
     private getChunkGenerationFocus(camera: Camera, spectating: boolean): Vector2d {
-        return spectating ? camera.getCenter() : this.requireMainEntity().getPosition();
+        return spectating ? camera.getCenter() : this.entityCollection.getMainEntity().getPosition();
     }
 
     /**
@@ -637,7 +430,7 @@ export class World {
         }
 
         this.worldEffects.draw(ctx, viewX, viewY);
-        this.drawEntities(ctx, camera, hitboxesEnabled);
+        this.entityCollection.draw(ctx, camera, hitboxesEnabled);
         this.drawStructureProps(ctx, camera);
 
         if (bordersEnabled) {
@@ -651,7 +444,7 @@ export class World {
 
         let minimapData = undefined;
         if (this.minimapEnabled) {
-            const center = spectating ? camera.getCenter() : this.requireMainEntity().getPosition();
+            const center = spectating ? camera.getCenter() : this.entityCollection.getMainEntity().getPosition();
             minimapData = this.minimapBuilder.build(center, spectating, camera, debugEnabled, noiseFieldName);
             this.minimap.draw(ctx, ctx.canvas.width, minimapData);
         }
@@ -660,14 +453,14 @@ export class World {
         if (debugEnabled) {
             const debugData = this.debugSnapshotBuilder.build(
                 camera,
-                this.requireMainEntity(),
+                this.entityCollection.getMainEntity(),
                 {spectating, spectatorVelocity, actualFps, targetFps},
                 this.lastVisibleChunkCount,
                 this.getLoadedChunkCount(),
                 this.getGeneratingChunkCount(),
                 this.getLatestChunkGenerationTimeMs(),
                 this.getAverageChunkGenerationTimeMs(),
-                this.lastCollision,
+                this.collisionSystem.getDebugState(),
             );
             this.debugHud.draw(ctx, debugData);
             if (noiseFieldName) {
@@ -685,7 +478,7 @@ export class World {
     /**
      * Draws every loaded visible chunk's foreground-layer structure pieces
      * (e.g. tree trunks/canopies), on top of every entity just drawn by
-     * {@link drawEntities} - see {@link Chunk.drawProps}.
+     * {@link EntityCollection.draw} - see {@link Chunk.drawProps}.
      *
      * @param ctx - Canvas context to draw into.
      * @param camera - Camera to render the world through.
@@ -899,49 +692,6 @@ export class World {
             ctx.lineTo(barLeft + barWidth + tickLength, y);
             ctx.stroke();
             ctx.fillText(tick.label, barLeft + barWidth + tickLength + labelGap, y);
-        }
-    }
-
-    /**
-     * Draws every entity whose sprite overlaps the camera's view. Entities
-     * entirely outside the view are skipped.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param camera - Camera to render entities through.
-     * @param hitboxesEnabled - Whether to draw each entity's bounding box/facing arrow.
-     */
-    private drawEntities(ctx: CanvasRenderingContext2D, camera: Camera, hitboxesEnabled = false): void {
-        const viewX = camera.getViewX();
-        const viewY = camera.getViewY();
-
-        for (const entity of this.entities) {
-            const bitmap = entity.getCurrentBitmap();
-            if (!bitmap) {
-                continue;
-            }
-
-            const rect = entity.getBoundingRect();
-            if (!camera.isRectVisible(rect)) {
-                continue;
-            }
-
-            const frame = entity.getCurrentFrame();
-            if (frame.rotation) {
-                const position = entity.getPosition();
-                ctx.save();
-                ctx.translate(position.x - viewX, position.y - viewY);
-                ctx.rotate(frame.rotation);
-                ctx.drawImage(bitmap, -rect.w / 2, -rect.h / 2, rect.w, rect.h);
-                if (hitboxesEnabled) {
-                    entity.drawDebugOverlay(ctx, viewX, viewY);
-                }
-                ctx.restore();
-            } else {
-                ctx.drawImage(bitmap, rect.x - viewX, rect.y - viewY, rect.w, rect.h);
-                if (hitboxesEnabled) {
-                    entity.drawDebugOverlay(ctx, viewX, viewY);
-                }
-            }
         }
     }
 }

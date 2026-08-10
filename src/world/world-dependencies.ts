@@ -1,6 +1,7 @@
 import type {DebugHudRenderer} from "../debug/debug-hud";
 import type {MinimapRenderer} from "../minimap/minimap";
 import type {MinimapStatsHudRenderer} from "../minimap/minimap-stats-hud";
+import type {StructureResolver} from "./collision/structure-resolver";
 import type {DrawableChunk} from "./chunks/chunk";
 import type {ChunkSpriteSheets} from "./rendering/chunk-sprite-sheets";
 import type {ChunkGenerationWorker} from "./generation/chunk/chunk-generation-worker";
@@ -18,10 +19,7 @@ export type ChunkFactory = (
 ) => DrawableChunk;
 
 /** Constructs the shared sprite dependencies used by every runtime chunk. */
-export type ChunkSpriteSheetsFactory = (
-    structureSheetRegistry: StructureSheetRegistry,
-    getStructureCollisionPolygon: ChunkSpriteSheets["getStructureCollisionPolygon"],
-) => ChunkSpriteSheets;
+export type ChunkSpriteSheetsFactory = (structureResolver: StructureResolver) => ChunkSpriteSheets;
 
 /** Complete collaborators required to construct a world. */
 export interface WorldDependencies {

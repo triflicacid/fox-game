@@ -1,13 +1,12 @@
 import {DebugHud} from "../debug/debug-hud";
 import {Minimap} from "../minimap/minimap";
 import {MinimapStatsHud} from "../minimap/minimap-stats-hud";
-import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
-import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
 import {LoadedChunk} from "./chunks/chunk";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
 import {randomWorldSeed} from "./generation/random-world-seed";
+import {createChunkSpriteSheets} from "./rendering/chunk-sprite-sheets";
 import {buildStructureSheetRegistry} from "./rendering/structure-sheet-dispatch";
 import {World} from "./world";
 import type {WorldDependencies} from "./world-dependencies";
@@ -20,12 +19,7 @@ export function createWorld(tileSize: number, worldSeed: number = randomWorldSee
         chunkWorkerClient: new ChunkWorkerClient(worldSeed),
         chunkFactory: (chunkX, chunkY, generation, spriteSheets, chunkTileSize) =>
             new LoadedChunk(chunkX, chunkY, generation, spriteSheets, chunkTileSize),
-        chunkSpriteSheetsFactory: (structureSheetRegistry, getStructureCollisionPolygon) => ({
-            backgroundTile: new BackgroundTileSpriteSheet(),
-            animatedBackgroundTile: new AnimatedBackgroundTileSpriteSheet(),
-            getStructureSpriteBitmap: (sprite) => structureSheetRegistry.findSheet(sprite).getTileBitmap(sprite),
-            getStructureCollisionPolygon,
-        }),
+        chunkSpriteSheetsFactory: createChunkSpriteSheets,
         structureSheetRegistry: buildStructureSheetRegistry(),
         debugHud: new DebugHud(),
         minimap: new Minimap(),

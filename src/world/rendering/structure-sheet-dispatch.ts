@@ -29,8 +29,7 @@ function toEntry<TType extends string>(sheet: StaticSpriteSheet<TType>): Structu
 }
 
 /**
- * Pairs every sprite type `sheet` actually defines with `key`, for folding
- * into the registry's own type -> sheet index.
+ * Pairs every sprite type `sheet` that actually defines with `key`.
  *
  * @param sheet - The sprite sheet to index.
  * @param key - `sheet`'s own key.
@@ -40,11 +39,7 @@ function indexSheet<TType extends string>(sheet: StaticSpriteSheet<TType>, key: 
     return sheet.getSpriteTypes().map((type) => [type, key]);
 }
 
-/**
- * Routes a bare structure sprite string to whichever of the three biome
- * structure sprite sheets (forest/tundra/desert) actually defines it - see
- * {@link buildStructureSheetRegistry}.
- */
+/** Routes a bare structure sprite string to whichever biome structure sprite sheet defines it. */
 export interface StructureSheetRegistry {
     /**
      * Finds whichever structure sprite sheet actually defines `sprite`.
