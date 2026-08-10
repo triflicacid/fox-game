@@ -189,6 +189,20 @@ describe("World update orchestration", () => {
     });
 });
 
+describe("World disposal", () => {
+    it("clears entities and terminates the chunk-generation worker", () => {
+        const worker = new TestChunkGenerationWorker(1);
+        const world = new World(16, createTestWorldDependencies(1, {chunkWorkerClient: worker}));
+        world.setMainEntity(createTestMovableEntity());
+
+        world.dispose();
+
+        expect(world.getEntityCollection().getEntities()).toEqual([]);
+        expect(() => world.getMainEntity()).toThrow();
+        expect(worker.terminated).toBe(true);
+    });
+});
+
 
 
 

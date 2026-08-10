@@ -9,3 +9,5 @@ const worldController = new WorldController(canvas, TARGET_FPS);
 exposeGlobals(worldController);
 registerDynamicFields(worldController);
 worldController.start();
+
+window.addEventListener("beforeunload", () => worldController.dispose(), {once: true});

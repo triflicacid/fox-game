@@ -145,6 +145,15 @@ export class WorldController {
         this.frameLoop.stop();
     }
 
+    /** Releases every resource this controller owns. */
+    public dispose(): void {
+        this.stop();
+        this.canvas.removeEventListener("mousemove", this.handleMouseMove);
+        this.canvas.removeEventListener("mouseleave", this.handleMouseLeave);
+        window.removeEventListener("resize", this.resize);
+        this.world.dispose();
+    }
+
     /**
      * Returns the user's configured FPS cap, or `undefined` when uncapped.
      * Unaffected by the throttle applied while a popup is open.

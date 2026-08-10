@@ -242,4 +242,12 @@ export class World {
     public getNoiseFieldSample(fieldName: string, tileX: number, tileY: number): number | undefined {
         return this.generationView.getSample(fieldName, tileX, tileY);
     }
+
+    /** Releases every worker-backed and stateful resource this world owns. */
+    public dispose(): void {
+        this.entityCollection.clear();
+        this.worldEffects.clear();
+        this.collisionSystem.clear();
+        this.chunkStreaming.dispose();
+    }
 }
