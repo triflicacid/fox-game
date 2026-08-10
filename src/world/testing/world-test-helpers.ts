@@ -1,7 +1,7 @@
 import {MovableEntity} from "../../entities/movable-entity";
 import type {SpriteFrame} from "../../sprites/sprite";
 import {Vector2d} from "../../geometry/vector2d";
-import type {Chunk} from "../chunk";
+import type {Chunk} from "../chunks/chunk";
 
 /** A minimal canvas context that records operations used by World tests. */
 export function createRecordingContext(events: string[], width = 16, height = 16): CanvasRenderingContext2D {

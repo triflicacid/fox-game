@@ -1,4 +1,4 @@
-import {ReadonlyCoordSet, CoordMap, CoordSet} from "../coord-set";
+import {CoordMap, CoordSet, ReadonlyCoordSet} from "../coordinates/coord-set";
 
 /** The eight offsets around one grid cell. */
 const NEIGHBOUR_OFFSETS_8: readonly (readonly [dx: number, dy: number])[] = [

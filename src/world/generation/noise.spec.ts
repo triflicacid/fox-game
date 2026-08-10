@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { sampleNoise2d, sampleFbm2d, sampleGradientNoise2d } from "./noise";
+import {describe, expect, it} from "vitest";
+import {sampleFbm2d, sampleGradientNoise2d, sampleNoise2d} from "./noise";
 
 const COORDS: [number, number][] = [
     [0, 0],

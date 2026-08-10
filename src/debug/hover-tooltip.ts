@@ -2,7 +2,7 @@ import {Display} from "@display/display";
 import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
 import {HudBase} from "./hud-base";
-import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "../world/hover-info";
+import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "../world/inspection/hover-info";
 import {CollisionResponseKind} from "../geometry/collision-response";
 
 /** Everything {@link HoverTooltip.draw} needs for one frame. */

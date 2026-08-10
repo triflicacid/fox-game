@@ -1,5 +1,5 @@
-import {CHUNK_SIZE} from "../../chunk-size";
-import {TileData} from "../../tile";
+import {CHUNK_SIZE} from "../../chunks/chunk-size";
+import {TileData} from "../../tiles/tile";
 import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {NoiseFieldRegistry} from "../field-registry";
 import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "../biome/biome";
@@ -13,7 +13,7 @@ import {CactusStructure} from "../structure/cactus-structure";
 import {SkeletalTreeStructure} from "../structure/skeletal-tree-structure";
 import {BoulderStructure} from "../structure/boulder-structure";
 import {Structure, StructurePieceInstance} from "../structure/structure";
-import {CoordMap} from "../../coord-set";
+import {CoordMap} from "../../coordinates/coord-set";
 import {ClimateFields} from "../biome/climate-fields";
 import {GenerationContext} from "../generation-context";
 import {computeCappedRegionDepths} from "../grid-algorithms";

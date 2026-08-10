@@ -1,5 +1,5 @@
-import {Chunk, CHUNK_SIZE, ChunkSpriteSheets} from "./chunk";
-import {Tile} from "./tile";
+import {Chunk, CHUNK_SIZE, ChunkSpriteSheets} from "./chunks/chunk";
+import {Tile} from "./tiles/tile";
 import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
 import {Camera} from "../camera/camera";
@@ -9,7 +9,7 @@ import {DEBUG_CONFIG} from "../debug/debug-config";
 import {FeatureTag} from "./generation/feature/feature-tag";
 import {BiomeSummary, BiomeTag} from "./generation/biome/biome";
 import {SpriteFrame, SpriteTile} from "../sprites/sprite";
-import {CoordMap, CoordSet} from "./coord-set";
+import {CoordMap, CoordSet} from "./coordinates/coord-set";
 import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
 import {getFieldGradient, sampleGradient} from "./generation/noise-field-colors";
@@ -20,13 +20,13 @@ import {MinimapStatsHudData, MinimapStatsHudRenderer} from "../minimap/minimap-s
 import {Structure, StructurePieceInstance} from "./generation/structure/structure";
 import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
-import {applyCollisionResponse, CollisionContext} from "./collision";
-import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./hover-info";
+import {applyCollisionResponse, CollisionContext} from "./collision/collision";
+import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./inspection/hover-info";
 import {ChunkCoordinate} from "./coordinates/chunk-coordinate";
 import {randomWorldSeed} from "./generation/random-world-seed";
 import type {TerrainGenerationSource} from "./generation/terrain-generation-source";
 import type {ChunkGenerationWorker} from "./generation/chunk/chunk-generation-worker";
-import type {StructureSheetRegistry} from "./structure-sheet-dispatch";
+import type {StructureSheetRegistry} from "./rendering/structure-sheet-dispatch";
 import type {ChunkFactory, WorldDependencies} from "./world-dependencies";
 
 /** A rectangular range of chunk coordinates, inclusive of both ends. */

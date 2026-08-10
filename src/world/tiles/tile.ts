@@ -1,13 +1,13 @@
-import {BackgroundTileType} from "../sprites/BackgroundTileSpriteSheet";
-import {SpriteTile} from "../sprites/sprite";
-import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
-import {BiomeTag} from "./generation/biome/biome";
-import {FeatureTag} from "./generation/feature/feature-tag";
-import {ConvexPolygon} from "../geometry/convex-polygon";
-import {Vector2d} from "../geometry/vector2d";
-import {CollisionResponseKind} from "../geometry/collision-response";
-import {computePhaseOffset, resolvePhase} from "./animated-background-tiles";
-import {TileAnimationSync} from "../sprites/sprite-sheet-descriptor";
+import {BackgroundTileType} from "../../sprites/BackgroundTileSpriteSheet";
+import {SpriteTile} from "../../sprites/sprite";
+import {ChunkSpriteSheets} from "../rendering/chunk-sprite-sheets";
+import {BiomeTag} from "../generation/biome/biome";
+import {FeatureTag} from "../generation/feature/feature-tag";
+import {ConvexPolygon} from "../../geometry/convex-polygon";
+import {Vector2d} from "../../geometry/vector2d";
+import {CollisionResponseKind} from "../../geometry/collision-response";
+import {computePhaseOffset, resolvePhase} from "../rendering/animated-background-tiles";
+import {TileAnimationSync} from "../../sprites/sprite-sheet-descriptor";
 
 /** An animated tile's playback info - see {@link Tile.getAnimationInfo}. */
 export interface TileAnimationInfo {

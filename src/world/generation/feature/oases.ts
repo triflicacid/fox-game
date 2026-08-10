@@ -1,9 +1,9 @@
-import {CHUNK_SIZE} from "../../chunk-size";
-import {TileData} from "../../tile";
+import {CHUNK_SIZE} from "../../chunks/chunk-size";
+import {TileData} from "../../tiles/tile";
 import {BiomeTag} from "../biome/biome";
 import {BiomeTagResolver, Feature, TerrainResampler} from "./feature";
 import {CellularPeakField, FbmField, NoiseField} from "../noise-field";
-import {CoordMap, CoordSet, ReadonlyCoordSet} from "../../coord-set";
+import {CoordMap, CoordSet, ReadonlyCoordSet} from "../../coordinates/coord-set";
 import {
     computeEdgeDistances,
     computeOutwardDistances,

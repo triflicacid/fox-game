@@ -2,7 +2,7 @@ import {Display} from "@display/display";
 import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
 import {HudBase} from "./hud-base";
-import type {ChunkCacheState} from "../world/chunk";
+import type {ChunkCacheState} from "../world/chunks/chunk";
 
 /** Readiness state of a single chunk, for the neighbour indicator. */
 export type ChunkState = "ready" | "generating" | "unloaded";

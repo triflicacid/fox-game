@@ -4,7 +4,7 @@ import {Effect} from "../effects/effect";
 import {Vector2d} from "../geometry/vector2d";
 import {Minimap} from "../minimap/minimap";
 import {MINIMAP_CONFIG} from "../minimap/minimap-config";
-import type {Tile} from "./tile";
+import type {Tile} from "./tiles/tile";
 import {World} from "./world";
 import {createTestWorldDependencies} from "./testing/create-test-world-dependencies";
 import {createRecordingContext, createTestChunk, createTestMovableEntity} from "./testing/world-test-helpers";

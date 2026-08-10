@@ -1,6 +1,6 @@
 import ChunkGenerationWorker from "./chunk-worker?worker&inline";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
-import {CoordMap} from "../../coord-set";
+import {CoordMap} from "../../coordinates/coord-set";
 import type {ChunkCoordinate} from "../../coordinates/chunk-coordinate";
 import type {ChunkGenerationWorker as ChunkGenerationWorkerContract} from "./chunk-generation-worker";
 

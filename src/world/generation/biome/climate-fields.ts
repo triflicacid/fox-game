@@ -1,4 +1,4 @@
-import {CHUNK_SIZE} from "../../chunk-size";
+import {CHUNK_SIZE} from "../../chunks/chunk-size";
 import {FbmField, NoiseField} from "../noise-field";
 
 /** Climate values sampled at one absolute world-tile position. */

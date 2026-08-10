@@ -1,8 +1,8 @@
-import {ForestStructureSpriteSheet} from "../sprites/ForestStructureSpriteSheet";
-import {TundraStructureSpriteSheet} from "../sprites/TundraStructureSpriteSheet";
-import {DesertStructureSpriteSheet} from "../sprites/DesertStructureSpriteSheet";
-import {StaticSpriteSheet} from "../sprites/StaticSpriteSheet";
-import {SpriteTile} from "../sprites/sprite";
+import {ForestStructureSpriteSheet} from "../../sprites/ForestStructureSpriteSheet";
+import {TundraStructureSpriteSheet} from "../../sprites/TundraStructureSpriteSheet";
+import {DesertStructureSpriteSheet} from "../../sprites/DesertStructureSpriteSheet";
+import {StaticSpriteSheet} from "../../sprites/StaticSpriteSheet";
+import {SpriteTile} from "../../sprites/sprite";
 
 /** Which of the three biome structure sprite sheets a sprite belongs to. */
 type StructureSheetKey = "forest" | "tundra" | "desert";

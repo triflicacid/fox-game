@@ -3,12 +3,12 @@ import {Minimap} from "../minimap/minimap";
 import {MinimapStatsHud} from "../minimap/minimap-stats-hud";
 import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
-import {Chunk} from "./chunk";
+import {Chunk} from "./chunks/chunk";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
 import {randomWorldSeed} from "./generation/random-world-seed";
-import {buildStructureSheetRegistry} from "./structure-sheet-dispatch";
+import {buildStructureSheetRegistry} from "./rendering/structure-sheet-dispatch";
 import {World} from "./world";
 import type {WorldDependencies} from "./world-dependencies";
 
@@ -33,4 +33,5 @@ export function createWorld(tileSize: number, worldSeed: number = randomWorldSee
     };
     return new World(tileSize, dependencies);
 }
+
 

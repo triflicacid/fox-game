@@ -1,9 +1,9 @@
 import {WorldController} from "./world-controller";
 import {CameraFollowMode} from "./entities/movement-controller";
 import {fieldRegistry, integerRange, nonNegativeInteger} from "./fields/field-registry";
-import {EntityLookupHandler} from "./world/entity-lookup-handler";
+import {EntityLookupHandler} from "./entities/entity-lookup-handler";
 import {keyboard} from './input/keyboard-instance';
-import {pixelToTile, tileToPixel} from "./world/tile-coordinates";
+import {pixelToTile, tileToPixel} from "./world/coordinates/tile-coordinates";
 
 /**
  * Registers per-instance tunable fields that only exist once

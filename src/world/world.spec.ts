@@ -2,8 +2,8 @@ import {afterEach, describe, expect, it, vi} from "vitest";
 import {Camera} from "../camera/camera";
 import type {Effect} from "../effects/effect";
 import {Vector2d} from "../geometry/vector2d";
-import type {Tile} from "./tile";
-import type {ChunkSpriteSheets} from "./chunk-sprite-sheets";
+import type {Tile} from "./tiles/tile";
+import type {ChunkSpriteSheets} from "./rendering/chunk-sprite-sheets";
 import {World} from "./world";
 import type {ChunkSpriteSheetsFactory} from "./world-dependencies";
 import {

@@ -1,9 +1,9 @@
-import {TileData} from "../../tile";
+import {TileData} from "../../tiles/tile";
 import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
 import {BiomeTag} from "../biome/biome";
 import {GenerationContext} from "../generation-context";
 import {NoiseField} from "../noise-field";
-import {ReadonlyCoordSet} from "../../coord-set";
+import {ReadonlyCoordSet} from "../../coordinates/coord-set";
 
 /** Resolves the retained or sampled biome tag at an arbitrary world position. */
 export type BiomeTagResolver = (worldX: number, worldY: number) => BiomeTag;

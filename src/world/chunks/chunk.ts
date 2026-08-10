@@ -1,16 +1,16 @@
-import {DrawContext, Tile} from "./tile";
-import {ChunkSpriteSheets} from "./chunk-sprite-sheets";
-import {DEBUG_CONFIG} from "../debug/debug-config";
+import {DrawContext, Tile} from "../tiles/tile";
+import {ChunkSpriteSheets} from "../rendering/chunk-sprite-sheets";
+import {DEBUG_CONFIG} from "../../debug/debug-config";
 import {CHUNK_SIZE} from "./chunk-size";
-import {ChunkGenerationResult} from "./generation/chunk/chunk-worker-protocol";
-import {BiomeSummary} from "./generation/biome/biome";
-import {StructurePieceInstance} from "./generation/structure/structure";
-import {StructureLayer} from "./generation/structure/structure-manifest";
-import {CoordMap} from "./coord-set";
-import {requireNonNull} from "../util";
-import {NoiseField} from "./generation/noise-field";
-import {GradientStop, sampleGradient} from "./generation/noise-field-colors";
-import {ConvexPolygon, rectPolygon} from "../geometry/convex-polygon";
+import {ChunkGenerationResult} from "../generation/chunk/chunk-worker-protocol";
+import {BiomeSummary} from "../generation/biome/biome";
+import {StructurePieceInstance} from "../generation/structure/structure";
+import {StructureLayer} from "../generation/structure/structure-manifest";
+import {CoordMap} from "../coordinates/coord-set";
+import {requireNonNull} from "../../util";
+import {NoiseField} from "../generation/noise-field";
+import {GradientStop, sampleGradient} from "../generation/noise-field-colors";
+import {ConvexPolygon, rectPolygon} from "../../geometry/convex-polygon";
 
 export type {ChunkSpriteSheets};
 export {CHUNK_SIZE};

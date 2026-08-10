@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from "vitest";
 import {Camera} from "../camera/camera";
 import {rectPolygon} from "../geometry/convex-polygon";
 import {Vector2d} from "../geometry/vector2d";
-import type {Tile} from "./tile";
+import type {Tile} from "./tiles/tile";
 import {World} from "./world";
 import {createTestWorldDependencies} from "./testing/create-test-world-dependencies";
 import {createTestChunk, createTestMovableEntity} from "./testing/world-test-helpers";

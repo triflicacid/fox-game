@@ -1,6 +1,6 @@
-import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
-import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
-import {ConvexPolygon} from "../geometry/convex-polygon";
+import {BackgroundTileSpriteSheet} from "../../sprites/BackgroundTileSpriteSheet";
+import {AnimatedBackgroundTileSpriteSheet} from "../../sprites/AnimatedBackgroundTileSpriteSheet";
+import {ConvexPolygon} from "../../geometry/convex-polygon";
 
 /**
  * Every sprite sheet a chunk/tiles needs to generate/render its

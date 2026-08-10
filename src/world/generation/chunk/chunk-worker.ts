@@ -1,7 +1,7 @@
 import {ChunkGenerator} from "./chunk-generator";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
 import {DEFAULT_FEATURE_PROVIDERS} from "../feature/default-features";
-import {CoordMap} from "../../coord-set";
+import {CoordMap} from "../../coordinates/coord-set";
 
 /**
  * Narrow view of the worker global scope this file needs. Avoids adding the

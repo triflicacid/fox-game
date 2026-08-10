@@ -1,7 +1,7 @@
-import {MovableEntity} from "../entities/movable-entity";
-import {Vector2d} from "../geometry/vector2d";
-import {ConvexPolygon, minimumTranslationVector} from "../geometry/convex-polygon";
-import {CollisionResponseKind} from "../geometry/collision-response";
+import {MovableEntity} from "../../entities/movable-entity";
+import {Vector2d} from "../../geometry/vector2d";
+import {ConvexPolygon, minimumTranslationVector} from "../../geometry/convex-polygon";
+import {CollisionResponseKind} from "../../geometry/collision-response";
 
 /**
  * Extra push past the exact minimum-translation-vector distance

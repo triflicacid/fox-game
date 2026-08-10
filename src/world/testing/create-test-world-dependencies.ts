@@ -7,9 +7,9 @@ import type {ChunkGenerationResult} from "../generation/chunk/chunk-worker-proto
 import {NoiseFieldRegistry} from "../generation/field-registry";
 import type {Structure} from "../generation/structure/structure";
 import type {TerrainGenerationSource} from "../generation/terrain-generation-source";
-import {Chunk} from "../chunk";
+import {Chunk} from "../chunks/chunk";
 import type {ChunkCoordinate} from "../coordinates/chunk-coordinate";
-import type {ChunkSpriteSheets} from "../chunk-sprite-sheets";
+import type {ChunkSpriteSheets} from "../rendering/chunk-sprite-sheets";
 import type {WorldDependencies} from "../world-dependencies";
 
 /** Browser-free generation source used by world unit tests. */
@@ -138,6 +138,7 @@ export function createTestWorldDependencies(
         ...overrides,
     } as WorldDependencies;
 }
+
 
 
 

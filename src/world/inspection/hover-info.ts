@@ -1,8 +1,8 @@
-import {BiomeTag} from "./generation/biome/biome";
-import {FeatureTag} from "./generation/feature/feature-tag";
-import {StructureLayer} from "./generation/structure/structure-manifest";
-import {CollisionResponseKind} from "../geometry/collision-response";
-import {TileAnimationInfo} from "./tile";
+import {BiomeTag} from "../generation/biome/biome";
+import {FeatureTag} from "../generation/feature/feature-tag";
+import {StructureLayer} from "../generation/structure/structure-manifest";
+import {CollisionResponseKind} from "../../geometry/collision-response";
+import {TileAnimationInfo} from "../tiles/tile";
 
 /** The structure piece (if any) occupying a hovered tile - see {@link TileHoverInfo.structure}. */
 export interface StructureHoverInfo {

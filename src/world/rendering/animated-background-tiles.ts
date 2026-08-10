@@ -1,5 +1,5 @@
-import {hashLatticePoint} from "./noise";
-import {TileAnimationSync} from "../sprites/sprite-sheet-descriptor";
+import {hashLatticePoint} from "../generation/noise";
+import {TileAnimationSync} from "../../sprites/sprite-sheet-descriptor";
 
 /** Distinguishes this module's per-tile phase offset hash from unrelated {@link hashLatticePoint} callers. */
 const PHASE_OFFSET_SEED = 0x57a7e5;
