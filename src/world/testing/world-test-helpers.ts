@@ -2,6 +2,7 @@ import {MovableEntity} from "../../entities/movable-entity";
 import type {SpriteFrame} from "../../sprites/sprite";
 import {Vector2d} from "../../geometry/vector2d";
 import type {DrawableChunk} from "../chunks/chunk";
+import type {Tile} from "../tiles/tile";
 
 /** A minimal canvas context that records operations used by World tests. */
 export function createRecordingContext(events: string[], width = 16, height = 16): CanvasRenderingContext2D {
@@ -33,7 +34,7 @@ export function createTestChunk(chunkX: number, chunkY: number, options: TestChu
         getGenerationTimeMs: () => 0,
         getBiomeSummary: () => biomeSummary,
         isReady: () => ready,
-        getTile: (): never => { throw new Error("getTile not supported on test chunk"); },
+        getTile: (): Tile => ({getCollision: () => undefined}) as unknown as Tile,
         getStructurePieceAt: () => undefined,
         draw: () => events?.push("chunk:draw"),
         drawProps: () => events?.push("chunk:props"),

@@ -944,5 +944,4 @@ export class World {
             }
         }
     }
-
 }

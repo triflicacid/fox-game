@@ -568,7 +568,20 @@ chunk conversion.
 effects are explicit in types and names, and callers no longer depend on
 private calculations in `World`.
 
-### Phase 4: Extract low-risk supporting services
+### Phase 4 (Done): Extract low-risk supporting services
+
+_Status: completed on 2026-08-10._
+
+#### Deviations from original plan
+
+- `Chunk` was split into three layered interfaces: `Chunk` (metadata and cache state),
+  `ReadableChunk extends Chunk` (tile and structure lookups), and
+  `DrawableChunk extends ReadableChunk` (all render methods).
+  The former concrete `Chunk` class was renamed `LoadedChunk implements DrawableChunk`.
+  All public fields (`chunkX`, `chunkY`, `biomeSummary`, `generationTimeMs`) were made
+  private and exposed through getters defined on the `Chunk` interface.
+  Consumers that only need metadata depend on `Chunk`; those needing tile lookups depend
+  on `ReadableChunk`; full render callers depend on `DrawableChunk`.
 
 Remove cohesive services that have limited influence on simulation policy.
 
