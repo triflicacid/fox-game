@@ -2,7 +2,6 @@ import {afterEach, describe, expect, it, vi} from "vitest";
 import {Camera} from "../camera/camera";
 import type {Effect} from "../effects/effect";
 import {Vector2d} from "../geometry/vector2d";
-import type {Tile} from "./tiles/tile";
 import {StructureResolver} from "./collision/structure-resolver";
 import type {ChunkSpriteSheets} from "./rendering/chunk-sprite-sheets";
 import {World} from "./world";
@@ -138,7 +137,7 @@ describe("World seed", () => {
         expect(world.getWorldSeed()).toBe(99);
         expect(generator.seedChanges).toEqual([99]);
         expect(worker.seedChanges).toEqual([99]);
-        expect(world.getLoadedChunkCount()).toBe(1);
+        expect(world.getChunkStreamingManager().getLoadedChunkCount()).toBe(1);
     });
 
     it("refreshes through the shared random seed function", () => {
@@ -189,26 +188,6 @@ describe("World update orchestration", () => {
         expect(events.lastIndexOf("stream:request")).toBeLessThan(events.indexOf("stream:reorder"));
     });
 });
-
-describe("World dominant labels", () => {
-    it("breaks equal counts in favor of the first tile encountered", () => {
-        const world = new World(16, createTestWorldDependencies(1, {
-            chunkFactory: (chunkX, chunkY) => Object.assign(createTestChunk(chunkX, chunkY, {ready: true}), {
-                getTile: (localX: number) => ({
-                    featureTag: localX === 0 ? "lake.shallow" : "oasis.shallow",
-                }) as Tile,
-                getStructurePieceAt: (tileX: number) => ({
-                    sprites: [tileX === 0 ? "first structure" : "second structure"],
-                }),
-            }),
-        }));
-
-        expect(world.getDominantFeatureLabel(0, 0, 32, 16)).toBe("lake.shallow");
-        expect(world.getDominantStructureLabel(0, 0, 32, 16)).toBe("first structure");
-    });
-});
-
-
 
 
 

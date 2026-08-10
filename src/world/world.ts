@@ -2,12 +2,10 @@ import type {ChunkSpriteSheets, DrawableChunk} from "./chunks/chunk";
 import {ChunkStore} from "./chunks/chunk-store";
 import {ChunkStreamingManager} from "./chunks/chunk-streaming-manager";
 import {DefaultWorldGridView} from "./tiles/world-grid-view";
-import {Entity} from "../entities/entity";
-import {EntityCollection} from "../entities/entity-collection";
+import {EntityCollection, type ReadonlyEntityCollection} from "../entities/entity-collection";
 import {MovableEntity} from "../entities/movable-entity";
 import {Camera} from "../camera/camera";
 import {Vector2d} from "../geometry/vector2d";
-import {FeatureTag} from "./generation/feature/feature-tag";
 import {Effect} from "../effects/effect";
 import {StructureResolver} from "./collision/structure-resolver";
 import {WorldCollisionSystem} from "./collision/world-collision-system";
@@ -106,50 +104,14 @@ export class World {
         this.setWorldSeed(randomWorldSeed());
     }
 
-    /**
-     * Minimum time the worker leaves between chunks, in ms. `0` means disabled.
-     * See {@link setMinChunkGenerationDelayMs}.
-     */
-    public getMinChunkGenerationDelayMs(): number {
-        return this.chunkStreaming.getMinGenerationDelayMs();
-    }
-
-    /**
-     * Sets the minimum-delay-between-chunks debug knob.
-     * Takes effect immediately and persists across seed changes.
-     */
-    public setMinChunkGenerationDelayMs(delayMs: number): void {
-        this.chunkStreaming.setMinGenerationDelayMs(delayMs);
-    }
-
-    /** How many chunks are currently loaded in memory. */
-    public getLoadedChunkCount(): number {
-        return this.chunkStreaming.getLoadedChunkCount();
-    }
-
     /** The chunk-streaming manager, for console debugging - see `exposeGlobals`. */
     public getChunkStreamingManager(): ChunkStreamingManager {
         return this.chunkStreaming;
     }
 
-    /** How many currently loaded chunks are still generating. */
-    public getGeneratingChunkCount(): number {
-        return this.chunkStreaming.getGeneratingChunkCount();
-    }
-
-    /** Mean generation time across every chunk generated this session, in ms. */
-    public getAverageChunkGenerationTimeMs(): number {
-        return this.chunkStreaming.getAverageGenerationTimeMs();
-    }
-
-    /** Generation time of the most recently finished chunk, in ms. */
-    public getLatestChunkGenerationTimeMs(): number {
-        return this.chunkStreaming.getLatestGenerationTimeMs();
-    }
-
-    /** Drops a chunk from memory. Safe to call when the chunk is not loaded. */
-    public unloadChunk(chunkX: number, chunkY: number): void {
-        this.chunkStreaming.unloadChunk(chunkX, chunkY);
+    /** The live entity set, for field-registry wiring - see `registerDynamicFields`. */
+    public getEntityCollection(): ReadonlyEntityCollection {
+        return this.entityCollection;
     }
 
     /** Drops every loaded chunk and cancels any pending generation requests. */
@@ -204,27 +166,6 @@ export class World {
         return this.hoverInspector.getEntityHoverInfo(worldX, worldY);
     }
 
-    /**
-     * The most common feature tag across a pixel rectangle. Breaking ties in
-     * favour of the first qualifying tag encountered (left-to-right, top-to-bottom).
-     */
-    public getDominantFeatureLabel(x: number, y: number, w: number, h: number): FeatureTag {
-        return this.debugSnapshotBuilder.dominantFeatureLabel(x, y, w, h);
-    }
-
-    /**
-     * The most common structure sprite across a pixel rectangle. Tie-breaking
-     * mirrors {@link getDominantFeatureLabel}.
-     */
-    public getDominantStructureLabel(x: number, y: number, w: number, h: number): string {
-        return this.debugSnapshotBuilder.dominantStructureLabel(x, y, w, h);
-    }
-
-    /** Every entity currently in the world. */
-    public getEntities(): readonly Entity[] {
-        return this.entityCollection.getEntities();
-    }
-
     /** The entity currently under player control. Throws if none has been set. */
     public getMainEntity(): MovableEntity {
         return this.entityCollection.getMainEntity();
@@ -273,10 +214,10 @@ export class World {
     ): void {
         this.renderer.draw(ctx, camera, debugEnabled, bordersEnabled, hitboxesEnabled, spectating, spectatorVelocity, actualFps, targetFps, noiseFieldName, {
             generationEnabled: this.chunkStreaming.isGenerationEnabled(),
-            loadedChunkCount: this.getLoadedChunkCount(),
-            generatingChunkCount: this.getGeneratingChunkCount(),
-            latestChunkGenerationTimeMs: this.getLatestChunkGenerationTimeMs(),
-            averageChunkGenerationTimeMs: this.getAverageChunkGenerationTimeMs(),
+            loadedChunkCount: this.chunkStreaming.getLoadedChunkCount(),
+            generatingChunkCount: this.chunkStreaming.getGeneratingChunkCount(),
+            latestChunkGenerationTimeMs: this.chunkStreaming.getLatestGenerationTimeMs(),
+            averageChunkGenerationTimeMs: this.chunkStreaming.getAverageGenerationTimeMs(),
             collision: this.collisionSystem.getDebugState(),
         });
     }

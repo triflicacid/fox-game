@@ -179,6 +179,22 @@ describe("WorldDebugSnapshotBuilder.getDistanceToBiomeEdge", () => {
     });
 });
 
+describe("WorldDebugSnapshotBuilder dominant labels", () => {
+    it("breaks equal counts in favor of the first tile encountered", () => {
+        const chunks = new Map([["0,0", makeChunk(0, 0, "plains")]]);
+        const generatingGrid = {
+            requestChunk: (x: number, y: number) => chunks.get(`${x},${y}`) ?? makeChunk(x, y, ""),
+            requestFeatureTag: (tileX: number) => (tileX === 0 ? "lake.shallow" : "oasis.shallow"),
+            requestStructureTag: (tileX: number) => (tileX === 0 ? "first structure" : "second structure"),
+            requestTile: () => { throw new Error("not used"); },
+        };
+        const builder = new WorldDebugSnapshotBuilder(16, makeGrid(chunks), generatingGrid as never);
+
+        expect(builder.dominantFeatureLabel(0, 0, 32, 16)).toBe("lake.shallow");
+        expect(builder.dominantStructureLabel(0, 0, 32, 16)).toBe("first structure");
+    });
+});
+
 describe("WorldDebugSnapshotBuilder.build", () => {
     it("returns DebugHudData with correct camera and entity fields", () => {
         const chunks = new Map([["0,0", makeChunk(0, 0, "plains")]]);

@@ -1,22 +1,20 @@
 import {Accessor, Field, FieldLookupHandler, FieldRegistryError} from "../fields/field-registry";
 import {Entity} from "./entity";
-import {World} from "../world/world";
+import type {ReadonlyEntityCollection} from "./entity-collection";
 import {pixelToTile, tileToPixel} from "../world/coordinates/world-grid-math";
 
-/**
- * Exposes every live entity in `world` under the field registry at
- * `world.entities` (see `registerHandler`) - `main` always resolves to the
- * current main entity; every other entity is addressable by its own stable
- * {@link Entity.getRegistryId}. Resolved fresh on every call, so an entity
- * that's spawned or destroyed needs no separate register/unregister step.
- */
+/** Exposes every live entity in `entities`. */
 export class EntityLookupHandler extends FieldLookupHandler {
-    public constructor(private readonly world: World) {
+    /**
+     * @param entities - Read-only view over the entity set.
+     * @param tileSize - The world's tile size, in pixels, for converting position fields between pixels and tiles.
+     */
+    public constructor(private readonly entities: ReadonlyEntityCollection, private readonly tileSize: number) {
         super();
     }
 
     public listPaths(): string[] {
-        return ["main", ...this.world.getEntities().map((entity) => entity.getRegistryId())];
+        return ["main", ...this.entities.getEntities().map((entity) => entity.getRegistryId())];
     }
 
     public getAllPaths(): string[] {
@@ -25,7 +23,7 @@ export class EntityLookupHandler extends FieldLookupHandler {
 
     public get(segment: string): Field<unknown> | Record<string, unknown> {
         const fields = this.resolveEntity(segment).getRegistryFields();
-        const tileSize = this.world.tileSize;
+        const tileSize = this.tileSize;
         return {
             ...fields,
             x: this.toTileAccessor(fields.x as Accessor<number>, tileSize),
@@ -50,9 +48,9 @@ export class EntityLookupHandler extends FieldLookupHandler {
 
     private resolveEntity(id: string): Entity {
         if (id === "main") {
-            return this.world.getMainEntity();
+            return this.entities.getMainEntity();
         }
-        const entity = this.world.getEntities().find((candidate) => candidate.getRegistryId() === id);
+        const entity = this.entities.getEntities().find((candidate) => candidate.getRegistryId() === id);
         if (!entity) {
             throw new FieldRegistryError(`No entity is registered at 'world.entities.${id}'.`);
         }

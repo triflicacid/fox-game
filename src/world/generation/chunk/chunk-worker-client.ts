@@ -52,8 +52,7 @@ export class ChunkWorkerClient implements ChunkGenerationWorkerContract {
     }
 
     /**
-     * Sets the debug minimum-delay-between-chunks knob on the worker - see
-     * `World.setMinChunkGenerationDelayMs`.
+     * Sets the debug minimum-delay-between-chunks.
      *
      * @param delayMs - Minimum milliseconds to leave between finishing one chunk's generation and starting the next. `0` disables the delay.
      */
