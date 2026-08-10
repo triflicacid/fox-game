@@ -26,11 +26,16 @@ export interface TestChunkOptions {
 /** Creates the chunk surface exercised by World orchestration tests. */
 export function createTestChunk(chunkX: number, chunkY: number, options: TestChunkOptions = {}): Chunk {
     const {ready = false, events} = options;
+    const biomeSummary = ready ? "plains" : "";
     return {
         chunkX,
         chunkY,
+        getChunkX: () => chunkX,
+        getChunkY: () => chunkY,
         generationTimeMs: 0,
-        biomeSummary: ready ? "plains" : "",
+        getGenerationTimeMs: () => 0,
+        biomeSummary,
+        getBiomeSummary: () => biomeSummary,
         isReady: () => ready,
         getTile: () => undefined,
         getStructurePieceAt: () => undefined,

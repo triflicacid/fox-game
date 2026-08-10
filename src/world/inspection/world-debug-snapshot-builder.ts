@@ -91,7 +91,7 @@ export class WorldDebugSnapshotBuilder {
                     isPartial = true;
                     continue;
                 }
-                if (neighbor.biomeSummary === biome) {
+                if (neighbor.getBiomeSummary() === biome) {
                     matched.add(nx, ny);
                     queue.push({chunkX: nx, chunkY: ny});
                 }
@@ -135,7 +135,8 @@ export class WorldDebugSnapshotBuilder {
                     if (!neighbor?.isReady()) {
                         continue;
                     }
-                    if (neighbor.biomeSummary !== biome && neighbor.biomeSummary !== "" && neighbor.biomeSummary !== "mixed") {
+                    const neighborBiome = neighbor.getBiomeSummary();
+                    if (neighborBiome !== biome && neighborBiome !== "" && neighborBiome !== "mixed") {
                         sumDx += nx - chunkX;
                         sumDy += ny - chunkY;
                         foundCount++;
@@ -190,11 +191,12 @@ export class WorldDebugSnapshotBuilder {
         const tileY = Math.floor(position.y / this.tileSize);
         const {chunkX, chunkY} = tileToChunk(tileX, tileY);
         const chunk = this.generatingGrid.requestChunk(chunkX, chunkY);
-        const chunkBiome = chunk.isReady() ? chunk.biomeSummary : "generating...";
+        const chunkBiome = chunk.isReady() ? chunk.getBiomeSummary() : "generating...";
         const chunkCacheState = chunk.isReady() ? chunk.getCacheState() : "pending";
+        const readyBiome = chunk.getBiomeSummary();
         const biomeRegion =
-            chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
-                ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
+            chunk.isReady() && readyBiome !== "" && readyBiome !== "mixed"
+                ? this.getBiomeRegionSize(chunkX, chunkY, readyBiome)
                 : undefined;
         const exactFeature = this.generatingGrid.requestFeatureTag(tileX, tileY);
         const rect = mainEntity.getBoundingRect();
@@ -202,8 +204,8 @@ export class WorldDebugSnapshotBuilder {
         const exactStructure = this.generatingGrid.requestStructureTag(tileX, tileY);
         const nearbyStructure = this.dominantStructureLabel(rect.x, rect.y, rect.w, rect.h);
         const distanceToBiomeEdge =
-            chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
-                ? this.getDistanceToBiomeEdge(chunkX, chunkY, chunk.biomeSummary)
+            chunk.isReady() && readyBiome !== "" && readyBiome !== "mixed"
+                ? this.getDistanceToBiomeEdge(chunkX, chunkY, readyBiome)
                 : undefined;
 
         const toChunkState = (cx: number, cy: number): ChunkState => {

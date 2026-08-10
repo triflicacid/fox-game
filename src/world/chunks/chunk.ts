@@ -84,10 +84,10 @@ export class Chunk {
     private readonly structureOccupancy = new CoordMap<StructurePieceInstance>();
 
     /** Dominant biome or `mixed`, for debugging only. Empty until {@link isReady}. */
-    public biomeSummary: BiomeSummary | "" = "";
+    private biomeSummary: BiomeSummary | "" = "";
 
     /** How long generation took for this chunk, in milliseconds. `0` until {@link isReady}. */
-    public generationTimeMs = 0;
+    private generationTimeMs = 0;
 
     /**
      * @param chunkX - This chunk's X coordinate, in chunk units (not tiles/pixels).
@@ -97,13 +97,33 @@ export class Chunk {
      * @param tileSize - Width/height a tile renders at, in canvas pixels - fixed for the `World` this chunk belongs to, so {@link cacheBitmap} can size its offscreen canvas once.
      */
     public constructor(
-        public readonly chunkX: number,
-        public readonly chunkY: number,
+        private readonly chunkX: number,
+        private readonly chunkY: number,
         generation: Promise<ChunkGenerationResult>,
         private readonly spriteSheets: ChunkSpriteSheets,
         tileSize: number,
     ) {
         void this.hydrate(generation, spriteSheets, tileSize);
+    }
+
+    /** This chunk's X coordinate, in chunk units. */
+    public getChunkX(): number {
+        return this.chunkX;
+    }
+
+    /** This chunk's Y coordinate, in chunk units. */
+    public getChunkY(): number {
+        return this.chunkY;
+    }
+
+    /** This chunk's dominant biome summary, or an empty string while pending. */
+    public getBiomeSummary(): BiomeSummary | "" {
+        return this.biomeSummary;
+    }
+
+    /** Generation time in milliseconds, or `0` while pending. */
+    public getGenerationTimeMs(): number {
+        return this.generationTimeMs;
     }
 
     /**

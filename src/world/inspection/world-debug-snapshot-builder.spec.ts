@@ -9,9 +9,10 @@ import type {Camera} from "../../camera/camera";
 /** Creates a minimal ready fake chunk. */
 function makeChunk(chunkX: number, chunkY: number, biome = "plains"): Chunk {
     return {
-        chunkX,
-        chunkY,
-        biomeSummary: biome,
+        getChunkX: () => chunkX,
+        getChunkY: () => chunkY,
+        getBiomeSummary: () => biome,
+        getGenerationTimeMs: () => 0,
         isReady: () => true,
         getCacheState: () => "live",
         getTile: () => undefined,
@@ -237,6 +238,10 @@ describe("WorldDebugSnapshotBuilder.build", () => {
         const generatingChunk = {
             chunkX: 0, chunkY: 0,
             biomeSummary: "",
+            getChunkX: () => 0,
+            getChunkY: () => 0,
+            getBiomeSummary: () => "",
+            getGenerationTimeMs: () => 0,
             isReady: () => false,
             getCacheState: () => "pending",
             getTile: () => undefined,

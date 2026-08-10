@@ -272,7 +272,7 @@ export class World {
         this.chunkWorkerClient.cancelPending();
         const toDelete = [...this.chunks.values()].filter(c => !c.isReady());
         for (const chunk of toDelete) {
-            this.chunks.delete(chunk.chunkX, chunk.chunkY);
+            this.chunks.delete(chunk.getChunkX(), chunk.getChunkY());
         }
     }
 
@@ -583,8 +583,10 @@ export class World {
         }
 
         for (const chunk of this.chunks.values()) {
-            if (isOutsideChunkRange(chunk.chunkX, chunk.chunkY, buffered)) {
-                this.unloadChunk(chunk.chunkX, chunk.chunkY);
+            const chunkX = chunk.getChunkX();
+            const chunkY = chunk.getChunkY();
+            if (isOutsideChunkRange(chunkX, chunkY, buffered)) {
+                this.unloadChunk(chunkX, chunkY);
             }
         }
     }
