@@ -1,4 +1,4 @@
-import type {Chunk} from "../chunks/chunk";
+import type {Chunk, ReadableChunk} from "../chunks/chunk";
 import {CHUNK_SIZE} from "../chunks/chunk-size";
 import {tileToChunk} from "../coordinates/world-grid-math";
 import type {FeatureTag} from "../generation/feature/feature-tag";
@@ -89,19 +89,19 @@ export interface ReadyWorldGrid {
  * Default grid query adapter around one generating chunk callback and one
  * passive chunk lookup callback.
  */
-export class DefaultWorldGridView implements GeneratingWorldGrid, ReadyWorldGrid {
+export class DefaultWorldGridView<C extends ReadableChunk = ReadableChunk> implements GeneratingWorldGrid, ReadyWorldGrid {
     /**
      * @param requestChunkCallback - Chunk accessor that may generate/load missing chunks.
      * @param getLoadedChunkCallback - Passive chunk accessor that never generates missing chunks.
      * @param chunkSize - Number of tiles along one chunk edge.
      */
     public constructor(
-        private readonly requestChunkCallback: (chunkX: number, chunkY: number) => Chunk,
-        private readonly getLoadedChunkCallback: (chunkX: number, chunkY: number) => Chunk | undefined,
+        private readonly requestChunkCallback: (chunkX: number, chunkY: number) => C,
+        private readonly getLoadedChunkCallback: (chunkX: number, chunkY: number) => C | undefined,
         private readonly chunkSize = CHUNK_SIZE,
     ) {}
 
-    public requestChunk(chunkX: number, chunkY: number): Chunk {
+    public requestChunk(chunkX: number, chunkY: number): C {
         return this.requestChunkCallback(chunkX, chunkY);
     }
 
@@ -133,7 +133,7 @@ export class DefaultWorldGridView implements GeneratingWorldGrid, ReadyWorldGrid
         return this.getLoadedChunk(chunkX, chunkY) !== undefined;
     }
 
-    public getLoadedChunk(chunkX: number, chunkY: number): Chunk | undefined {
+    public getLoadedChunk(chunkX: number, chunkY: number): C | undefined {
         return this.getLoadedChunkCallback(chunkX, chunkY);
     }
 

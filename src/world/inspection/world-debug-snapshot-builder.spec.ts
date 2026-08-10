@@ -5,9 +5,10 @@ import type {Chunk} from "../chunks/chunk";
 import {Vector2d} from "../../geometry/vector2d";
 import type {MovableEntity} from "../../entities/movable-entity";
 import type {Camera} from "../../camera/camera";
+import type {BiomeSummary} from "../generation/biome/biome";
 
 /** Creates a minimal ready fake chunk. */
-function makeChunk(chunkX: number, chunkY: number, biome = "plains"): Chunk {
+function makeChunk(chunkX: number, chunkY: number, biome: BiomeSummary | "" = "plains"): Chunk {
     return {
         getChunkX: () => chunkX,
         getChunkY: () => chunkY,
@@ -15,9 +16,7 @@ function makeChunk(chunkX: number, chunkY: number, biome = "plains"): Chunk {
         getGenerationTimeMs: () => 0,
         isReady: () => true,
         getCacheState: () => "live",
-        getTile: () => undefined,
-        getStructurePieceAt: () => undefined,
-    } as unknown as Chunk;
+    };
 }
 
 function makeGrid(chunks: Map<string, Chunk>): ReadyWorldGrid {
@@ -235,18 +234,14 @@ describe("WorldDebugSnapshotBuilder.build", () => {
     });
 
     it("reports generating biome when the player chunk is not yet ready", () => {
-        const generatingChunk = {
-            chunkX: 0, chunkY: 0,
-            biomeSummary: "",
+        const generatingChunk: Chunk = {
             getChunkX: () => 0,
             getChunkY: () => 0,
             getBiomeSummary: () => "",
             getGenerationTimeMs: () => 0,
             isReady: () => false,
-            getCacheState: () => "pending",
-            getTile: () => undefined,
-            getStructurePieceAt: () => undefined,
-        } as unknown as Chunk;
+            getCacheState: () => "live",
+        };
         const chunks = new Map([["0,0", generatingChunk]]);
         const builder = new WorldDebugSnapshotBuilder(16, makeGrid(chunks), makeGeneratingGrid(chunks) as never);
 

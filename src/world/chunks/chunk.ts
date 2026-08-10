@@ -27,13 +27,109 @@ const PENDING_COLOR = "#000000";
  */
 export type ChunkCacheState = "cached" | "live";
 
+/** A chunk is a fixed-sized (`CHUNK_SIZE`) square region of tiles at a given location. */
+export interface Chunk {
+    /** Returns the chunk X coordinate, in chunk units. */
+    getChunkX(): number;
+
+    /** Returns the chunk Y coordinate, in chunk units. */
+    getChunkY(): number;
+
+    /** Returns the chunk biome summary, or an empty string while still generating. */
+    getBiomeSummary(): BiomeSummary | "";
+
+    /** Returns generation duration in milliseconds, or `0` while still generating. */
+    getGenerationTimeMs(): number;
+
+    /** Returns `true` after generation data has been hydrated. */
+    isReady(): boolean;
+
+    /** Returns whether the chunk currently draws from a cached bitmap or live tile rendering. */
+    getCacheState(): ChunkCacheState;
+}
+
+/** Chunk contract that supports tile and structure lookups. */
+export interface ReadableChunk extends Chunk {
+    /**
+     * Returns a tile by local chunk coordinates.
+     *
+     * @param localX - Local X coordinate in `[0, CHUNK_SIZE)`.
+     * @param localY - Local Y coordinate in `[0, CHUNK_SIZE)`.
+     * @throws When the requested coordinates are out of bounds.
+     * @throws When the chunk is not ready yet.
+     */
+    getTile(localX: number, localY: number): Tile;
+
+    /**
+     * Returns the structure piece occupying `worldX/worldY`, if any.
+     *
+     * @param worldX - World tile X coordinate.
+     * @param worldY - World tile Y coordinate.
+     */
+    getStructurePieceAt(worldX: number, worldY: number): StructurePieceInstance | undefined;
+}
+
+/** A chunk contract that can be rendered in world and debug passes. */
+export interface DrawableChunk extends ReadableChunk {
+    /**
+     * Draws terrain and background structures for this chunk.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X for this chunk's top-left corner.
+     * @param originY - Canvas Y for this chunk's top-left corner.
+     * @param tileSize - Tile render size in canvas pixels.
+     * @param animationElapsedMs - Shared animation clock in milliseconds.
+     */
+    draw(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, animationElapsedMs?: number): void;
+
+    /**
+     * Draws foreground structure props for this chunk.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X for this chunk's top-left corner.
+     * @param originY - Canvas Y for this chunk's top-left corner.
+     * @param tileSize - Tile render size in canvas pixels.
+     */
+    drawProps(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void;
+
+    /**
+     * Draws the chunk debug overlay.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X for this chunk's top-left corner.
+     * @param originY - Canvas Y for this chunk's top-left corner.
+     * @param tileSize - Tile render size in canvas pixels.
+     * @param queuePosition - Optional chunk queue position while generating.
+     */
+    drawDebug(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, queuePosition?: number): void;
+
+    /**
+     * Draws a noise-field color overlay for this chunk.
+     *
+     * @param ctx - Canvas context to draw into.
+     * @param originX - Canvas X for this chunk's top-left corner.
+     * @param originY - Canvas Y for this chunk's top-left corner.
+     * @param tileSize - Tile render size in canvas pixels.
+     * @param field - Noise field to sample.
+     * @param gradient - Color stops used to map samples to colors.
+     */
+    drawNoiseOverlay(
+        ctx: CanvasRenderingContext2D,
+        originX: number,
+        originY: number,
+        tileSize: number,
+        field: NoiseField,
+        gradient: readonly GradientStop[],
+    ): void;
+}
+
 /**
  * A fixed-size square region of the world, made up of `CHUNK_SIZE x
  * CHUNK_SIZE` {@link Tile}s. Chunks are generated on demand by {@link World}
  * (on a background worker - see `ChunkWorkerClient`) and identified by their
  * integer chunk coordinates.
  */
-export class Chunk {
+export class LoadedChunk implements DrawableChunk {
     /** Empty until {@link hydrate} resolves - see {@link isReady}. */
     private tiles: Tile[][] = [];
 
@@ -106,22 +202,22 @@ export class Chunk {
         void this.hydrate(generation, spriteSheets, tileSize);
     }
 
-    /** This chunk's X coordinate, in chunk units. */
+    /** @inheritdoc */
     public getChunkX(): number {
         return this.chunkX;
     }
 
-    /** This chunk's Y coordinate, in chunk units. */
+    /** @inheritdoc */
     public getChunkY(): number {
         return this.chunkY;
     }
 
-    /** This chunk's dominant biome summary, or an empty string while pending. */
+    /** @inheritdoc */
     public getBiomeSummary(): BiomeSummary | "" {
         return this.biomeSummary;
     }
 
-    /** Generation time in milliseconds, or `0` while pending. */
+    /** @inheritdoc */
     public getGenerationTimeMs(): number {
         return this.generationTimeMs;
     }
@@ -163,20 +259,12 @@ export class Chunk {
         await Promise.all([this.cacheBitmap(tileSize), this.cachePropsBitmap(tileSize), this.cacheBackgroundPropsBitmap(tileSize)]);
     }
 
-    /**
-     * Whether this chunk has finished generating.
-     *
-     * @returns `true` once this chunk's biome/tile data is populated.
-     */
+    /** @inheritdoc */
     public isReady(): boolean {
         return this.tiles.length > 0;
     }
 
-    /**
-     * This chunk's cache state.
-     *
-     * @returns The cache state.
-     */
+    /** @inheritdoc */
     public getCacheState(): ChunkCacheState {
         return this.hasAnimatedTile ? "live" : "cached";
     }
@@ -274,14 +362,7 @@ export class Chunk {
         }
     }
 
-    /**
-     * Looks up the tile at the given local position within this chunk.
-     *
-     * @param localX - Tile's X position within the chunk, 0 to `CHUNK_SIZE - 1`.
-     * @param localY - Tile's Y position within the chunk, 0 to `CHUNK_SIZE - 1`.
-     * @returns The tile at that position.
-     * @throws {Error} If `localX`/`localY` is outside the chunk's bounds, or if this chunk hasn't finished generating yet (see {@link isReady}).
-     */
+    /** @inheritdoc */
     public getTile(localX: number, localY: number): Tile {
         if (localX < 0 || localX >= CHUNK_SIZE || localY < 0 || localY >= CHUNK_SIZE) {
             throw new Error(`Tile position (${localX}, ${localY}) is outside chunk bounds`);
@@ -292,34 +373,12 @@ export class Chunk {
         return this.tiles[localY][localX];
     }
 
-    /**
-     * Looks up the structure piece anchored at the given world position, if
-     * any. Unlike {@link getTile}, takes world (not local) coordinates, since
-     * {@link structureOccupancy} already includes halo-sourced pieces
-     * anchored in a neighbouring chunk.
-     *
-     * @param worldX - Tile's X position, in tiles from the world origin.
-     * @param worldY - Tile's Y position, in tiles from the world origin.
-     * @returns The structure piece at that position, or `undefined` if none.
-     */
+    /** @inheritdoc */
     public getStructurePieceAt(worldX: number, worldY: number): StructurePieceInstance | undefined {
         return this.structureOccupancy.get(worldX, worldY);
     }
 
-    /**
-     * Draws this chunk: blits {@link cachedBitmap} if it's ready, otherwise
-     * falls back to drawing every tile individually - always the case for a
-     * chunk with an animated tile, since it never gets a {@link cachedBitmap}
-     * (see {@link cacheBitmap}). While this chunk hasn't finished generating
-     * yet, fills its bounds with a placeholder colour instead. Background
-     * structure props, if any, are blitted on top either way.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param originX - Canvas X position of this chunk's top-left corner.
-     * @param originY - Canvas Y position of this chunk's top-left corner.
-     * @param tileSize - Width/height of each tile, in canvas pixels.
-     * @param animationElapsedMs - Total elapsed time on `World`'s shared animation clock, in milliseconds - only read by an animated tile's fallback-loop draw. Defaults to `0`.
-     */
+    /** @inheritdoc */
     public draw(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, animationElapsedMs = 0): void {
         if (!this.isReady()) {
             ctx.fillStyle = PENDING_COLOR;
@@ -342,20 +401,7 @@ export class Chunk {
         }
     }
 
-    /**
-     * Draws this chunk's foreground-layer structure pieces (e.g. a tree's
-     * trunk and canopy alike), on top of everything drawn so far - ground
-     * and entities alike, see `World.draw` - so a tree always occludes the
-     * player rather than being occluded by it. Draws nothing while not
-     * ready or while this chunk has no foreground pieces; decorative, so a
-     * piece popping in a frame late is fine, unlike {@link draw}'s
-     * placeholder-backed fallback.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param originX - Canvas X position of this chunk's top-left corner.
-     * @param originY - Canvas Y position of this chunk's top-left corner.
-     * @param tileSize - Width/height of each tile, in canvas pixels.
-     */
+    /** @inheritdoc */
     public drawProps(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number): void {
         if (!this.cachedPropsBitmap) {
             return;
@@ -363,26 +409,7 @@ export class Chunk {
         ctx.drawImage(this.cachedPropsBitmap, originX, originY, CHUNK_SIZE * tileSize, CHUNK_SIZE * tileSize);
     }
 
-    /**
-     * Draws this chunk's outline and coordinate label, for debug rendering
-     * mode. While this chunk hasn't finished generating, also draws its
-     * position in the generation queue, centred in the chunk, if known.
-     *
-     * Once ready, everything drawn here (outline, label, feature/structure
-     * outlines) is static for this chunk's lifetime, so it's rendered once
-     * to {@link cachedDebugBitmap} and blitted from then on instead of being
-     * recomputed - tile-by-tile outline stroking is expensive - every frame
-     * debug mode is enabled. While still generating, `queuePosition` is the
-     * only thing that can change between calls, so the pending render is
-     * cached too and only rebuilt when it moves - see
-     * {@link cachedPendingQueuePosition}.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param originX - Canvas X position of this chunk's top-left corner.
-     * @param originY - Canvas Y position of this chunk's top-left corner.
-     * @param tileSize - Width/height of each tile, in canvas pixels.
-     * @param queuePosition - This chunk's position in the generation queue, or `undefined` if it isn't queued (or is already ready).
-     */
+    /** @inheritdoc */
     public drawDebug(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, queuePosition?: number): void {
         const pixelSize = CHUNK_SIZE * tileSize;
 
@@ -470,17 +497,7 @@ export class Chunk {
         return offscreen.transferToImageBitmap();
     }
 
-    /**
-     * Draws this chunk's noise-field debug overlay: one coloured tile per
-     * `field` sample, coloured via `gradient` (see `noise-field-colors.ts`).
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param originX - Canvas X position of this chunk's top-left corner.
-     * @param originY - Canvas Y position of this chunk's top-left corner.
-     * @param tileSize - Width/height of each tile, in canvas pixels.
-     * @param field - The noise field to sample.
-     * @param gradient - Colour gradient to render `field`'s samples with.
-     */
+    /** @inheritdoc */
     public drawNoiseOverlay(ctx: CanvasRenderingContext2D, originX: number, originY: number, tileSize: number, field: NoiseField, gradient: readonly GradientStop[]): void {
         if (!this.cachedNoiseOverlayBitmap || this.cachedNoiseOverlayField !== field.name) {
             this.cachedNoiseOverlayBitmap = this.buildNoiseOverlayBitmap(tileSize, field, gradient);

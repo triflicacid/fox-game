@@ -3,7 +3,7 @@ import {Minimap} from "../minimap/minimap";
 import {MinimapStatsHud} from "../minimap/minimap-stats-hud";
 import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
 import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
-import {Chunk} from "./chunks/chunk";
+import {LoadedChunk} from "./chunks/chunk";
 import {ChunkGenerator} from "./generation/chunk/chunk-generator";
 import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
@@ -19,7 +19,7 @@ export function createWorld(tileSize: number, worldSeed: number = randomWorldSee
         chunkGenerator: new ChunkGenerator(worldSeed, DEFAULT_FEATURE_PROVIDERS),
         chunkWorkerClient: new ChunkWorkerClient(worldSeed),
         chunkFactory: (chunkX, chunkY, generation, spriteSheets, chunkTileSize) =>
-            new Chunk(chunkX, chunkY, generation, spriteSheets, chunkTileSize),
+            new LoadedChunk(chunkX, chunkY, generation, spriteSheets, chunkTileSize),
         chunkSpriteSheetsFactory: (structureSheetRegistry, getStructureCollisionPolygon) => ({
             backgroundTile: new BackgroundTileSpriteSheet(),
             animatedBackgroundTile: new AnimatedBackgroundTileSpriteSheet(),

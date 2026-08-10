@@ -7,7 +7,7 @@ import type {ChunkGenerationResult} from "../generation/chunk/chunk-worker-proto
 import {NoiseFieldRegistry} from "../generation/field-registry";
 import type {Structure} from "../generation/structure/structure";
 import type {TerrainGenerationSource} from "../generation/terrain-generation-source";
-import {Chunk} from "../chunks/chunk";
+import {LoadedChunk} from "../chunks/chunk";
 import type {ChunkCoordinate} from "../coordinates/chunk-coordinate";
 import type {ChunkSpriteSheets} from "../rendering/chunk-sprite-sheets";
 import type {WorldDependencies} from "../world-dependencies";
@@ -117,7 +117,7 @@ export function createTestWorldDependencies(
         chunkGenerator: generator,
         chunkWorkerClient: worker,
         chunkFactory: (chunkX, chunkY, generation, spriteSheets, tileSize) =>
-            new Chunk(chunkX, chunkY, generation, spriteSheets, tileSize),
+            new LoadedChunk(chunkX, chunkY, generation, spriteSheets, tileSize),
         chunkSpriteSheetsFactory: (_structureSheetRegistry, getStructureCollisionPolygon): ChunkSpriteSheets => ({
             backgroundTile: {} as ChunkSpriteSheets["backgroundTile"],
             animatedBackgroundTile: {} as ChunkSpriteSheets["animatedBackgroundTile"],

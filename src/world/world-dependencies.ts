@@ -1,7 +1,7 @@
 import type {DebugHudRenderer} from "../debug/debug-hud";
 import type {MinimapRenderer} from "../minimap/minimap";
 import type {MinimapStatsHudRenderer} from "../minimap/minimap-stats-hud";
-import type {Chunk} from "./chunks/chunk";
+import type {DrawableChunk} from "./chunks/chunk";
 import type {ChunkSpriteSheets} from "./rendering/chunk-sprite-sheets";
 import type {ChunkGenerationWorker} from "./generation/chunk/chunk-generation-worker";
 import type {ChunkGenerationResult} from "./generation/chunk/chunk-worker-protocol";
@@ -15,7 +15,7 @@ export type ChunkFactory = (
     generation: Promise<ChunkGenerationResult>,
     spriteSheets: ChunkSpriteSheets,
     tileSize: number,
-) => Chunk;
+) => DrawableChunk;
 
 /** Constructs the shared sprite dependencies used by every runtime chunk. */
 export type ChunkSpriteSheetsFactory = (

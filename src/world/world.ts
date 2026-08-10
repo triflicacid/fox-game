@@ -1,4 +1,5 @@
-import {Chunk, CHUNK_SIZE, ChunkSpriteSheets} from "./chunks/chunk";
+import type {Chunk, ChunkSpriteSheets, DrawableChunk} from "./chunks/chunk";
+import {CHUNK_SIZE} from "./chunks/chunk";
 import {
     bufferChunkRange,
     chunkGenerationPriority,
@@ -48,14 +49,14 @@ export class World {
     /** Fill colour for the "void" - camera-visible area outside every loaded chunk. */
     private static readonly VOID_COLOR = "#000000";
 
-    private readonly chunks = new CoordMap<Chunk>();
+    private readonly chunks = new CoordMap<DrawableChunk>();
     private readonly entities: Entity[] = [];
 
     /** Routes a structure piece's sprite string to whichever biome sheet actually defines it. */
     private readonly structureSheetRegistry: StructureSheetRegistry;
     private readonly chunkSpriteSheets: ChunkSpriteSheets;
     private readonly chunkFactory: ChunkFactory;
-    private readonly worldGrid: DefaultWorldGridView;
+    private readonly worldGrid: DefaultWorldGridView<DrawableChunk>;
 
     /** Total elapsed time on the shared clock animated background tiles read their phase from. Advanced every {@link update}. */
     private animationElapsedMs = 0;
@@ -119,7 +120,7 @@ export class World {
             this.structureSheetRegistry,
             this.structureCollisionPolygonForSprite.bind(this),
         );
-        this.worldGrid = new DefaultWorldGridView(
+        this.worldGrid = new DefaultWorldGridView<DrawableChunk>(
             this.requestChunk.bind(this),
             (chunkX, chunkY) => this.chunks.get(chunkX, chunkY),
         );
@@ -176,7 +177,7 @@ export class World {
     }
 
     /** Returns the chunk at the given coordinate, requesting generation if it isn't loaded yet. */
-    private requestChunk(chunkX: number, chunkY: number): Chunk {
+    private requestChunk(chunkX: number, chunkY: number): DrawableChunk {
         let chunk = this.chunks.get(chunkX, chunkY);
         if (!chunk) {
             const generation = this.chunkWorkerClient.requestChunk(chunkX, chunkY);
