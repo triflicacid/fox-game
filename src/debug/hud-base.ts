@@ -1,14 +1,7 @@
 import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
 
-/**
- * Abstract base class for canvas-rendered HUD panels.
- *
- * Provides the text-segment factory helpers used by every HUD ({@link text},
- * {@link numberValue}, {@link stringValue}) and two small canvas utilities
- * ({@link setupContext}, {@link drawBackground}) that every `draw` method
- * repeats verbatim.
- */
+/** Abstract base class for canvas-rendered HUD panels. */
 export abstract class HudBase {
     /** A plain top-level text segment. */
     protected text(content: string): TextSegment {

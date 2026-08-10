@@ -36,10 +36,7 @@ interface BiomeRegionCacheEntry extends BiomeRegionSize {
     anchorChunkY: number;
 }
 
-/**
- * Builds {@link DebugHudData} snapshots for the debug HUD without calling
- * any renderer, and owns the biome-region BFS cache.
- */
+/** Builds {@link DebugHudData} snapshots for the debug HUD. */
 export class WorldDebugSnapshotBuilder {
     private readonly biomeRegionCache = new Map<BiomeSummary, BiomeRegionCacheEntry>();
 

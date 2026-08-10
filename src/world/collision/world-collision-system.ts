@@ -22,15 +22,12 @@ export interface WorldCollisionDebugState {
 
 /** Constrains entities to generated ground, then sweeps them against tile/structure collisions. */
 export class WorldCollisionSystem {
-    /**
-     * Most recent handled collision. Stays set until the colliding entity
-     * moves again - see {@link resolveActorCollisions}.
-     */
+    /** Most recent handled collision. Stays set until the colliding entity moves again. */
     private lastCollision: WorldCollisionDebugState | undefined;
 
     /**
      * Whether entities may move onto a chunk that hasn't finished generating
-     * yet. `false` by default - see {@link constrainEntitiesToChunks}.
+     * yet. `false` by default.
      */
     private canMoveOntoGeneratingChunks = false;
 

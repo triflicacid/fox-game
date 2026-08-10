@@ -19,10 +19,7 @@ export interface ReadonlyChunkStore<C extends Chunk = Chunk> {
     getGeneratingCount(): number;
 }
 
-/**
- * Owns the set of currently loaded chunks. Never instantiates a chunk, calls
- * a worker, or requests generation - see `ChunkStreamingManager` for that.
- */
+/** A store of currently loaded chunks. */
 export class ChunkStore<C extends Chunk = Chunk> implements ReadonlyChunkStore<C> {
     private readonly chunks = new CoordMap<C>();
 

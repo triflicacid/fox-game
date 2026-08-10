@@ -6,7 +6,6 @@ export const COMPASS_DIRECTIONS: CompassDirection[] = ["N", "NE", "E", "SE", "S"
 
 /**
  * Maps a displacement vector to one of the eight compass directions.
- * Positive Y is down (screen space), so north is negative Y.
  *
  * @param dx - Horizontal displacement.
  * @param dy - Vertical displacement.

@@ -17,11 +17,7 @@ import {
 } from "./chunk-streaming-math";
 import type {ChunkStore} from "./chunk-store";
 
-/**
- * Owns loaded-chunk streaming policy: requesting, buffering, evicting, and
- * prioritising generation around a moving focus point. Delegates actual
- * storage to `ChunkStore` and generation to `ChunkGenerationWorker`.
- */
+/** Manages loaded-chunk streaming policy. */
 export class ChunkStreamingManager {
     /** Debug knob: minimum time the worker leaves between chunks. `0` disables it. */
     private minGenerationDelayMs = 0;
