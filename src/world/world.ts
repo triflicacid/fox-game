@@ -7,51 +7,37 @@ import {
     isOutsideChunkRange,
     visibleChunkRange,
 } from "./chunks/chunk-streaming-math";
-import {Tile} from "./tiles/tile";
 import {DefaultWorldGridView} from "./tiles/world-grid-view";
 import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
 import {Camera} from "../camera/camera";
-import {toCompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
-import {ChunkState, DebugHudRenderer} from "../debug/debug-hud";
+import {DebugHudRenderer} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {FeatureTag} from "./generation/feature/feature-tag";
-import {BiomeSummary, BiomeTag} from "./generation/biome/biome";
 import {SpriteFrame, SpriteTile} from "../sprites/sprite";
-import {CoordMap, CoordSet} from "./coordinates/coord-set";
+import {CoordMap} from "./coordinates/coord-set";
 import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
-import {getFieldGradient, sampleGradient} from "./generation/noise-field-colors";
-import {BIOME_COLORS} from "./generation/biome/biome-colors";
-import {Minimap, MinimapData, MinimapMarker, MinimapRenderer} from "../minimap/minimap";
-import {MINIMAP_CONFIG} from "../minimap/minimap-config";
-import {MinimapStatsHudData, MinimapStatsHudRenderer} from "../minimap/minimap-stats-hud";
+import {getFieldGradient} from "./generation/noise-field-colors";
+import {Minimap, MinimapRenderer} from "../minimap/minimap";
+import {MinimapStatsHudRenderer} from "../minimap/minimap-stats-hud";
 import {Structure, StructurePieceInstance} from "./generation/structure/structure";
 import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
 import {applyCollisionResponse, CollisionContext} from "./collision/collision";
 import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./inspection/hover-info";
-import {dominantNonNoneLabel} from "./inspection/dominant-label";
 import {ChunkCoordinate} from "./coordinates/chunk-coordinate";
 import {pixelRectToTileRange, tileToChunk} from "./coordinates/world-grid-math";
 import {randomWorldSeed} from "./generation/random-world-seed";
-import type {TerrainGenerationSource} from "./generation/terrain-generation-source";
 import type {ChunkGenerationWorker} from "./generation/chunk/chunk-generation-worker";
 import type {StructureSheetRegistry} from "./rendering/structure-sheet-dispatch";
 import type {ChunkFactory, WorldDependencies} from "./world-dependencies";
-
-/** Everything {@link World.drawDebugHud} needs besides the canvas context and camera. */
-interface DebugHudOptions {
-    /** Whether spectator mode is currently active. */
-    spectating: boolean;
-    /** Camera's current pan velocity while spectating; ignored otherwise. */
-    spectatorVelocity: Vector2d;
-    /** Currently measured rendering FPS. */
-    actualFps: number;
-    /** Configured FPS cap, or `undefined` when uncapped. */
-    targetFps: number | undefined;
-}
+import {WorldEffects} from "./effects/world-effects";
+import {WorldGenerationView} from "./generation/world-generation-view";
+import {MinimapDataBuilder} from "./inspection/minimap-data-builder";
+import {WorldHoverInspector} from "./inspection/world-hover-inspector";
+import {WorldDebugSnapshotBuilder} from "./inspection/world-debug-snapshot-builder";
 
 /**
  * The game world: an effectively infinite 2D grid of tiles, split into
@@ -71,91 +57,61 @@ export class World {
     private readonly chunkFactory: ChunkFactory;
     private readonly worldGrid: DefaultWorldGridView;
 
-    /** Total elapsed time on the shared clock animated background tiles (e.g. water) read their phase from - see {@link Tile.draw}. Advanced every {@link update}. */
+    /** Total elapsed time on the shared clock animated background tiles read their phase from. Advanced every {@link update}. */
     private animationElapsedMs = 0;
-    /** Used only for {@link getNoiseFieldNames}/{@link drawNoiseFieldOverlay} - actual chunk generation runs on {@link chunkWorkerClient}. */
-    private readonly chunkGenerator: TerrainGenerationSource;
+    private readonly generationView: WorldGenerationView;
     private readonly chunkWorkerClient: ChunkGenerationWorker;
     private worldSeed: number;
-    /** Debug knob: minimum time the worker leaves between finishing one chunk and starting the next. `0` disables it - see {@link setMinChunkGenerationDelayMs}. */
+    /** Debug knob: minimum time the worker leaves between chunks. `0` disables it. */
     private minChunkGenerationDelayMs = 0;
     private readonly debugHud: DebugHudRenderer;
     private readonly minimap: MinimapRenderer;
     private readonly minimapStatsHud: MinimapStatsHudRenderer;
 
-    /** Whether the minimap is currently shown - independent of {@link DebugController.isEnabled}, defaults to visible. See {@link getMinimapEnabled}/{@link setMinimapEnabled}. */
+    /** Whether the minimap is currently shown. */
     private minimapEnabled = true;
 
-    /** This frame's minimap data, cached by {@link draw} for {@link getMinimapHoverInfo} to reuse - `undefined` while the minimap isn't shown. */
-    private lastMinimapData: MinimapData | undefined;
-
-    /** Every currently active {@link Effect}, driven generically by {@link update}/{@link draw} - see {@link registerEffect}. */
-    private effects: Effect[] = [];
+    private readonly worldEffects: WorldEffects;
+    private readonly minimapBuilder: MinimapDataBuilder;
+    private readonly hoverInspector: WorldHoverInspector;
+    private readonly debugSnapshotBuilder: WorldDebugSnapshotBuilder;
 
     /**
      * The entity currently under player control - `undefined` until
-     * {@link setMainEntity} is called at least once. `World` never assumes
-     * one exists on its own; callers must set one up before driving
-     * {@link update}/{@link draw}.
+     * {@link setMainEntity} is called at least once.
      */
     private mainEntity: MovableEntity | undefined;
 
     /**
-     * Which entity/obstacle most recently overlapped, for the debug HUD's
-     * collision indicator - `undefined` once cleared. Stays put across
-     * ticks where the colliding entity doesn't move again (see
-     * {@link handleCollisions}), so bumping into something and getting
-     * pushed back out still reads as `true` in the HUD right up until the
-     * entity is actually moved again - not just for the single tick contact
-     * happened, which would be easy to miss.
+     * Most recent collision pair for the debug HUD indicator. Stays set until
+     * the colliding entity moves again - see {@link handleCollisions}.
      */
     private lastCollision: {entityLabel: string; obstacleLabel: string} | undefined;
 
-    /** Sum of every generated chunk's {@link Chunk.generationTimeMs}, for {@link getAverageChunkGenerationTimeMs}. */
+    /** Sum of every generated chunk's {@link Chunk.generationTimeMs}. */
     private totalChunkGenerationTimeMs = 0;
     /** Count of chunks contributing to {@link totalChunkGenerationTimeMs}. */
     private generatedChunkCount = 0;
-    /** {@link Chunk.generationTimeMs} of the most recently generated chunk, for the debug HUD. */
+    /** {@link Chunk.generationTimeMs} of the most recently generated chunk. */
     private latestChunkGenerationTimeMs = 0;
-    /** Chunk count the last {@link draw} call rendered, for the debug HUD. */
+    /** Chunk count the last {@link draw} call rendered. */
     private lastVisibleChunkCount = 0;
 
-    /**
-     * Cached biome-region BFS results, keyed by biome. Each entry is valid as
-     * long as its anchor chunk (the player's chunk when the BFS ran) is still
-     * loaded. Cleared on seed change.
-     */
-    private readonly biomeRegionCache = new Map<BiomeSummary, {
-        count: number;
-        isPartial: boolean;
-        anchorChunkX: number;
-        anchorChunkY: number;
-    }>();
-
-    /** Chunk {@link getChunkGenerationFocus} was in as of the last {@link reorderChunkGenerationQueueIfFocusMoved} call - `undefined` before the first call. */
+    /** Chunk {@link getChunkGenerationFocus} was in as of the last {@link reorderChunkGenerationQueueIfFocusMoved} call. */
     private lastChunkGenerationFocusChunk: ChunkCoordinate | undefined;
 
-    /**
-     * Whether new chunks may be generated. If areas outside generated
-     * chunks come into viewport, show void instead.
-     */
+    /** Whether new chunks may be generated. */
     private generationEnabled = true;
 
     /**
      * Whether entities may move onto a chunk that hasn't finished generating
-     * yet. `false` by default, so the main entity stays constrained to
-     * already-generated ground instead of wandering into a chunk that's
-     * still a placeholder - see {@link constrainEntitiesToChunks}.
+     * yet. `false` by default - see {@link constrainEntitiesToChunks}.
      */
     private canMoveOntoGeneratingChunks = false;
 
-    /**
-     * @param tileSize - Width/height of a single tile, in canvas pixels.
-     * @param dependencies - Complete collaborators and seed for this world.
-     */
     public constructor(public readonly tileSize: number, dependencies: WorldDependencies) {
         this.worldSeed = dependencies.worldSeed;
-        this.chunkGenerator = dependencies.chunkGenerator;
+        this.generationView = new WorldGenerationView(dependencies.chunkGenerator);
         this.chunkWorkerClient = dependencies.chunkWorkerClient;
         this.chunkFactory = dependencies.chunkFactory;
         this.structureSheetRegistry = dependencies.structureSheetRegistry;
@@ -167,82 +123,59 @@ export class World {
             this.requestChunk.bind(this),
             (chunkX, chunkY) => this.chunks.get(chunkX, chunkY),
         );
+        this.worldEffects = new WorldEffects();
+        this.minimapBuilder = new MinimapDataBuilder(tileSize, this.generationView, () => this.requireMainEntity());
+        this.hoverInspector = new WorldHoverInspector(tileSize, this.worldGrid, this.generationView, () => this.entities);
+        this.debugSnapshotBuilder = new WorldDebugSnapshotBuilder(tileSize, this.worldGrid, this.worldGrid);
         this.debugHud = dependencies.debugHud;
         this.minimap = dependencies.minimap;
         this.minimapStatsHud = dependencies.minimapStatsHud;
     }
 
-    /**
-     * Registers an {@link Effect} to be advanced every simulation tick (see
-     * {@link update}) and drawn behind entities every frame (see
-     * {@link draw}) until it expires.
-     *
-     * @param effect - Effect to register.
-     */
+    /** Adds `effect` to the active set; it will be advanced and drawn until it expires. */
     public registerEffect(effect: Effect): void {
-        this.effects.push(effect);
+        this.worldEffects.register(effect);
     }
 
-    /**
-     * The seed currently used to generate new chunks.
-     *
-     * @returns The current world seed.
-     */
+    /** The seed currently used to generate new chunks. */
     public getWorldSeed(): number {
         return this.worldSeed;
     }
 
     /**
-     * Changes the seed used to generate new chunks. Already-loaded chunks
-     * are left as they are - only chunks generated from now on use `seed`.
-     *
-     * @param seed - The new world seed.
+     * Changes the seed used for new chunks. Already-loaded chunks are kept;
+     * only future generation uses `seed`.
      */
     public setWorldSeed(seed: number): void {
         this.worldSeed = seed;
-        this.chunkGenerator.setSeed(seed);
+        this.generationView.setSeed(seed);
         this.chunkWorkerClient.setSeed(seed);
-        this.biomeRegionCache.clear();
+        this.debugSnapshotBuilder.clearBiomeRegionCache();
     }
 
-    /**
-     * Replaces the world seed with a fresh random one - see {@link setWorldSeed}.
-     */
+    /** Replaces the world seed with a fresh random one - see {@link setWorldSeed}. */
     public refreshWorldSeed(): void {
         this.setWorldSeed(randomWorldSeed());
     }
 
     /**
-     * Debug knob: minimum time the worker leaves between finishing one
-     * chunk's generation and starting the next, for testing that the UI
-     * stays responsive while chunks are generating.
-     *
-     * @returns The current minimum delay, in milliseconds. `0` means disabled.
+     * Minimum time the worker leaves between chunks, in ms. `0` means disabled.
+     * See {@link setMinChunkGenerationDelayMs}.
      */
     public getMinChunkGenerationDelayMs(): number {
         return this.minChunkGenerationDelayMs;
     }
 
     /**
-     * Sets the minimum-delay-between-chunks debug knob - see
-     * {@link getMinChunkGenerationDelayMs}. Takes effect immediately on the
-     * currently running worker, and persists across a {@link setWorldSeed}.
-     *
-     * @param delayMs - Minimum milliseconds to leave between chunks. `0` disables the delay.
+     * Sets the minimum-delay-between-chunks debug knob.
+     * Takes effect immediately and persists across seed changes.
      */
     public setMinChunkGenerationDelayMs(delayMs: number): void {
         this.minChunkGenerationDelayMs = delayMs;
         this.chunkWorkerClient.setMinGenerationDelayMs(delayMs);
     }
 
-    /**
-     * Returns the chunk at the given chunk coordinate, generating and
-     * caching it first if it hasn't been loaded yet.
-     *
-     * @param chunkX - Chunk's X coordinate, in chunk units.
-     * @param chunkY - Chunk's Y coordinate, in chunk units.
-     * @returns The loaded chunk.
-     */
+    /** Returns the chunk at the given coordinate, requesting generation if it isn't loaded yet. */
     private requestChunk(chunkX: number, chunkY: number): Chunk {
         let chunk = this.chunks.get(chunkX, chunkY);
         if (!chunk) {
@@ -256,38 +189,23 @@ export class World {
                     this.generatedChunkCount++;
                 })
                 .catch(() => {
-                    // Worker terminated (e.g. a seed change) before this chunk finished; don't count it.
+                    // Worker terminated before this chunk finished; don't count it.
                 });
         }
         return chunk;
     }
 
-    /**
-     * How many chunks are currently loaded in memory.
-     *
-     * @returns The loaded chunk count.
-     */
+    /** How many chunks are currently loaded in memory. */
     public getLoadedChunkCount(): number {
         return this.chunks.size;
     }
 
-    /**
-     * The worker client driving chunk generation - for debugging (see
-     * `exposeGlobals`), e.g. to inspect pending chunks or set the min
-     * generation delay from the console while the app is running. The same
-     * instance for this `World`'s whole lifetime.
-     *
-     * @returns The current chunk worker client.
-     */
+    /** The worker client driving chunk generation - for console debugging. */
     public getChunkWorkerClient(): ChunkGenerationWorker {
         return this.chunkWorkerClient;
     }
 
-    /**
-     * How many currently loaded chunks are still generating, for the debug HUD.
-     *
-     * @returns The generating chunk count.
-     */
+    /** How many currently loaded chunks are still generating. */
     public getGeneratingChunkCount(): number {
         let count = 0;
         for (const chunk of this.chunks.values()) {
@@ -298,62 +216,35 @@ export class World {
         return count;
     }
 
-    /**
-     * Mean {@link Chunk.generationTimeMs} across every chunk generated so
-     * far this session, for the debug HUD.
-     *
-     * @returns The average chunk generation time, in milliseconds, or `0` if nothing has been generated yet.
-     */
+    /** Mean generation time across every chunk generated this session, in ms. */
     public getAverageChunkGenerationTimeMs(): number {
         return this.generatedChunkCount === 0 ? 0 : this.totalChunkGenerationTimeMs / this.generatedChunkCount;
     }
 
-    /**
-     * {@link Chunk.generationTimeMs} of the most recently generated chunk,
-     * for the debug HUD.
-     *
-     * @returns The latest chunk generation time, in milliseconds, or `0` if nothing has been generated yet.
-     */
+    /** Generation time of the most recently finished chunk, in ms. */
     public getLatestChunkGenerationTimeMs(): number {
         return this.latestChunkGenerationTimeMs;
     }
 
-    /**
-     * Drops a chunk from memory. Safe to call on a chunk that isn't loaded.
-     * Since chunk deltas aren't persisted yet, any edits made to the chunk
-     * are lost; once storage exists, this is where a dirty chunk would be
-     * flushed before being evicted.
-     *
-     * @param chunkX - Chunk's X coordinate, in chunk units.
-     * @param chunkY - Chunk's Y coordinate, in chunk units.
-     */
+    /** Drops a chunk from memory. Safe to call when the chunk is not loaded. */
     public unloadChunk(chunkX: number, chunkY: number): void {
         this.chunks.delete(chunkX, chunkY);
     }
 
-    /**
-     * Drops every currently loaded chunk from memory, cancelling any
-     * still-pending generation requests for them.
-     */
+    /** Drops every loaded chunk and cancels any pending generation requests. */
     public reloadAllChunks(): void {
         this.chunkWorkerClient.cancelPending();
         this.chunks.clear();
     }
 
-    /**
-     * Whether new chunks may currently be generated.
-     *
-     * @returns `true` if chunk generation is enabled.
-     */
+    /** Whether new chunks may currently be generated. */
     public isGenerationEnabled(): boolean {
         return this.generationEnabled;
     }
 
     /**
-     * Enables/disables chunk generation. When generation is disabled,
-     * also clears the pending generation queue.
-     *
-     * @param enabled - Whether chunk generation should be enabled.
+     * Enables or disables chunk generation. Disabling also clears the pending
+     * generation queue.
      */
     public setGenerationEnabled(enabled: boolean): void {
         this.generationEnabled = enabled;
@@ -362,33 +253,21 @@ export class World {
         }
     }
 
-    /**
-     * Whether the minimap is currently shown.
-     *
-     * @returns `true` if the minimap is enabled.
-     */
+    /** Whether the minimap is currently shown. */
     public getMinimapEnabled(): boolean {
         return this.minimapEnabled;
     }
 
     /**
-     * Enables/disables the minimap. Independent of {@link DebugController.isEnabled} -
-     * the minimap is a normal gameplay element, not a debug one. No special
-     * handling is needed on re-enable: the tracked bitmap centre is simply
-     * stale, which {@link Minimap.draw}'s own large-jump fallback already
-     * treats as a full resample (see `Minimap.updateBitmap`).
-     *
-     * @param enabled - Whether the minimap should be shown.
+     * Shows or hides the minimap. Independent of the debug overlay toggle.
+     * Re-enabling is handled transparently by `Minimap`'s own stale-centre
+     * fallback.
      */
     public setMinimapEnabled(enabled: boolean): void {
         this.minimapEnabled = enabled;
     }
 
-    /**
-     * Cancels every chunk generation request still queued or in flight on
-     * {@link chunkWorkerClient}, and drops the corresponding not-yet-ready
-     * chunks from {@link chunks}.
-     */
+    /** Cancels all pending chunk requests and drops any not-yet-ready chunks. */
     private cancelPendingChunkGeneration(): void {
         this.chunkWorkerClient.cancelPending();
         const toDelete = [...this.chunks.values()].filter(c => !c.isReady());
@@ -397,23 +276,14 @@ export class World {
         }
     }
 
-    /**
-     * Enables/disables movement onto still-generating chunks.
-     *
-     * @param canMove - Whether entities may move onto a still-generating chunk.
-     */
+    /** Enables or disables movement onto still-generating chunks. */
     public setCanMoveOntoGeneratingChunks(canMove: boolean): void {
         this.canMoveOntoGeneratingChunks = canMove;
     }
 
     /**
-     * Whether every chunk overlapped by a `frame`-sized rectangle at
-     * `position` is both loaded and satisfies `predicate`.
-     *
-     * @param position - Rectangle's centre point, in world pixels.
-     * @param frame - Sprite frame whose width/height define the rectangle.
-     * @param predicate - Only chunks this returns `true` for count as valid ground.
-     * @returns `true` if every overlapped chunk is loaded and satisfies `predicate`.
+     * Whether every chunk overlapped by a `frame`-sized rectangle at `position`
+     * is both loaded and satisfies `predicate`.
      */
     private isPositionOnValidGround(position: Vector2d, frame: SpriteFrame, predicate: (chunk: Chunk) => boolean): boolean {
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
@@ -433,13 +303,7 @@ export class World {
         return true;
     }
 
-    /**
-     * Stops every {@link MovableEntity} in {@link entities} from ending this
-     * tick standing anywhere that doesn't satisfy `predicate`.
-     *
-     * @param previousPositions - Each entity's position before this tick's movement, to fall back to/slide from.
-     * @param predicate - Only chunks this returns `true` for count as valid ground.
-     */
+    /** Slides or pushes back every {@link MovableEntity} that ended the tick on invalid ground. */
     private constrainEntitiesToChunks(previousPositions: ReadonlyMap<MovableEntity, Vector2d>, predicate: (chunk: Chunk) => boolean): void {
         for (const entity of this.entities) {
             if (!(entity instanceof MovableEntity)) {
@@ -468,266 +332,49 @@ export class World {
         }
     }
 
-    /**
-     * Everything the debug hover tooltip (see `HoverTooltip`) shows about the
-     * tile at a world tile position - ground/biome/feature, its own
-     * collidability, and any structure piece occupying it. Never triggers
-     * generation - it reads only from chunks already loaded/rendered.
-     *
-     * @param tileX - Tile's X position, in tiles from the world origin.
-     * @param tileY - Tile's Y position, in tiles from the world origin.
-     * @returns The tile's hover info, or `undefined` if its containing chunk isn't ready yet.
-     */
+    /** Returns hover data for the tile at a world tile position, or `undefined` while its chunk is unready. */
     public getTileHoverInfo(tileX: number, tileY: number): TileHoverInfo | undefined {
-        const tile = this.worldGrid.getReadyTile(tileX, tileY);
-        if (!tile) {
-            return undefined;
-        }
-        const piece = this.worldGrid.getReadyStructurePieceAt(tileX, tileY);
-        return {
-            tileX,
-            tileY,
-            groundType: tile.getDisplayGroundType(this.animationElapsedMs),
-            biomeTag: tile.biomeTag,
-            featureTag: tile.featureTag,
-            collision: tile.getCollision(tileX, tileY, this.tileSize)?.response,
-            animated: tile.getAnimationInfo(),
-            structure: piece && {
-                sprites: piece.sprites,
-                structureId: piece.structureId,
-                layer: piece.layer,
-                collision: piece.collision !== "none" ? piece.collision : undefined,
-            },
-        };
+        return this.hoverInspector.getTileHoverInfo(tileX, tileY, this.animationElapsedMs);
     }
 
-    /**
-     * Everything the debug hover tooltip shows about the minimap region
-     * under a screen point, or `undefined` if the minimap isn't currently
-     * shown or the point falls outside its box.
-     *
-     * @param screenX - Cursor's X position, in canvas pixels.
-     * @param screenY - Cursor's Y position, in canvas pixels.
-     * @param canvasWidth - Canvas width, in canvas pixels - for locating the minimap box.
-     * @returns The hovered minimap region's info, or `undefined` if nothing's there to show.
-     */
+    /** Returns hover data for the minimap region under a screen point, or `undefined`. */
     public getMinimapHoverInfo(screenX: number, screenY: number, canvasWidth: number): MinimapHoverInfo | undefined {
-        if (!this.lastMinimapData) {
-            return undefined;
-        }
-        const tile = Minimap.screenToTile(screenX, screenY, canvasWidth, this.lastMinimapData);
-        if (!tile) {
-            return undefined;
-        }
-        const tileX = Math.floor(tile.x);
-        const tileY = Math.floor(tile.y);
-        return {tileX, tileY, biomeTag: this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)};
+        return this.hoverInspector.getMinimapHoverInfo(screenX, screenY, canvasWidth);
     }
 
-    /**
-     * Everything the debug hover tooltip shows about whichever entity's
-     * drawn rectangle contains a world-pixel point, if any. Checked topmost
-     * (last-drawn) entity first, since that's what the cursor would actually
-     * appear to be over.
-     *
-     * @param worldX - X position to test, in world pixels.
-     * @param worldY - Y position to test, in world pixels.
-     * @returns The topmost entity's hover info at that point, or `undefined` if none is there.
-     */
+    /** Returns hover data for the topmost entity at a world-pixel point, or `undefined`. */
     public getEntityHoverInfo(worldX: number, worldY: number): EntityHoverInfo | undefined {
-        for (let i = this.entities.length - 1; i >= 0; i--) {
-            const entity = this.entities[i];
-            const rect = entity.getBoundingRect();
-            if (worldX < rect.x || worldX >= rect.x + rect.w || worldY < rect.y || worldY >= rect.y + rect.h) {
-                continue;
-            }
-            const position = entity.getPosition();
-            const velocity = entity instanceof MovableEntity && entity.isMoving() ? entity.getVelocity() : undefined;
-            return {
-                name: entity instanceof MovableEntity ? entity.getDisplayName() : entity.getRegistryId(),
-                x: position.x,
-                y: position.y,
-                status: entity.getStatus(),
-                velocity: velocity && {x: velocity.x, y: velocity.y},
-            };
-        }
-        return undefined;
+        return this.hoverInspector.getEntityHoverInfo(worldX, worldY);
     }
 
     /**
-     * BFS from `(chunkX, chunkY)` over loaded, ready chunks whose
-     * `biomeSummary` matches `biome`, returning the connected-region size.
-     * `isPartial` is `true` when the region reaches an unloaded or
-     * still-generating chunk - meaning the true size is at least `count`.
-     * Results are cached per biome and reused as long as the anchor chunk
-     * (the player's chunk when the BFS ran) remains loaded.
-     *
-     * @param chunkX - Player's current chunk X.
-     * @param chunkY - Player's current chunk Y.
-     * @param biome - The biome to measure.
-     * @returns Connected chunk count and whether the region extends further.
-     */
-    private getBiomeRegionSize(chunkX: number, chunkY: number, biome: BiomeSummary): {count: number; isPartial: boolean} {
-        const cached = this.biomeRegionCache.get(biome);
-        if (cached && this.chunks.has(cached.anchorChunkX, cached.anchorChunkY)) {
-            return cached;
-        }
-
-        const NEIGHBORS: readonly {dx: number; dy: number}[] = [
-            {dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1},
-        ];
-        const visited = new CoordSet();
-        const matched = new CoordSet();
-        const queue: {chunkX: number; chunkY: number}[] = [{chunkX, chunkY}];
-        visited.add(chunkX, chunkY);
-        matched.add(chunkX, chunkY);
-        let isPartial = false;
-
-        while (queue.length > 0) {
-            const {chunkX: cx, chunkY: cy} = queue.shift() as {chunkX: number; chunkY: number};
-            for (const {dx, dy} of NEIGHBORS) {
-                const nx = cx + dx;
-                const ny = cy + dy;
-                if (visited.has(nx, ny)) {
-                    continue;
-                }
-                visited.add(nx, ny);
-                const neighbor = this.chunks.get(nx, ny);
-                if (!neighbor?.isReady()) {
-                    isPartial = true;
-                    continue;
-                }
-                if (neighbor.biomeSummary === biome) {
-                    matched.add(nx, ny);
-                    queue.push({chunkX: nx, chunkY: ny});
-                }
-            }
-        }
-
-        const result = {count: matched.size, isPartial, anchorChunkX: chunkX, anchorChunkY: chunkY};
-        this.biomeRegionCache.set(biome, result);
-        return result;
-    }
-
-    /**
-     * Finds the minimum chunk-grid distance to a chunk with a different biome
-     * summary, checking only loaded ready chunks. Also returns the approximate
-     * compass direction by averaging the displacement vectors of all different-
-     * biome chunks found at that minimum distance.
-     *
-     * @param chunkX - Starting chunk X.
-     * @param chunkY - Starting chunk Y.
-     * @param biome - The biome to compare against.
-     * @returns Distance and direction to the nearest different biome, or `undefined`.
-     */
-    private getDistanceToBiomeEdge(chunkX: number, chunkY: number, biome: BiomeSummary): {distance: number; direction: string} | undefined {
-        const MAX_SEARCH_DISTANCE = 16;
-        const visited = new CoordSet();
-        visited.add(chunkX, chunkY);
-        let currentRing = [{chunkX, chunkY}];
-
-        for (let distance = 1; distance <= MAX_SEARCH_DISTANCE; distance++) {
-            const nextRing: {chunkX: number; chunkY: number}[] = [];
-            let sumDx = 0;
-            let sumDy = 0;
-            let foundCount = 0;
-
-            for (const {chunkX: cx, chunkY: cy} of currentRing) {
-                for (const {dx, dy} of [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}]) {
-                    const nx = cx + dx;
-                    const ny = cy + dy;
-                    if (visited.has(nx, ny)) {
-                        continue;
-                    }
-                    visited.add(nx, ny);
-                    const neighbor = this.chunks.get(nx, ny);
-                    if (!neighbor?.isReady()) {
-                        continue;
-                    }
-                    if (neighbor.biomeSummary !== biome && neighbor.biomeSummary !== "" && neighbor.biomeSummary !== "mixed") {
-                        sumDx += nx - chunkX;
-                        sumDy += ny - chunkY;
-                        foundCount++;
-                    } else {
-                        nextRing.push({chunkX: nx, chunkY: ny});
-                    }
-                }
-            }
-
-            if (foundCount > 0) {
-                return {distance, direction: toCompassDirection(sumDx / foundCount, sumDy / foundCount)};
-            }
-            if (nextRing.length === 0) {
-                break;
-            }
-            currentRing = nextRing;
-        }
-        return undefined;
-    }
-
-    /**
-     * The most common feature tag among every tile touched by the given
-     * pixel rectangle - meant to be called with a sprite's full drawn
-     * rectangle (`SpriteFrame.w`/`h`), not its (typically smaller) collision
-     * `bounds` polygon, so it reflects what ground the sprite is visually
-     * standing on rather than only what its hitbox overlaps.
-     *
-     * @param x - Left edge of the rectangle, in world pixels.
-     * @param y - Top edge of the rectangle, in world pixels.
-     * @param w - Rectangle width, in world pixels.
-     * @param h - Rectangle height, in world pixels.
-     * @returns The most-represented feature tag among the tiles the rectangle overlaps, breaking ties in favour of whichever qualifying tag is encountered first (reading tiles left-to-right, top-to-bottom).
+     * The most common feature tag across a pixel rectangle. Breaking ties in
+     * favour of the first qualifying tag encountered (left-to-right, top-to-bottom).
      */
     public getDominantFeatureLabel(x: number, y: number, w: number, h: number): FeatureTag {
-        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(x, y, w, h, this.tileSize);
-
-        return dominantNonNoneLabel({startTileX, startTileY, endTileX, endTileY}, (tileX, tileY) =>
-            this.worldGrid.requestFeatureTag(tileX, tileY)
-        );
+        return this.debugSnapshotBuilder.dominantFeatureLabel(x, y, w, h);
     }
 
     /**
-     * The most common structure sprite among every tile touched by the given
-     * pixel rectangle - see {@link getDominantFeatureLabel}, which this mirrors.
-     *
-     * @param x - Left edge of the rectangle, in world pixels.
-     * @param y - Top edge of the rectangle, in world pixels.
-     * @param w - Rectangle width, in world pixels.
-     * @param h - Rectangle height, in world pixels.
-     * @returns The most-represented structure sprite among the tiles the rectangle overlaps, breaking ties in favour of whichever qualifying sprite is encountered first (reading tiles left-to-right, top-to-bottom).
+     * The most common structure sprite across a pixel rectangle. Tie-breaking
+     * mirrors {@link getDominantFeatureLabel}.
      */
     public getDominantStructureLabel(x: number, y: number, w: number, h: number): string {
-        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(x, y, w, h, this.tileSize);
-
-        return dominantNonNoneLabel({startTileX, startTileY, endTileX, endTileY}, (tileX, tileY) =>
-            this.worldGrid.requestStructureTag(tileX, tileY)
-        );
+        return this.debugSnapshotBuilder.dominantStructureLabel(x, y, w, h);
     }
 
-    /**
-     * Every entity currently in the world.
-     *
-     * @returns The world's entities.
-     */
+    /** Every entity currently in the world. */
     public getEntities(): readonly Entity[] {
         return this.entities;
     }
 
-    /**
-     * The entity currently under player control, e.g. for binding a
-     * {@link MovementController} to.
-     *
-     * @returns The main entity.
-     * @throws {TypeError} If {@link setMainEntity} hasn't been called yet.
-     */
+    /** The entity currently under player control. Throws if none has been set. */
     public getMainEntity(): MovableEntity {
         return this.requireMainEntity();
     }
 
     /**
      * Switches which entity is under player control.
-     *
-     * @param entity - Entity to make the new main entity.
      * @returns `this`, for chaining.
      */
     public setMainEntity(entity: MovableEntity): this {
@@ -739,13 +386,7 @@ export class World {
         return this;
     }
 
-    /**
-     * Removes `entity` from the world and clears every effect handler it had
-     * registered, so it stops being simulated/drawn and can no longer
-     * register new effects into this `World`.
-     *
-     * @param entity - Entity to remove.
-     */
+    /** Removes `entity` and clears its effect dispatcher. */
     private destroyEntity(entity: MovableEntity): void {
         entity.effectDispatcher.clear();
         const index = this.entities.indexOf(entity);
@@ -754,44 +395,20 @@ export class World {
         }
     }
 
-    /**
-     * The current main entity, or throws if {@link setMainEntity} hasn't
-     * been called yet - every caller of {@link update}/{@link draw} is
-     * expected to have set one up first.
-     *
-     * @returns The main entity.
-     * @throws {TypeError} If no main entity has been set yet.
-     */
+    /** Returns the main entity, throwing if none has been set. */
     private requireMainEntity(): MovableEntity {
         return requireNonNull(this.mainEntity);
     }
 
     /**
-     * Teleports the main entity so its sprite is centred on `target`,
-     * bypassing normal movement/collision - for the debug `t` shortcut that
-     * teleports the fox to the camera. Works even if `target` falls on a
-     * chunk that hasn't finished generating (or doesn't exist) yet - chunk
-     * streaming (see {@link updateLoadedChunks}) requests it on the next
-     * tick same as anywhere else the camera can see.
-     *
-     * @param target - World-pixel point to centre the main entity on.
+     * Teleports the main entity so its sprite centre lands on `target`,
+     * bypassing collision. Works on any world position regardless of chunk state.
      */
     public teleportMainEntityTo(target: Vector2d): void {
         this.requireMainEntity().teleportTo(target);
     }
 
-    /**
-     * Advances every entity in the world by one simulation tick, and streams
-     * chunks in/out around the camera (see {@link updateLoadedChunks}). While
-     * {@link generationEnabled} is off, entities are constrained inside the
-     * currently loaded chunks; while it's on but {@link canMoveOntoGeneratingChunks}
-     * is off, they're constrained inside already-generated chunks instead
-     * (see {@link constrainEntitiesToChunks}).
-     *
-     * @param deltaMs - Time elapsed since the last update, in milliseconds.
-     * @param camera - Camera the world is currently being viewed through.
-     * @param spectating - Whether spectator mode is currently active - see {@link getChunkGenerationFocus}.
-     */
+    /** Advances entities, effects, chunk streaming, and collision for one tick. */
     public update(deltaMs: number, camera: Camera, spectating: boolean): void {
         this.animationElapsedMs += deltaMs;
         const previousPositions = new Map<MovableEntity, Vector2d>();
@@ -801,7 +418,7 @@ export class World {
             }
             entity.update(deltaMs);
         }
-        this.updateEffects(deltaMs);
+        this.worldEffects.update(deltaMs);
         const focus = this.getChunkGenerationFocus(camera, spectating);
         this.updateLoadedChunks(camera, focus);
         this.reorderChunkGenerationQueueIfFocusMoved(focus);
@@ -813,13 +430,7 @@ export class World {
         this.handleCollisions(previousPositions);
     }
 
-    /**
-     * Checks each {@link MovableEntity} against every collidable tile and
-     * structure piece it currently overlaps, and reacts to the first one
-     * found (see {@link handleEntityCollisions}) per {@link CollisionResponseKind}.
-     *
-     * @param previousPositions - Each entity's position before this tick's movement - see {@link update}.
-     */
+    /** Sweeps each movable entity against collidable tiles and structure pieces. */
     private handleCollisions(previousPositions: ReadonlyMap<MovableEntity, Vector2d>): void {
         for (const entity of this.entities) {
             if (!(entity instanceof MovableEntity)) {
@@ -830,27 +441,13 @@ export class World {
                 continue;
             }
             if (entity.isMoving()) {
-                // Clear the stale indicator now that the entity's actually
-                // being moved again - handleEntityCollisions immediately
-                // below sets it fresh if this move collides too.
                 this.lastCollision = undefined;
             }
             this.handleEntityCollisions(entity, previousPosition);
         }
     }
 
-    /**
-     * Sweeps every tile `entity`'s bounding rect touches, testing its
-     * collision polygon (see {@link Entity.getCollisionPolygon}) against
-     * each one's collidable tile (via {@link Tile.getCollision}) and
-     * collidable structure piece (via {@link structurePiecePolygon}). Stops
-     * at the first overlap found and reacted to - the entity may have just moved,
-     * so the remaining precomputed tile range no longer reliably reflects
-     * its position; next tick's sweep picks up from wherever it ends up.
-     *
-     * @param entity - The entity to check.
-     * @param previousPosition - `entity`'s position before this tick's movement - see {@link handleCollisions}.
-     */
+    /** Tests `entity` against every tile and structure piece in its bounding rect, stopping at the first handled collision. */
     private handleEntityCollisions(entity: MovableEntity, previousPosition: Vector2d): void {
         const rect = entity.getBoundingRect();
         const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(rect.x, rect.y, rect.w, rect.h, this.tileSize);
@@ -877,15 +474,7 @@ export class World {
         }
     }
 
-    /**
-     * `piece`'s collision polygon, in world pixels.
-     * Note that only the base sprite is used, ignoring layers on top of it.
-     *
-     * @param piece - The structure piece to build a collision polygon for.
-     * @param tileX - The piece's tile X, in tiles from the world origin.
-     * @param tileY - The piece's tile Y, in tiles from the world origin.
-     * @returns The piece's world-space collision polygon.
-     */
+    /** Returns `piece`'s world-space collision polygon centred at its tile. */
     private structurePiecePolygon(piece: StructurePieceInstance, tileX: number, tileY: number): ConvexPolygon {
         const centerX = tileX * this.tileSize + this.tileSize / 2;
         const centerY = tileY * this.tileSize + this.tileSize / 2;
@@ -893,16 +482,7 @@ export class World {
             ?? rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize);
     }
 
-    /**
-     * `sprite`'s collision hull, scaled to `tileSize` and centred at
-     * `(centerX, centerY)`.
-     *
-     * @param sprite - The structure/cactus sprite type to look up.
-     * @param centerX - Tile centre X to place the polygon at, in canvas pixels.
-     * @param centerY - Tile centre Y to place the polygon at, in canvas pixels.
-     * @param tileSize - Width/height a tile renders at, in canvas pixels.
-     * @returns The sprite's collision polygon, or `undefined` if it has no authored hull.
-     */
+    /** Returns `sprite`'s authored collision hull scaled to `tileSize`, or `undefined` if it has none. */
     private structureCollisionPolygonForSprite(sprite: string, centerX: number, centerY: number, tileSize: number): ConvexPolygon | undefined {
         const {bounds, w} = this.locateStructureSprite(sprite);
         if (!bounds) {
@@ -912,50 +492,20 @@ export class World {
         return bounds.points.map((point) => new Vector2d(centerX + point.x * scale, centerY + point.y * scale));
     }
 
-    /**
-     * Locates `sprite` within whichever sheet actually defines it.
-     *
-     * @param sprite - The structure sprite type to locate.
-     * @returns Its located tile, including its collision {@link SpriteBounds} if it has any.
-     */
+    /** Locates `sprite` in the sheet that defines it. */
     private locateStructureSprite(sprite: string): SpriteTile {
         return this.structureSheetRegistry.findSheet(sprite).locateTile(sprite);
     }
 
-    /**
-     * Looks up the `Structure` (e.g. the shared `TreeStructure`) that
-     * produced a piece stamped with `structureId` - see
-     * {@link StructurePieceInstance.structureId}. Reads from
-     * {@link chunkGenerator}, the main-thread `ChunkGenerator` kept around
-     * for exactly this kind of lookup (chunk generation itself runs on
-     * {@link chunkWorkerClient}, off-thread).
-     *
-     * @param structureId - The structure type's id to look up.
-     * @returns The matching `Structure`, or `undefined` if none matches (shouldn't normally happen).
-     */
+    /** Finds the {@link Structure} that produced pieces stamped with `structureId`. */
     private findStructure(structureId: string): Structure | undefined {
-        return this.chunkGenerator.getStructures().find((structure) => structure.getStructureId() === structureId);
+        return this.generationView.getStructures().find((structure) => structure.getStructureId() === structureId);
     }
 
     /**
-     * Tests `entity`'s *current* collision polygon (re-derived fresh here,
-     * since an earlier obstacle this same sweep may have just repositioned
-     * it) against `obstaclePolygon`, and on overlap: gives `structure` (if
-     * any) first refusal via its optional {@link Structure.handleCollision} -
-     * returning `false` from that skips the generic response entirely - then
-     * otherwise dispatches `response`'s reaction via {@link applyCollisionResponse}
-     * (which also logs - see its doc).
-     *
-     * @param entity - The entity whose polygon is being tested.
-     * @param previousPosition - `entity`'s position before this tick's movement, passed through to the response handler.
-     * @param obstaclePolygon - The tile/structure piece's collision polygon.
-     * @param response - How to react on overlap - never `"none"`, since callers skip dispatching for it entirely.
-     * @param obstacleKind - What kind of obstacle this is (e.g. `"tile"`/`"structure"`), passed through to {@link CollisionContext}.
-     * @param obstacleName - The obstacle's own name (e.g. a ground type or structure sprite), passed through to {@link CollisionContext}.
-     * @param tileX - The obstacle's tile X, passed through to {@link CollisionContext}.
-     * @param tileY - The obstacle's tile Y, passed through to {@link CollisionContext}.
-     * @param structure - The `Structure` that produced this obstacle, or `undefined` for a tile (tiles have no `Structure` behind them).
-     * @returns `true` if a collision was found (and handled, one way or the other).
+     * Tests `entity`'s current polygon against `obstaclePolygon` and on overlap
+     * gives `structure` first refusal, then applies `response` generically.
+     * Returns `true` if a collision was found and handled.
      */
     private resolveObstacleCollision(
         entity: MovableEntity,
@@ -983,39 +533,14 @@ export class World {
         return true;
     }
 
-    /**
-     * Ages every registered {@link Effect} by `deltaMs`, then drops any that
-     * have expired.
-     *
-     * @param deltaMs - Time elapsed since the last update, in milliseconds.
-     */
-    private updateEffects(deltaMs: number): void {
-        this.effects.forEach(e => e.update(deltaMs));
-        this.effects = this.effects.filter(e => !e.isExpired());
-    }
-
-    /**
-     * The world-pixel point new chunk requests are prioritised around - the
-     * main entity's position normally, or the camera's centre while
-     * spectating, since spectating detaches the camera and leaves the main
-     * entity stationary.
-     *
-     * @param camera - Camera to read the spectator position from.
-     * @param spectating - Whether spectator mode is currently active.
-     * @returns The chunk generation focus point.
-     */
+    /** Returns the world-pixel point new chunk requests are prioritised around. */
     private getChunkGenerationFocus(camera: Camera, spectating: boolean): Vector2d {
         return spectating ? camera.getCenter() : this.requireMainEntity().getPosition();
     }
 
     /**
-     * Re-sorts the worker's still-queued (not yet started) chunk requests by
-     * {@link chunkGenerationPriority}, but only once `focus` has moved
-     * into a different chunk since the last call - the relative priority
-     * order only changes meaningfully then, so there's no need to re-sort
-     * every tick.
-     *
-     * @param focus - Current chunk generation focus point - see {@link getChunkGenerationFocus}.
+     * Re-sorts the worker's pending queue by generation priority, but only
+     * when `focus` has crossed a chunk boundary since the last call.
      */
     private reorderChunkGenerationQueueIfFocusMoved(focus: Vector2d): void {
         const tileX = Math.floor(focus.x / this.tileSize);
@@ -1036,20 +561,8 @@ export class World {
     }
 
     /**
-     * Generates/loads every chunk within the camera's view plus a buffer of
-     * {@link DEFAULT_CHUNK_BUFFER} chunks, then unloads any loaded chunk that's
-     * drifted further than that buffer outside the view. Keeps memory
-     * bounded as the camera pans, while still keeping a margin of chunks
-     * pre-generated just outside the visible area. A no-op while
-     * {@link generationEnabled} is off, freezing the currently loaded chunks
-     * as "the map" instead of streaming more in/out.
-     *
-     * Not-yet-loaded chunks are requested in {@link chunkGenerationPriority}
-     * order. Chunks already queued keep their existing position in the
-     * worker's queue.
-     *
-     * @param camera - Camera to load/unload chunks around.
-     * @param focus - Current chunk generation focus point - see {@link getChunkGenerationFocus}.
+     * Loads/generates chunks within the camera view plus a buffer, and evicts
+     * any that have drifted beyond it. A no-op while generation is disabled.
      */
     private updateLoadedChunks(camera: Camera, focus: Vector2d): void {
         if (!this.generationEnabled) {
@@ -1076,22 +589,7 @@ export class World {
         }
     }
 
-    /**
-     * Draws every chunk that overlaps the camera's view (loading and caching
-     * any of those chunks that aren't already loaded), then every entity
-     * whose sprite overlaps it.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param camera - Camera to render the world through.
-     * @param debugEnabled - Whether to draw the debug HUD (the camera/entity readout). Defaults to `false`.
-     * @param bordersEnabled - Whether to also draw chunk/tile/biome/feature/structure border outlines. Defaults to `false`.
-     * @param hitboxesEnabled - Whether to also draw entity bounding boxes/facing arrows. Defaults to `false`.
-     * @param spectating - Whether spectator mode is currently active, shown as an indicator in the debug HUD. Defaults to `false`.
-     * @param spectatorVelocity - Camera pan velocity while spectating; ignored otherwise.
-     * @param actualFps - Currently measured rendering FPS, shown in the debug HUD. Defaults to `0`.
-     * @param targetFps - Configured FPS cap, shown alongside `actualFps` in the debug HUD, or `undefined` when uncapped.
-     * @param noiseFieldName - Name of a registered `NoiseField` to render as a heatmap (with a colour-scale key) over the visible area, or `undefined` for none. Only drawn while `debugEnabled`.
-     */
+    /** Renders the world: chunks, noise overlay, effects, entities, foreground props, debug, minimap, and HUDs. */
     public draw(
         ctx: CanvasRenderingContext2D,
         camera: Camera,
@@ -1135,9 +633,7 @@ export class World {
             this.drawNoiseFieldOverlay(ctx, camera, noiseFieldName);
         }
 
-        for (const effect of this.effects) {
-            effect.draw(ctx, viewX, viewY);
-        }
+        this.worldEffects.draw(ctx, viewX, viewY);
         this.drawEntities(ctx, camera, hitboxesEnabled);
         this.drawStructureProps(ctx, camera);
 
@@ -1150,16 +646,27 @@ export class World {
 
         ctx.restore();
 
-        let minimapData: MinimapData | undefined;
+        let minimapData = undefined;
         if (this.minimapEnabled) {
             const center = spectating ? camera.getCenter() : this.requireMainEntity().getPosition();
-            minimapData = this.buildMinimapData(center, spectating, camera, debugEnabled, noiseFieldName);
+            minimapData = this.minimapBuilder.build(center, spectating, camera, debugEnabled, noiseFieldName);
             this.minimap.draw(ctx, ctx.canvas.width, minimapData);
         }
-        this.lastMinimapData = minimapData;
+        this.hoverInspector.setLastMinimapData(minimapData);
 
         if (debugEnabled) {
-            this.drawDebugHud(ctx, camera, {spectating, spectatorVelocity, actualFps, targetFps});
+            const debugData = this.debugSnapshotBuilder.build(
+                camera,
+                this.requireMainEntity(),
+                {spectating, spectatorVelocity, actualFps, targetFps},
+                this.lastVisibleChunkCount,
+                this.getLoadedChunkCount(),
+                this.getGeneratingChunkCount(),
+                this.getLatestChunkGenerationTimeMs(),
+                this.getAverageChunkGenerationTimeMs(),
+                this.lastCollision,
+            );
+            this.debugHud.draw(ctx, debugData);
             if (noiseFieldName) {
                 const legendRightEdge = this.minimapEnabled
                     ? Minimap.getLegendRightEdge(ctx.canvas.width)
@@ -1167,83 +674,9 @@ export class World {
                 this.drawNoiseFieldLegend(ctx, legendRightEdge, noiseFieldName);
             }
             if (minimapData) {
-                this.minimapStatsHud.draw(ctx, ctx.canvas.width, this.buildMinimapStatsData(minimapData));
+                this.minimapStatsHud.draw(ctx, ctx.canvas.width, this.minimapBuilder.buildStats(minimapData));
             }
         }
-    }
-
-    /**
-     * Gathers this frame's minimap data.
-     *
-     * @param center - World-pixel point to centre the minimap on - the main
-     * entity's position normally, or the camera's centre while spectating
-     * (see `World.draw`).
-     * @param spectating - Whether spectator mode is currently active - determines the centre marker (see {@link MinimapMarker}).
-     * @param camera - The active camera.
-     * @param debugEnabled - Whether debug mode is currently on.
-     * @param noiseFieldName - Name of the currently selected debug noise field, if any.
-     * @returns This frame's minimap data - see {@link MinimapData}.
-     */
-    private buildMinimapData(center: Vector2d, spectating: boolean, camera: Camera, debugEnabled: boolean, noiseFieldName?: string): MinimapData {
-        const centerTile = center.scale(1 / this.tileSize);
-        const marker: MinimapMarker = spectating
-            ? {kind: "spectator"}
-            : {kind: "entity", facing: this.requireMainEntity().getFacingVector()};
-        const worldTilesPerPixel = MINIMAP_CONFIG.worldTilesPerPixel / camera.getZoom();
-
-        if (debugEnabled && noiseFieldName) {
-            const gradient = getFieldGradient(noiseFieldName);
-            return {
-                centerTile,
-                marker,
-                worldTilesPerPixel,
-                modeKey: `noise:${noiseFieldName}`,
-                sampleColor: (tileX, tileY) => sampleGradient(gradient, this.getNoiseFieldSample(noiseFieldName, tileX, tileY) ?? 0),
-            };
-        }
-
-        return {
-            centerTile,
-            marker,
-            worldTilesPerPixel,
-            modeKey: "biome",
-            sampleColor: (tileX, tileY) => BIOME_COLORS[this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)],
-        };
-    }
-
-    /**
-     * Gathers this frame's minimap stats HUD data: the world-tile bounds the
-     * minimap currently covers (derived from `minimapData`'s own centre/scale
-     * - the same geometry `Minimap`'s bitmap sampling uses), plus a tally of
-     * biome tags sampled across that area on a fixed grid, independent of
-     * whether the minimap's own bitmap is currently showing biome colour or
-     * a debug noise field (3.6) - the biome breakdown is always genuine
-     * biome data, resolved the same way the biome colour layer itself is.
-     *
-     * @param minimapData - This frame's minimap data, already built by {@link buildMinimapData}.
-     * @returns This frame's minimap stats data - see {@link MinimapStatsHudData}.
-     */
-    private buildMinimapStatsData(minimapData: MinimapData): MinimapStatsHudData {
-        const {centerTile, worldTilesPerPixel} = minimapData;
-        const halfSpanTiles = (MINIMAP_CONFIG.boxSizePx / 2) * worldTilesPerPixel;
-        const minTileX = centerTile.x - halfSpanTiles;
-        const minTileY = centerTile.y - halfSpanTiles;
-        const maxTileX = centerTile.x + halfSpanTiles;
-        const maxTileY = centerTile.y + halfSpanTiles;
-
-        const biomeCounts: Record<BiomeTag, number> = {plains: 0, desert: 0, forest: 0, tundra: 0};
-        const grid = MINIMAP_CONFIG.statsBiomeSampleGrid;
-        const spanX = maxTileX - minTileX;
-        const spanY = maxTileY - minTileY;
-        for (let iy = 0; iy < grid; iy++) {
-            const tileY = minTileY + ((iy + 0.5) / grid) * spanY;
-            for (let ix = 0; ix < grid; ix++) {
-                const tileX = minTileX + ((ix + 0.5) / grid) * spanX;
-                biomeCounts[this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)]++;
-            }
-        }
-
-        return {minTileX, minTileY, maxTileX, maxTileY, worldTilesPerPixel, biomeCounts};
     }
 
     /**
@@ -1352,7 +785,7 @@ export class World {
      * @returns Every registered field name.
      */
     public getNoiseFieldNames(): readonly string[] {
-        return this.chunkGenerator.getFields().getAll().map((field) => field.name);
+        return this.generationView.getFieldNames();
     }
 
     /**
@@ -1364,7 +797,7 @@ export class World {
      * @returns The field's sample at that position, or `undefined` if nothing is registered under `fieldName`.
      */
     public getNoiseFieldSample(fieldName: string, tileX: number, tileY: number): number | undefined {
-        return this.chunkGenerator.getFields().get(fieldName)?.sample(tileX, tileY);
+        return this.generationView.getSample(fieldName, tileX, tileY);
     }
 
     /**
@@ -1377,7 +810,7 @@ export class World {
      * @param fieldName - Name of the field to render; a no-op if nothing is registered under that name.
      */
     private drawNoiseFieldOverlay(ctx: CanvasRenderingContext2D, camera: Camera, fieldName: string): void {
-        const field = this.chunkGenerator.getFields().get(fieldName);
+        const field = this.generationView.getField(fieldName);
         if (!field) {
             return;
         }
@@ -1509,93 +942,4 @@ export class World {
         }
     }
 
-    /**
-     * Draws a top-left HUD showing the camera's centre point and viewport
-     * size, plus the main entity's position and current speed (or, while
-     * spectating, the camera's pan speed instead), plus the current/target
-     * FPS, plus a spectator-mode indicator when active.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param camera - Camera to read position/viewport info from.
-     * @param options - Remaining data the HUD needs - see {@link DebugHudOptions}.
-     */
-    private drawDebugHud(ctx: CanvasRenderingContext2D, camera: Camera, options: DebugHudOptions): void {
-        const {spectating, spectatorVelocity, actualFps, targetFps} = options;
-        const mainEntity = this.requireMainEntity();
-        const center = camera.getCenter();
-        const position = mainEntity.getPosition();
-        const velocity = spectating ? spectatorVelocity : mainEntity.getVelocity();
-        const velocityLabel = spectating ? "Spectator" : mainEntity.getDisplayName();
-        const speed = Math.hypot(velocity.x, velocity.y);
-        const tileX = Math.floor(position.x / this.tileSize);
-        const tileY = Math.floor(position.y / this.tileSize);
-        const {chunkX, chunkY} = tileToChunk(tileX, tileY);
-        const chunk = this.worldGrid.requestChunk(chunkX, chunkY);
-        const chunkBiome = chunk.isReady() ? chunk.biomeSummary : "generating...";
-        const chunkCacheState = chunk.isReady() ? chunk.getCacheState() : "pending";
-        const biomeRegion = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
-            ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
-            : undefined;
-        const exactFeature = this.worldGrid.requestFeatureTag(tileX, tileY);
-        const rect = mainEntity.getBoundingRect();
-        const nearbyFeature = this.getDominantFeatureLabel(rect.x, rect.y, rect.w, rect.h);
-        const exactStructure = this.worldGrid.requestStructureTag(tileX, tileY);
-        const nearbyStructure = this.getDominantStructureLabel(rect.x, rect.y, rect.w, rect.h);
-
-        const distanceToBiomeEdge = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
-            ? this.getDistanceToBiomeEdge(chunkX, chunkY, chunk.biomeSummary)
-            : undefined;
-
-        const toChunkState = (cx: number, cy: number): ChunkState => {
-            const c = this.chunks.get(cx, cy);
-            if (!c) return "unloaded";
-            return c.isReady() ? "ready" : "generating";
-        };
-        const neighborStates = {
-            n: toChunkState(chunkX, chunkY - 1),
-            s: toChunkState(chunkX, chunkY + 1),
-            e: toChunkState(chunkX + 1, chunkY),
-            w: toChunkState(chunkX - 1, chunkY),
-        };
-
-        this.debugHud.draw(ctx, {
-            cameraCenterX: center.x,
-            cameraCenterY: center.y,
-            viewportWidth: camera.getWidth(),
-            viewportHeight: camera.getHeight(),
-            zoom: camera.getZoom(),
-            entityX: position.x,
-            entityY: position.y,
-            entityFacing: mainEntity.getFacing(),
-            tileX,
-            tileY,
-            chunkX,
-            chunkY,
-            chunkBiome,
-            chunkCacheState,
-            neighborStates,
-            distanceToBiomeEdge,
-            biomeRegionChunks: biomeRegion?.count,
-            biomeRegionIsPartial: biomeRegion?.isPartial ?? false,
-            visibleChunkCount: this.lastVisibleChunkCount,
-            loadedChunkCount: this.getLoadedChunkCount(),
-            generatingChunkCount: this.getGeneratingChunkCount(),
-            latestChunkGenerationTimeMs: this.getLatestChunkGenerationTimeMs(),
-            averageChunkGenerationTimeMs: this.getAverageChunkGenerationTimeMs(),
-            exactFeature,
-            nearbyFeature,
-            exactStructure,
-            nearbyStructure,
-            velocityLabel,
-            velocityX: velocity.x,
-            velocityY: velocity.y,
-            speed,
-            actualFps,
-            targetFps,
-            spectating,
-            collision: this.lastCollision !== undefined,
-            collisionEntity: this.lastCollision?.entityLabel ?? "",
-            collisionObstacle: this.lastCollision?.obstacleLabel ?? "",
-        });
-    }
 }

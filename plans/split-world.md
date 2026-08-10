@@ -156,7 +156,6 @@ src/world/
     coordinates/
         chunk-coordinate.ts
         coord-set.ts
-        tile-coordinates.ts
         world-grid-math.ts
 
     effects/
@@ -468,23 +467,33 @@ extractions, API redesigns, or unrelated formatting.
 `src/world/` root contains only the facade and domain directories that genuinely
 belong there.
 
-### Phase 3: Extract pure foundations and query contracts
+### Phase 3 (Done): Extract pure foundations and query contracts
+
+_Status: completed on 2026-08-10._
 
 Move stateless policy out before extracting stateful systems.
+
+#### Deviations from original plan
+
+- `CompassDirection` and `toCompassDirection()` were placed in `src/geometry/direction.ts`
+  (their canonical home) rather than `world-grid-math.ts`. Callers import directly from
+  `direction.ts`; `world-grid-math.ts` does not re-export either symbol.
+- `src/world/coordinates/tile-coordinates.ts` was eliminated: `pixelToTile()` and
+  `tileToPixel()` were merged into `world-grid-math.ts`. The separate file no longer exists.
+  Update the target package structure in section 3 to remove `tile-coordinates.ts`.
 
 #### `src/world/coordinates/world-grid-math.ts`
 
 Create and export:
 
 - `TileRange` with inclusive start and end tile coordinates;
-- `CompassDirection` with `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, and `NW`;
 - `tileToChunk()` moved from `World.tileToChunk()`;
 - `pixelRectToTileRange()` using the existing entity/collision bounds logic;
-- `toCompassDirection()` moved from `World.toCompassDirection()`.
+- `pixelToTile()` and `tileToPixel()` merged from the former `tile-coordinates.ts`.
 
-Replace every internal `World.tileToChunk()` and `World.toCompassDirection()`
-call with these imports. Import `ChunkCoordinate` from `chunk-coordinate.ts`.
-Remove both methods from `World`.
+Replace every internal `World.tileToChunk()` call with these imports.
+Import `ChunkCoordinate` from `chunk-coordinate.ts`.
+Remove the method from `World`.
 
 #### `src/world/chunks/chunk-streaming-math.ts`
 
@@ -555,7 +564,7 @@ Pure helpers should accept all required values as parameters and must not import
 `World`. Preserve negative-coordinate behavior by continuing to use floor-based
 chunk conversion.
 
-**Phase exit criteria:** pure calculations have focused unit tests, query side
+**Phase exit criteria (met):** pure calculations have focused unit tests, query side
 effects are explicit in types and names, and callers no longer depend on
 private calculations in `World`.
 

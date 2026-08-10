@@ -19,7 +19,7 @@ export {CHUNK_SIZE};
 const PENDING_COLOR = "#000000";
 
 /**
- * A ready chunk's cache state, for debug display - see {@link Chunk.getCacheState}:
+ * A ready chunk's cache state:
  * - `"cached"` - has a static cached bitmap, blitted every frame.
  * - `"live"` - has an animated tile (see {@link Tile.isAnimated}), so it's
  *   redrawn tile-by-tile every frame instead of blitting one cached bitmap -
