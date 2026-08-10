@@ -1,6 +1,4 @@
 import type {ChunkSpriteSheets, DrawableChunk} from "./chunks/chunk";
-import {CHUNK_SIZE} from "./chunks/chunk";
-import {visibleChunkRange} from "./chunks/chunk-streaming-math";
 import {ChunkStore} from "./chunks/chunk-store";
 import {ChunkStreamingManager} from "./chunks/chunk-streaming-manager";
 import {DefaultWorldGridView} from "./tiles/world-grid-view";
@@ -9,17 +7,11 @@ import {EntityCollection} from "../entities/entity-collection";
 import {MovableEntity} from "../entities/movable-entity";
 import {Camera} from "../camera/camera";
 import {Vector2d} from "../geometry/vector2d";
-import {DebugHudRenderer} from "../debug/debug-hud";
-import {DEBUG_CONFIG} from "../debug/debug-config";
 import {FeatureTag} from "./generation/feature/feature-tag";
 import {Effect} from "../effects/effect";
-import {getFieldGradient} from "./generation/noise-field-colors";
-import {Minimap, MinimapRenderer} from "../minimap/minimap";
-import {MinimapStatsHudRenderer} from "../minimap/minimap-stats-hud";
 import {StructureResolver} from "./collision/structure-resolver";
 import {WorldCollisionSystem} from "./collision/world-collision-system";
 import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./inspection/hover-info";
-import {pixelRectToTileRange} from "./coordinates/world-grid-math";
 import {randomWorldSeed} from "./generation/random-world-seed";
 import type {WorldDependencies} from "./world-dependencies";
 import {WorldEffects} from "./effects/world-effects";
@@ -27,6 +19,7 @@ import {WorldGenerationView} from "./generation/world-generation-view";
 import {MinimapDataBuilder} from "./inspection/minimap-data-builder";
 import {WorldHoverInspector} from "./inspection/world-hover-inspector";
 import {WorldDebugSnapshotBuilder} from "./inspection/world-debug-snapshot-builder";
+import {WorldRenderer} from "./rendering/world-renderer";
 
 /**
  * The game world: an effectively infinite 2D grid of tiles, split into
@@ -34,9 +27,6 @@ import {WorldDebugSnapshotBuilder} from "./inspection/world-debug-snapshot-build
  * memory as they're needed.
  */
 export class World {
-    /** Fill colour for the "void" - camera-visible area outside every loaded chunk. */
-    private static readonly VOID_COLOR = "#000000";
-
     private readonly chunkStore = new ChunkStore<DrawableChunk>();
     private readonly entityCollection = new EntityCollection();
 
@@ -45,24 +35,13 @@ export class World {
     private readonly chunkStreaming: ChunkStreamingManager;
     private readonly worldGrid: DefaultWorldGridView<DrawableChunk>;
 
-    /** Total elapsed time on the shared clock animated background tiles read their phase from. Advanced every {@link update}. */
-    private animationElapsedMs = 0;
     private readonly generationView: WorldGenerationView;
-    private readonly debugHud: DebugHudRenderer;
-    private readonly minimap: MinimapRenderer;
-    private readonly minimapStatsHud: MinimapStatsHudRenderer;
-
-    /** Whether the minimap is currently shown. */
-    private minimapEnabled = true;
-
     private readonly worldEffects: WorldEffects;
     private readonly minimapBuilder: MinimapDataBuilder;
     private readonly hoverInspector: WorldHoverInspector;
     private readonly debugSnapshotBuilder: WorldDebugSnapshotBuilder;
     private readonly collisionSystem: WorldCollisionSystem;
-
-    /** Chunk count the last {@link draw} call rendered. */
-    private lastVisibleChunkCount = 0;
+    private readonly renderer: WorldRenderer;
 
     public constructor(public readonly tileSize: number, dependencies: WorldDependencies) {
         this.generationView = new WorldGenerationView(dependencies.chunkGenerator);
@@ -85,9 +64,21 @@ export class World {
         this.hoverInspector = new WorldHoverInspector(tileSize, this.worldGrid, this.generationView, () => this.entityCollection.getEntities());
         this.debugSnapshotBuilder = new WorldDebugSnapshotBuilder(tileSize, this.worldGrid, this.worldGrid);
         this.collisionSystem = new WorldCollisionSystem(this.worldGrid, this.entityCollection, this.structureResolver, tileSize);
-        this.debugHud = dependencies.debugHud;
-        this.minimap = dependencies.minimap;
-        this.minimapStatsHud = dependencies.minimapStatsHud;
+        this.renderer = new WorldRenderer(
+            tileSize,
+            this.chunkStore,
+            this.chunkStreaming.requestChunk.bind(this.chunkStreaming),
+            this.entityCollection,
+            this.worldEffects,
+            this.minimapBuilder,
+            this.hoverInspector,
+            this.debugSnapshotBuilder,
+            this.generationView,
+            this.chunkStreaming.getQueuePosition.bind(this.chunkStreaming),
+            dependencies.debugHud,
+            dependencies.minimap,
+            dependencies.minimapStatsHud,
+        );
     }
 
     /** Adds `effect` to the active set; it will be advanced and drawn until it expires. */
@@ -181,7 +172,7 @@ export class World {
 
     /** Whether the minimap is currently shown. */
     public getMinimapEnabled(): boolean {
-        return this.minimapEnabled;
+        return this.renderer.isMinimapEnabled();
     }
 
     /**
@@ -190,7 +181,7 @@ export class World {
      * fallback.
      */
     public setMinimapEnabled(enabled: boolean): void {
-        this.minimapEnabled = enabled;
+        this.renderer.setMinimapEnabled(enabled);
     }
 
     /** Enables or disables movement onto still-generating chunks. */
@@ -200,7 +191,7 @@ export class World {
 
     /** Returns hover data for the tile at a world tile position, or `undefined` while its chunk is unready. */
     public getTileHoverInfo(tileX: number, tileY: number): TileHoverInfo | undefined {
-        return this.hoverInspector.getTileHoverInfo(tileX, tileY, this.animationElapsedMs);
+        return this.hoverInspector.getTileHoverInfo(tileX, tileY, this.renderer.getAnimationElapsedMs());
     }
 
     /** Returns hover data for the minimap region under a screen point, or `undefined`. */
@@ -258,7 +249,7 @@ export class World {
 
     /** Advances entities, effects, chunk streaming, and collision for one tick. */
     public update(deltaMs: number, camera: Camera, spectating: boolean): void {
-        this.animationElapsedMs += deltaMs;
+        this.renderer.advanceAnimation(deltaMs);
         const previousPositions = this.entityCollection.update(deltaMs);
         this.worldEffects.update(deltaMs);
         const focus = this.chunkStreaming.getGenerationFocus(camera, spectating, () => this.entityCollection.getMainEntity().getPosition());
@@ -280,181 +271,14 @@ export class World {
         targetFps?: number,
         noiseFieldName?: string,
     ): void {
-        const viewX = camera.getViewX();
-        const viewY = camera.getViewY();
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = visibleChunkRange(viewX, viewY, camera.getWidth(), camera.getHeight(), chunkPixelSize);
-
-        ctx.save();
-        ctx.scale(camera.getZoom(), camera.getZoom());
-        ctx.imageSmoothingEnabled = false;
-
-        this.lastVisibleChunkCount = 0;
-        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
-            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                const originX = chunkX * chunkPixelSize - viewX;
-                const originY = chunkY * chunkPixelSize - viewY;
-
-                if (!this.chunkStreaming.isGenerationEnabled() && !this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
-                    ctx.fillStyle = World.VOID_COLOR;
-                    ctx.fillRect(originX, originY, chunkPixelSize, chunkPixelSize);
-                    continue;
-                }
-
-                const chunk = this.worldGrid.requestChunk(chunkX, chunkY);
-                chunk.draw(ctx, originX, originY, this.tileSize, this.animationElapsedMs);
-                this.lastVisibleChunkCount++;
-            }
-        }
-
-        if (debugEnabled && noiseFieldName) {
-            this.drawNoiseFieldOverlay(ctx, camera, noiseFieldName);
-        }
-
-        this.worldEffects.draw(ctx, viewX, viewY);
-        this.entityCollection.draw(ctx, camera, hitboxesEnabled);
-        this.drawStructureProps(ctx, camera);
-
-        if (bordersEnabled) {
-            // drawn last, on top of entities/structures alike, so debug
-            // annotations are never occluded by a tree or entity
-            this.drawChunkDebugOverlays(ctx, camera);
-            this.drawBiomeOutlines(ctx, camera);
-        }
-
-        ctx.restore();
-
-        let minimapData = undefined;
-        if (this.minimapEnabled) {
-            const center = spectating ? camera.getCenter() : this.entityCollection.getMainEntity().getPosition();
-            minimapData = this.minimapBuilder.build(center, spectating, camera, debugEnabled, noiseFieldName);
-            this.minimap.draw(ctx, ctx.canvas.width, minimapData);
-        }
-        this.hoverInspector.setLastMinimapData(minimapData);
-
-        if (debugEnabled) {
-            const debugData = this.debugSnapshotBuilder.build(
-                camera,
-                this.entityCollection.getMainEntity(),
-                {spectating, spectatorVelocity, actualFps, targetFps},
-                this.lastVisibleChunkCount,
-                this.getLoadedChunkCount(),
-                this.getGeneratingChunkCount(),
-                this.getLatestChunkGenerationTimeMs(),
-                this.getAverageChunkGenerationTimeMs(),
-                this.collisionSystem.getDebugState(),
-            );
-            this.debugHud.draw(ctx, debugData);
-            if (noiseFieldName) {
-                const legendRightEdge = this.minimapEnabled
-                    ? Minimap.getLegendRightEdge(ctx.canvas.width)
-                    : ctx.canvas.width - DEBUG_CONFIG.noiseLegendMargin;
-                this.drawNoiseFieldLegend(ctx, legendRightEdge, noiseFieldName);
-            }
-            if (minimapData) {
-                this.minimapStatsHud.draw(ctx, ctx.canvas.width, this.minimapBuilder.buildStats(minimapData));
-            }
-        }
-    }
-
-    /**
-     * Draws every loaded visible chunk's foreground-layer structure pieces
-     * (e.g. tree trunks/canopies), on top of every entity just drawn by
-     * {@link EntityCollection.draw} - see {@link Chunk.drawProps}.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param camera - Camera to render the world through.
-     */
-    private drawStructureProps(ctx: CanvasRenderingContext2D, camera: Camera): void {
-        const viewX = camera.getViewX();
-        const viewY = camera.getViewY();
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = visibleChunkRange(viewX, viewY, camera.getWidth(), camera.getHeight(), chunkPixelSize);
-
-        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
-            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                if (!this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
-                    continue;
-                }
-                const originX = chunkX * chunkPixelSize - viewX;
-                const originY = chunkY * chunkPixelSize - viewY;
-                this.worldGrid.requestChunk(chunkX, chunkY).drawProps(ctx, originX, originY, this.tileSize);
-            }
-        }
-    }
-
-    /**
-     * Draws every loaded visible chunk's debug overlay (outline,
-     * coordinate/biome/cache-state label, feature/structure outlines) - see
-     * {@link Chunk.drawDebug}. Its own pass, called after entities/structure
-     * props rather than folded into {@link draw}'s main per-chunk loop, so
-     * debug annotations always sit on top of everything else instead of
-     * being covered by a tree or entity drawn afterward.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param camera - Camera to render the world through.
-     */
-    private drawChunkDebugOverlays(ctx: CanvasRenderingContext2D, camera: Camera): void {
-        const viewX = camera.getViewX();
-        const viewY = camera.getViewY();
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = visibleChunkRange(viewX, viewY, camera.getWidth(), camera.getHeight(), chunkPixelSize);
-
-        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
-            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                if (!this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
-                    continue;
-                }
-                const originX = chunkX * chunkPixelSize - viewX;
-                const originY = chunkY * chunkPixelSize - viewY;
-                const chunk = this.worldGrid.requestChunk(chunkX, chunkY);
-                const queuePosition = chunk.isReady() ? undefined : this.chunkStreaming.getQueuePosition(chunkX, chunkY);
-                chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
-            }
-        }
-    }
-
-    /** Draws each visible edge whose neighbouring tiles have different biome tags. */
-    private drawBiomeOutlines(ctx: CanvasRenderingContext2D, camera: Camera): void {
-        const viewX = camera.getViewX();
-        const viewY = camera.getViewY();
-        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(viewX, viewY, camera.getWidth(), camera.getHeight(), this.tileSize);
-
-        ctx.strokeStyle = DEBUG_CONFIG.biomeOutlineColor;
-        ctx.lineWidth = DEBUG_CONFIG.biomeOutlineWidth;
-        ctx.beginPath();
-        let hasBoundary = false;
-
-        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
-            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const tile = this.worldGrid.getReadyTile(tileX, tileY);
-                if (!tile) {
-                    continue;
-                }
-
-                const left = tileX * this.tileSize - viewX;
-                const top = tileY * this.tileSize - viewY;
-                const right = left + this.tileSize;
-                const bottom = top + this.tileSize;
-                const rightTile = this.worldGrid.getReadyTile(tileX + 1, tileY);
-                if (rightTile && rightTile.biomeTag !== tile.biomeTag) {
-                    ctx.moveTo(right, top);
-                    ctx.lineTo(right, bottom);
-                    hasBoundary = true;
-                }
-
-                const bottomTile = this.worldGrid.getReadyTile(tileX, tileY + 1);
-                if (bottomTile && bottomTile.biomeTag !== tile.biomeTag) {
-                    ctx.moveTo(left, bottom);
-                    ctx.lineTo(right, bottom);
-                    hasBoundary = true;
-                }
-            }
-        }
-
-        if (hasBoundary) {
-            ctx.stroke();
-        }
+        this.renderer.draw(ctx, camera, debugEnabled, bordersEnabled, hitboxesEnabled, spectating, spectatorVelocity, actualFps, targetFps, noiseFieldName, {
+            generationEnabled: this.chunkStreaming.isGenerationEnabled(),
+            loadedChunkCount: this.getLoadedChunkCount(),
+            generatingChunkCount: this.getGeneratingChunkCount(),
+            latestChunkGenerationTimeMs: this.getLatestChunkGenerationTimeMs(),
+            averageChunkGenerationTimeMs: this.getAverageChunkGenerationTimeMs(),
+            collision: this.collisionSystem.getDebugState(),
+        });
     }
 
     /**
@@ -476,104 +300,5 @@ export class World {
      */
     public getNoiseFieldSample(fieldName: string, tileX: number, tileY: number): number | undefined {
         return this.generationView.getSample(fieldName, tileX, tileY);
-    }
-
-    /**
-     * Renders one registered `NoiseField` as a heatmap, using its themed
-     * colour gradient (see `noise-field-colors.ts`) if it has one, or
-     * greyscale (black = 0, white = close to 1) otherwise.
-     *
-     * @param ctx - Canvas context to draw into.
-     * @param camera - Camera whose view to cover.
-     * @param fieldName - Name of the field to render; a no-op if nothing is registered under that name.
-     */
-    private drawNoiseFieldOverlay(ctx: CanvasRenderingContext2D, camera: Camera, fieldName: string): void {
-        const field = this.generationView.getField(fieldName);
-        if (!field) {
-            return;
-        }
-
-        const gradient = getFieldGradient(fieldName);
-        const viewX = camera.getViewX();
-        const viewY = camera.getViewY();
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = visibleChunkRange(viewX, viewY, camera.getWidth(), camera.getHeight(), chunkPixelSize);
-
-        for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
-            for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                if (!this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
-                    continue;
-                }
-                const originX = chunkX * chunkPixelSize - viewX;
-                const originY = chunkY * chunkPixelSize - viewY;
-                this.worldGrid.requestChunk(chunkX, chunkY).drawNoiseOverlay(ctx, originX, originY, this.tileSize, field, gradient);
-            }
-        }
-    }
-
-    /**
-     * Draws a vertical colour-scale key for the currently visualised noise
-     * field in the canvas's top-right corner: a bar spanning the field's
-     * gradient (see {@link drawNoiseFieldOverlay}) from `1` at the top to
-     * `0` at the bottom, with tick labels at 0, 0.25, 0.5, 0.75, and 1.
-     *
-     * @param ctx - Canvas context to draw into, already outside any camera transform.
-     * @param rightEdge - Where the legend's right edge should sit, in canvas pixels - immediately left of the
-     * minimap when it's also showing this frame, or the canvas's own right margin otherwise (see `World.draw`).
-     * @param fieldName - Name of the currently visualised field.
-     */
-    private drawNoiseFieldLegend(ctx: CanvasRenderingContext2D, rightEdge: number, fieldName: string): void {
-        const {
-            noiseLegendBarWidth: barWidth,
-            noiseLegendBarHeight: barHeight,
-            noiseLegendMargin: margin,
-            noiseLegendPadding: padding,
-            noiseLegendTickLength: tickLength,
-            noiseLegendLabelGap: labelGap,
-        } = DEBUG_CONFIG;
-        const ticks: {value: number; label: string}[] = [
-            {value: 1, label: "MAX (1)"},
-            {value: 0.75, label: "0.75"},
-            {value: 0.5, label: "0.5"},
-            {value: 0.25, label: "0.25"},
-            {value: 0, label: "MIN (0)"},
-        ];
-
-        ctx.font = DEBUG_CONFIG.noiseLegendFont;
-        const labelWidth = Math.max(...ticks.map((tick) => ctx.measureText(tick.label).width));
-
-        const boxWidth = padding * 2 + barWidth + tickLength + labelGap + labelWidth;
-        const boxHeight = padding * 2 + barHeight;
-        const boxLeft = rightEdge - boxWidth;
-        const boxTop = margin;
-        const barLeft = boxLeft + padding;
-        const barTop = boxTop + padding;
-
-        ctx.fillStyle = DEBUG_CONFIG.noiseLegendBackgroundColor;
-        ctx.fillRect(boxLeft, boxTop, boxWidth, boxHeight);
-
-        const gradient = ctx.createLinearGradient(barLeft, barTop, barLeft, barTop + barHeight);
-        for (const stop of getFieldGradient(fieldName)) {
-            const [r, g, b] = stop.rgb;
-            gradient.addColorStop(1 - stop.value, `rgb(${r}, ${g}, ${b})`);
-        }
-        ctx.fillStyle = gradient;
-        ctx.fillRect(barLeft, barTop, barWidth, barHeight);
-
-        ctx.strokeStyle = DEBUG_CONFIG.noiseLegendLineColor;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barLeft + 0.5, barTop + 0.5, barWidth - 1, barHeight - 1);
-
-        ctx.fillStyle = DEBUG_CONFIG.noiseLegendTextColor;
-        ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        for (const tick of ticks) {
-            const y = barTop + (1 - tick.value) * barHeight;
-            ctx.beginPath();
-            ctx.moveTo(barLeft + barWidth, y);
-            ctx.lineTo(barLeft + barWidth + tickLength, y);
-            ctx.stroke();
-            ctx.fillText(tick.label, barLeft + barWidth + tickLength + labelGap, y);
-        }
     }
 }

@@ -15,6 +15,14 @@ export function createRecordingContext(events: string[], width = 16, height = 16
         drawImage: () => events.push("entity:draw"),
         translate: () => events.push("context:translate"),
         rotate: () => events.push("context:rotate"),
+        beginPath: () => undefined,
+        moveTo: () => undefined,
+        lineTo: () => undefined,
+        stroke: () => undefined,
+        strokeRect: () => undefined,
+        measureText: () => ({width: 0}),
+        createLinearGradient: () => ({addColorStop: () => undefined}),
+        fillText: () => undefined,
     } as unknown as CanvasRenderingContext2D;
 }
 
