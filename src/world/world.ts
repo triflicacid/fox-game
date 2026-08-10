@@ -1,17 +1,11 @@
-import {Chunk, ChunkSpriteSheets, CHUNK_SIZE} from "./chunk";
+import {Chunk, CHUNK_SIZE, ChunkSpriteSheets} from "./chunk";
 import {Tile} from "./tile";
 import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
 import {Camera} from "../camera/camera";
 import {Vector2d} from "../geometry/vector2d";
-import {DebugHud, ChunkState} from "../debug/debug-hud";
+import {ChunkState, DebugHudRenderer} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
-import {BackgroundTileSpriteSheet} from "../sprites/BackgroundTileSpriteSheet";
-import {AnimatedBackgroundTileSpriteSheet} from "../sprites/AnimatedBackgroundTileSpriteSheet";
-import {buildStructureSheetRegistry} from "./structure-sheet-dispatch";
-import {ChunkGenerator} from "./generation/chunk/chunk-generator";
-import {DEFAULT_FEATURE_PROVIDERS} from "./generation/feature/default-features";
-import {ChunkWorkerClient} from "./generation/chunk/chunk-worker-client";
 import {FeatureTag} from "./generation/feature/feature-tag";
 import {BiomeSummary, BiomeTag} from "./generation/biome/biome";
 import {SpriteFrame, SpriteTile} from "../sprites/sprite";
@@ -20,20 +14,20 @@ import {Effect} from "../effects/effect";
 import {requireNonNull} from "../util";
 import {getFieldGradient, sampleGradient} from "./generation/noise-field-colors";
 import {BIOME_COLORS} from "./generation/biome/biome-colors";
-import {Minimap, MinimapData, MinimapMarker} from "../minimap/minimap";
+import {Minimap, MinimapData, MinimapMarker, MinimapRenderer} from "../minimap/minimap";
 import {MINIMAP_CONFIG} from "../minimap/minimap-config";
-import {MinimapStatsHud, MinimapStatsHudData} from "../minimap/minimap-stats-hud";
+import {MinimapStatsHudData, MinimapStatsHudRenderer} from "../minimap/minimap-stats-hud";
 import {Structure, StructurePieceInstance} from "./generation/structure/structure";
 import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
 import {applyCollisionResponse, CollisionContext} from "./collision";
 import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./hover-info";
-
-/** A chunk's position, in chunk units (not tiles/pixels). */
-export interface ChunkCoordinate {
-    chunkX: number;
-    chunkY: number;
-}
+import {ChunkCoordinate} from "./coordinates/chunk-coordinate";
+import {randomWorldSeed} from "./generation/random-world-seed";
+import type {TerrainGenerationSource} from "./generation/terrain-generation-source";
+import type {ChunkGenerationWorker} from "./generation/chunk/chunk-generation-worker";
+import type {StructureSheetRegistry} from "./structure-sheet-dispatch";
+import type {ChunkFactory, WorldDependencies} from "./world-dependencies";
 
 /** A rectangular range of chunk coordinates, inclusive of both ends. */
 interface ChunkRange {
@@ -71,27 +65,21 @@ export class World {
     private readonly entities: Entity[] = [];
 
     /** Routes a structure piece's sprite string to whichever biome sheet actually defines it. */
-    private readonly structureSheetRegistry = buildStructureSheetRegistry();
-
-    private readonly chunkSpriteSheets: ChunkSpriteSheets = {
-        backgroundTile: new BackgroundTileSpriteSheet(),
-        animatedBackgroundTile: new AnimatedBackgroundTileSpriteSheet(),
-        getStructureSpriteBitmap: (sprite) => this.structureSheetRegistry.findSheet(sprite).getTileBitmap(sprite),
-        getStructureCollisionPolygon: (sprite, centerX, centerY, tileSize) =>
-            this.structureCollisionPolygonForSprite(sprite, centerX, centerY, tileSize),
-    };
+    private readonly structureSheetRegistry: StructureSheetRegistry;
+    private readonly chunkSpriteSheets: ChunkSpriteSheets;
+    private readonly chunkFactory: ChunkFactory;
 
     /** Total elapsed time on the shared clock animated background tiles (e.g. water) read their phase from - see {@link Tile.draw}. Advanced every {@link update}. */
     private animationElapsedMs = 0;
     /** Used only for {@link getNoiseFieldNames}/{@link drawNoiseFieldOverlay} - actual chunk generation runs on {@link chunkWorkerClient}. */
-    private chunkGenerator: ChunkGenerator;
-    private chunkWorkerClient: ChunkWorkerClient;
+    private readonly chunkGenerator: TerrainGenerationSource;
+    private readonly chunkWorkerClient: ChunkGenerationWorker;
     private worldSeed: number;
     /** Debug knob: minimum time the worker leaves between finishing one chunk and starting the next. `0` disables it - see {@link setMinChunkGenerationDelayMs}. */
     private minChunkGenerationDelayMs = 0;
-    private readonly debugHud = new DebugHud();
-    private readonly minimap = new Minimap();
-    private readonly minimapStatsHud = new MinimapStatsHud();
+    private readonly debugHud: DebugHudRenderer;
+    private readonly minimap: MinimapRenderer;
+    private readonly minimapStatsHud: MinimapStatsHudRenderer;
 
     /** Whether the minimap is currently shown - independent of {@link DebugController.isEnabled}, defaults to visible. See {@link getMinimapEnabled}/{@link setMinimapEnabled}. */
     private minimapEnabled = true;
@@ -161,36 +149,32 @@ export class World {
 
     /**
      * @param tileSize - Width/height of a single tile, in canvas pixels.
-     * @param worldSeed - Seed every chunk's terrain generation is sampled from. Defaults to a
-     * fresh random seed, so revisiting the same chunk within one `World` instance is
-     * deterministic, but different play sessions get different terrain.
+     * @param dependencies - Complete collaborators and seed for this world.
      */
-    public constructor(public readonly tileSize: number, worldSeed: number = World.randomSeed()) {
-        this.worldSeed = worldSeed;
-        this.chunkGenerator = new ChunkGenerator(worldSeed, DEFAULT_FEATURE_PROVIDERS);
-        this.chunkWorkerClient = new ChunkWorkerClient(worldSeed);
+    public constructor(public readonly tileSize: number, dependencies: WorldDependencies) {
+        this.worldSeed = dependencies.worldSeed;
+        this.chunkGenerator = dependencies.chunkGenerator;
+        this.chunkWorkerClient = dependencies.chunkWorkerClient;
+        this.chunkFactory = dependencies.chunkFactory;
+        this.structureSheetRegistry = dependencies.structureSheetRegistry;
+        this.chunkSpriteSheets = dependencies.chunkSpriteSheetsFactory(
+            this.structureSheetRegistry,
+            this.structureCollisionPolygonForSprite.bind(this),
+        );
+        this.debugHud = dependencies.debugHud;
+        this.minimap = dependencies.minimap;
+        this.minimapStatsHud = dependencies.minimapStatsHud;
     }
 
     /**
      * Registers an {@link Effect} to be advanced every simulation tick (see
      * {@link update}) and drawn behind entities every frame (see
-     * {@link draw}) until it expires. Lets transient visual systems - the
-     * cyan dash trail, particle effects or similar later - plug into `World`
-     * without it growing a bespoke field/update/draw call for each one, and
-     * without `World` needing to know about any specific effect's concrete
-     * type.
+     * {@link draw}) until it expires.
      *
      * @param effect - Effect to register.
      */
     public registerEffect(effect: Effect): void {
         this.effects.push(effect);
-    }
-
-    /**
-     * A fresh random seed, in the same range as {@link ChunkGenerator} expects.
-     */
-    private static randomSeed(): number {
-        return Math.floor(Math.random() * 0xffffffff);
     }
 
     /**
@@ -219,7 +203,7 @@ export class World {
      * Replaces the world seed with a fresh random one - see {@link setWorldSeed}.
      */
     public refreshWorldSeed(): void {
-        this.setWorldSeed(World.randomSeed());
+        this.setWorldSeed(randomWorldSeed());
     }
 
     /**
@@ -272,7 +256,7 @@ export class World {
         let chunk = this.chunks.get(chunkX, chunkY);
         if (!chunk) {
             const generation = this.chunkWorkerClient.requestChunk(chunkX, chunkY);
-            chunk = new Chunk(chunkX, chunkY, generation, this.chunkSpriteSheets, this.tileSize);
+            chunk = this.chunkFactory(chunkX, chunkY, generation, this.chunkSpriteSheets, this.tileSize);
             this.chunks.set(chunkX, chunkY, chunk);
             generation
                 .then((result) => {
@@ -304,7 +288,7 @@ export class World {
      *
      * @returns The current chunk worker client.
      */
-    public getChunkWorkerClient(): ChunkWorkerClient {
+    public getChunkWorkerClient(): ChunkGenerationWorker {
         return this.chunkWorkerClient;
     }
 

@@ -1,6 +1,6 @@
 import {WorldController} from "./world-controller";
-import {ChunkWorkerClient} from "./world/generation/chunk/chunk-worker-client";
-import {World} from "./world/world";
+import type {ChunkGenerationWorker} from "./world/generation/chunk/chunk-generation-worker";
+import type {World} from "./world/world";
 import {FieldRegistry, fieldRegistry} from "./fields/field-registry";
 
 declare global {
@@ -8,7 +8,7 @@ declare global {
         /** The running game's {@link WorldController}, for inspection from the browser console. */
         worldController: WorldController;
         /** The worker client driving chunk generation, for inspection/control from the browser console (e.g. `chunkGenerationQueue.setMinGenerationDelayMs(500)`). */
-        chunkGenerationQueue: ChunkWorkerClient;
+        chunkGenerationQueue: ChunkGenerationWorker;
         /** The running game's {@link World}, for inspection/control from the browser console. */
         world: World;
         /** The tunable-field registry, for inspection/editing from the browser console (e.g. `fields.set("demo.plainValue", 100)`). */

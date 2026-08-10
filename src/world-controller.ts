@@ -1,5 +1,6 @@
-import {World} from "./world/world";
-import {ChunkWorkerClient} from "./world/generation/chunk/chunk-worker-client";
+import type {World} from "./world/world";
+import type {ChunkGenerationWorker} from "./world/generation/chunk/chunk-generation-worker";
+import {createWorld} from "./world/create-world";
 import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
 import {CameraZoomController} from "./camera/camera-zoom-controller";
@@ -74,7 +75,7 @@ export class WorldController {
         this.ctx = requireNonNull(canvas.getContext("2d"));
 
         const mainEntity = new Fox();
-        this.world = new World(WorldController.TILE_SIZE).setMainEntity(mainEntity);
+        this.world = createWorld(WorldController.TILE_SIZE).setMainEntity(mainEntity);
         mainEntity.effectDispatcher.add("dash", (request) => {
             if (request instanceof DashEffectRequest) {
                 this.world.registerEffect(new DashEffect(mainEntity, request.position, FOX_CONSTANTS.dash));
@@ -175,7 +176,7 @@ export class WorldController {
      * The worker client driving chunk generation - for debugging (see
      * `exposeGlobals`).
      */
-    public getChunkWorkerClient(): ChunkWorkerClient {
+    public getChunkWorkerClient(): ChunkGenerationWorker {
         return this.world.getChunkWorkerClient();
     }
 

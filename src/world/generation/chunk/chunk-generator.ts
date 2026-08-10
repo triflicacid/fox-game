@@ -17,11 +17,8 @@ import {CoordMap} from "../../coord-set";
 import {ClimateFields} from "../biome/climate-fields";
 import {GenerationContext} from "../generation-context";
 import {computeCappedRegionDepths} from "../grid-algorithms";
-import {
-    TERRAIN_DEPTH_CONFIG,
-    TerrainDepthConfig,
-    validateTerrainDepthConfig,
-} from "../biome/terrain-depth";
+import {TERRAIN_DEPTH_CONFIG, TerrainDepthConfig, validateTerrainDepthConfig,} from "../biome/terrain-depth";
+import type {TerrainGenerationSource} from "../terrain-generation-source";
 
 /** Fraction of a chunk that one biome must occupy to be its debug summary. */
 const DOMINANT_BIOME_FRACTION = 2 / 3;
@@ -36,7 +33,7 @@ export interface GeneratedChunk {
 /**
  * Orchestrates a chunk's generation.
  */
-export class ChunkGenerator {
+export class ChunkGenerator implements TerrainGenerationSource {
     private readonly fields = new NoiseFieldRegistry();
     private climate!: ClimateFields;
     private biomes: readonly Biome[] = [];

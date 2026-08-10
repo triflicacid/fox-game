@@ -1,6 +1,7 @@
 import {Display} from "@display/display";
 import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
+import {HudBase} from "./hud-base";
 import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "../world/hover-info";
 import {CollisionResponseKind} from "../geometry/collision-response";
 
@@ -29,10 +30,11 @@ export type HoverTooltipData =
  * entity is currently hovered - toggled with the `i` key (see
  * {@link DebugController.isHoverInfoEnabled}).
  */
-export class HoverTooltip {
+export class HoverTooltip extends HudBase {
     private readonly display: Display;
 
     public constructor() {
+        super();
         this.display = new Display({
             foreground: DEBUG_CONFIG.hudTextColor,
             fontFamily: DEBUG_CONFIG.hudFontFamily,
@@ -40,32 +42,10 @@ export class HoverTooltip {
         });
     }
 
-    /** A plain top-level text segment. */
-    private text(content: string): TextSegment {
-        return {content};
-    }
-
-    /** A string-valued segment (e.g. a ground type, biome tag, structure sprite). */
-    private stringValue(text: string): TextSegment {
-        return {content: text, style: {foreground: DEBUG_CONFIG.hudStringValueColor}};
-    }
-
-    /** A numeric-valued segment - `value` is pre-formatted. */
-    private numberValue(value: string): TextSegment {
-        return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
-    }
 
     /** Several string-valued segments (e.g. stacked structure sprites), each its own colour, joined by plain `", "` separators rather than one comma-included blob. */
     private stringValueList(values: readonly string[]): TextSegment[] {
         return values.flatMap((value, index) => index === 0 ? [this.stringValue(value)] : [this.text(", "), this.stringValue(value)]);
-    }
-
-    /** A coloured true/false segment - lime when `true`, tomato when `false` - reusing the HUD's collision colours for any other boolean reading (e.g. "is this collidable"). */
-    private boolValue(value: boolean): TextSegment {
-        return {
-            content: value ? "true" : "false",
-            style: {foreground: value ? DEBUG_CONFIG.hudCollisionTrueColor : DEBUG_CONFIG.hudCollisionFalseColor},
-        };
     }
 
     /** A `"<label> collidable: true (<kind>)"` line, e.g. `"tile collidable: true (solid)"` - only meaningful to call once `collision` is known non-`undefined`. */
@@ -181,8 +161,7 @@ export class HoverTooltip {
     ): void {
         const lines = this.buildLines(data);
 
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
+        this.setupContext(ctx);
 
         const padding = DEBUG_CONFIG.hudPadding;
         const {lines: resolvedLines, width: contentWidth} = this.display.layoutBlock(ctx, lines, 0);
@@ -202,8 +181,7 @@ export class HoverTooltip {
         x = Math.max(0, x);
         y = Math.max(0, y);
 
-        ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
-        ctx.fillRect(x, y, width, height);
+        this.drawBackground(ctx, x, y, width, height);
 
         let lineY = y + padding;
         for (const resolvedLine of resolvedLines) {

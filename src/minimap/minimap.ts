@@ -27,14 +27,18 @@ export interface MinimapData {
     sampleColor(tileX: number, tileY: number): readonly [number, number, number];
 }
 
+/** Renders one minimap snapshot. */
+export interface MinimapRenderer {
+    /** Draws the supplied minimap data. */
+    draw(ctx: CanvasRenderingContext2D, canvasWidth: number, data: MinimapData): void;
+}
+
 /**
- * The always-on biome-overview minimap, flush against the canvas's
- * top-right corner. Renders into a small offscreen bitmap that's shifted and
- * edge-patched as the player moves rather than fully resampled every frame
- * (see {@link updateBitmap}), so its cost is bounded by its own fixed pixel
- * size - never by the camera's zoom or how many chunks are loaded.
+ * The biome-overview minimap. Renders into a small offscreen bitmap
+ * that's shifted and edge-patched as the player moves rather than fully
+ * resampled every frame.
  */
-export class Minimap {
+export class Minimap implements MinimapRenderer {
     private bitmap: OffscreenCanvas;
     private bitmapCtx: OffscreenCanvasRenderingContext2D;
 

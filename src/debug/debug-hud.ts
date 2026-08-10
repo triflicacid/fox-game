@@ -1,13 +1,8 @@
 import {Display} from "@display/display";
 import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
+import {HudBase} from "./hud-base";
 import type {ChunkCacheState} from "../world/chunk";
-
-/**
- * Everything the debug HUD needs to render one frame - gathered by whoever
- * owns the world/camera/entities, so {@link DebugHud} itself stays
- * decoupled from `World`.
- */
 
 /** Readiness state of a single chunk, for the neighbour indicator. */
 export type ChunkState = "ready" | "generating" | "unloaded";
@@ -59,13 +54,20 @@ export interface DebugHudData {
     collisionObstacle: string;
 }
 
+/** Renders one debug HUD snapshot. */
+export interface DebugHudRenderer {
+    /** Draws the supplied debug data. */
+    draw(ctx: CanvasRenderingContext2D, data: DebugHudData): void;
+}
+
 /**
  * Draws the top-left debug HUD.
  */
-export class DebugHud {
+export class DebugHud extends HudBase implements DebugHudRenderer {
     private readonly display: Display;
 
     public constructor() {
+        super();
         this.display = new Display({
             foreground: DEBUG_CONFIG.hudTextColor,
             fontFamily: DEBUG_CONFIG.hudFontFamily,
@@ -73,20 +75,6 @@ export class DebugHud {
         });
     }
 
-    /** A plain top-level text segment. */
-    private text(content: string): TextSegment {
-        return {content};
-    }
-
-    /** A string-valued segment (e.g. a feature tag, biome name, facing direction). */
-    private stringValue(text: string): TextSegment {
-        return {content: text, style: {foreground: DEBUG_CONFIG.hudStringValueColor}};
-    }
-
-    /** A numeric-valued segment - `value` is pre-formatted (may include a unit suffix, e.g. `"12.3 ms"`). */
-    private numberValue(value: string): TextSegment {
-        return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
-    }
 
     /** A coloured true/false segment for the collision indicator - lime when colliding, tomato when not. */
     private collisionValue(collision: boolean): TextSegment {
@@ -208,8 +196,7 @@ export class DebugHud {
     public draw(ctx: CanvasRenderingContext2D, data: DebugHudData): void {
         const lines = this.buildLines(data);
 
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
+        this.setupContext(ctx);
 
         const padding = DEBUG_CONFIG.hudPadding;
         const {lines: resolvedLines, width: contentWidth} = this.display.layoutBlock(ctx, lines, 0);
@@ -218,8 +205,7 @@ export class DebugHud {
         const width = contentWidth + padding * 2;
         const height = contentHeight + padding * 2;
 
-        ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
-        ctx.fillRect(0, 0, width, height);
+        this.drawBackground(ctx, 0, 0, width, height);
 
         let y = padding;
         for (const resolvedLine of resolvedLines) {
