@@ -1,5 +1,5 @@
 import type {World} from "./world/world";
-import type {ChunkGenerationWorker} from "./world/generation/chunk/chunk-generation-worker";
+import type {ChunkStreamingManager} from "./world/chunks/chunk-streaming-manager";
 import {createWorld} from "./world/create-world";
 import {Camera} from "./camera/camera";
 import {CameraDragController} from "./camera/camera-drag-controller";
@@ -172,12 +172,9 @@ export class WorldController {
         return this.frameLoop.getActualFps();
     }
 
-    /**
-     * The worker client driving chunk generation - for debugging (see
-     * `exposeGlobals`).
-     */
-    public getChunkWorkerClient(): ChunkGenerationWorker {
-        return this.world.getChunkWorkerClient();
+    /** The chunk-streaming manager. */
+    public getChunkStreamingManager(): ChunkStreamingManager {
+        return this.world.getChunkStreamingManager();
     }
 
     /**

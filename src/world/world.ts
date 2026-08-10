@@ -1,13 +1,8 @@
 import type {ChunkSpriteSheets, DrawableChunk} from "./chunks/chunk";
 import {CHUNK_SIZE} from "./chunks/chunk";
-import {
-    bufferChunkRange,
-    chunkGenerationPriority,
-    coordinatesInRange,
-    DEFAULT_CHUNK_BUFFER,
-    isOutsideChunkRange,
-    visibleChunkRange,
-} from "./chunks/chunk-streaming-math";
+import {visibleChunkRange} from "./chunks/chunk-streaming-math";
+import {ChunkStore} from "./chunks/chunk-store";
+import {ChunkStreamingManager} from "./chunks/chunk-streaming-manager";
 import {DefaultWorldGridView} from "./tiles/world-grid-view";
 import {Entity} from "../entities/entity";
 import {EntityCollection} from "../entities/entity-collection";
@@ -17,7 +12,6 @@ import {Vector2d} from "../geometry/vector2d";
 import {DebugHudRenderer} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {FeatureTag} from "./generation/feature/feature-tag";
-import {CoordMap} from "./coordinates/coord-set";
 import {Effect} from "../effects/effect";
 import {getFieldGradient} from "./generation/noise-field-colors";
 import {Minimap, MinimapRenderer} from "../minimap/minimap";
@@ -25,11 +19,9 @@ import {MinimapStatsHudRenderer} from "../minimap/minimap-stats-hud";
 import {StructureResolver} from "./collision/structure-resolver";
 import {WorldCollisionSystem} from "./collision/world-collision-system";
 import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./inspection/hover-info";
-import {ChunkCoordinate} from "./coordinates/chunk-coordinate";
-import {pixelRectToTileRange, tileToChunk} from "./coordinates/world-grid-math";
+import {pixelRectToTileRange} from "./coordinates/world-grid-math";
 import {randomWorldSeed} from "./generation/random-world-seed";
-import type {ChunkGenerationWorker} from "./generation/chunk/chunk-generation-worker";
-import type {ChunkFactory, WorldDependencies} from "./world-dependencies";
+import type {WorldDependencies} from "./world-dependencies";
 import {WorldEffects} from "./effects/world-effects";
 import {WorldGenerationView} from "./generation/world-generation-view";
 import {MinimapDataBuilder} from "./inspection/minimap-data-builder";
@@ -45,21 +37,17 @@ export class World {
     /** Fill colour for the "void" - camera-visible area outside every loaded chunk. */
     private static readonly VOID_COLOR = "#000000";
 
-    private readonly chunks = new CoordMap<DrawableChunk>();
+    private readonly chunkStore = new ChunkStore<DrawableChunk>();
     private readonly entityCollection = new EntityCollection();
 
     private readonly structureResolver: StructureResolver;
     private readonly chunkSpriteSheets: ChunkSpriteSheets;
-    private readonly chunkFactory: ChunkFactory;
+    private readonly chunkStreaming: ChunkStreamingManager;
     private readonly worldGrid: DefaultWorldGridView<DrawableChunk>;
 
     /** Total elapsed time on the shared clock animated background tiles read their phase from. Advanced every {@link update}. */
     private animationElapsedMs = 0;
     private readonly generationView: WorldGenerationView;
-    private readonly chunkWorkerClient: ChunkGenerationWorker;
-    private worldSeed: number;
-    /** Debug knob: minimum time the worker leaves between chunks. `0` disables it. */
-    private minChunkGenerationDelayMs = 0;
     private readonly debugHud: DebugHudRenderer;
     private readonly minimap: MinimapRenderer;
     private readonly minimapStatsHud: MinimapStatsHudRenderer;
@@ -73,31 +61,24 @@ export class World {
     private readonly debugSnapshotBuilder: WorldDebugSnapshotBuilder;
     private readonly collisionSystem: WorldCollisionSystem;
 
-    /** Sum of every generated chunk's {@link Chunk.generationTimeMs}. */
-    private totalChunkGenerationTimeMs = 0;
-    /** Count of chunks contributing to {@link totalChunkGenerationTimeMs}. */
-    private generatedChunkCount = 0;
-    /** {@link Chunk.generationTimeMs} of the most recently generated chunk. */
-    private latestChunkGenerationTimeMs = 0;
     /** Chunk count the last {@link draw} call rendered. */
     private lastVisibleChunkCount = 0;
 
-    /** Chunk {@link getChunkGenerationFocus} was in as of the last {@link reorderChunkGenerationQueueIfFocusMoved} call. */
-    private lastChunkGenerationFocusChunk: ChunkCoordinate | undefined;
-
-    /** Whether new chunks may be generated. */
-    private generationEnabled = true;
-
     public constructor(public readonly tileSize: number, dependencies: WorldDependencies) {
-        this.worldSeed = dependencies.worldSeed;
         this.generationView = new WorldGenerationView(dependencies.chunkGenerator);
-        this.chunkWorkerClient = dependencies.chunkWorkerClient;
-        this.chunkFactory = dependencies.chunkFactory;
         this.structureResolver = new StructureResolver(dependencies.structureSheetRegistry, () => this.generationView.getStructures());
         this.chunkSpriteSheets = dependencies.chunkSpriteSheetsFactory(this.structureResolver);
+        this.chunkStreaming = new ChunkStreamingManager(
+            this.chunkStore,
+            dependencies.chunkWorkerClient,
+            dependencies.chunkFactory,
+            this.chunkSpriteSheets,
+            tileSize,
+            dependencies.worldSeed,
+        );
         this.worldGrid = new DefaultWorldGridView<DrawableChunk>(
-            this.requestChunk.bind(this),
-            (chunkX, chunkY) => this.chunks.get(chunkX, chunkY),
+            this.chunkStreaming.requestChunk.bind(this.chunkStreaming),
+            (chunkX, chunkY) => this.chunkStore.get(chunkX, chunkY),
         );
         this.worldEffects = new WorldEffects();
         this.minimapBuilder = new MinimapDataBuilder(tileSize, this.generationView, () => this.entityCollection.getMainEntity());
@@ -116,7 +97,7 @@ export class World {
 
     /** The seed currently used to generate new chunks. */
     public getWorldSeed(): number {
-        return this.worldSeed;
+        return this.chunkStreaming.getWorldSeed();
     }
 
     /**
@@ -124,9 +105,8 @@ export class World {
      * only future generation uses `seed`.
      */
     public setWorldSeed(seed: number): void {
-        this.worldSeed = seed;
+        this.chunkStreaming.setWorldSeed(seed);
         this.generationView.setSeed(seed);
-        this.chunkWorkerClient.setSeed(seed);
         this.debugSnapshotBuilder.clearBiomeRegionCache();
     }
 
@@ -140,7 +120,7 @@ export class World {
      * See {@link setMinChunkGenerationDelayMs}.
      */
     public getMinChunkGenerationDelayMs(): number {
-        return this.minChunkGenerationDelayMs;
+        return this.chunkStreaming.getMinGenerationDelayMs();
     }
 
     /**
@@ -148,75 +128,47 @@ export class World {
      * Takes effect immediately and persists across seed changes.
      */
     public setMinChunkGenerationDelayMs(delayMs: number): void {
-        this.minChunkGenerationDelayMs = delayMs;
-        this.chunkWorkerClient.setMinGenerationDelayMs(delayMs);
-    }
-
-    /** Returns the chunk at the given coordinate, requesting generation if it isn't loaded yet. */
-    private requestChunk(chunkX: number, chunkY: number): DrawableChunk {
-        let chunk = this.chunks.get(chunkX, chunkY);
-        if (!chunk) {
-            const generation = this.chunkWorkerClient.requestChunk(chunkX, chunkY);
-            chunk = this.chunkFactory(chunkX, chunkY, generation, this.chunkSpriteSheets, this.tileSize);
-            this.chunks.set(chunkX, chunkY, chunk);
-            generation
-                .then((result) => {
-                    this.latestChunkGenerationTimeMs = result.generationTimeMs;
-                    this.totalChunkGenerationTimeMs += result.generationTimeMs;
-                    this.generatedChunkCount++;
-                })
-                .catch(() => {
-                    // Worker terminated before this chunk finished; don't count it.
-                });
-        }
-        return chunk;
+        this.chunkStreaming.setMinGenerationDelayMs(delayMs);
     }
 
     /** How many chunks are currently loaded in memory. */
     public getLoadedChunkCount(): number {
-        return this.chunks.size;
+        return this.chunkStreaming.getLoadedChunkCount();
     }
 
-    /** The worker client driving chunk generation - for console debugging. */
-    public getChunkWorkerClient(): ChunkGenerationWorker {
-        return this.chunkWorkerClient;
+    /** The chunk-streaming manager, for console debugging - see `exposeGlobals`. */
+    public getChunkStreamingManager(): ChunkStreamingManager {
+        return this.chunkStreaming;
     }
 
     /** How many currently loaded chunks are still generating. */
     public getGeneratingChunkCount(): number {
-        let count = 0;
-        for (const chunk of this.chunks.values()) {
-            if (!chunk.isReady()) {
-                count++;
-            }
-        }
-        return count;
+        return this.chunkStreaming.getGeneratingChunkCount();
     }
 
     /** Mean generation time across every chunk generated this session, in ms. */
     public getAverageChunkGenerationTimeMs(): number {
-        return this.generatedChunkCount === 0 ? 0 : this.totalChunkGenerationTimeMs / this.generatedChunkCount;
+        return this.chunkStreaming.getAverageGenerationTimeMs();
     }
 
     /** Generation time of the most recently finished chunk, in ms. */
     public getLatestChunkGenerationTimeMs(): number {
-        return this.latestChunkGenerationTimeMs;
+        return this.chunkStreaming.getLatestGenerationTimeMs();
     }
 
     /** Drops a chunk from memory. Safe to call when the chunk is not loaded. */
     public unloadChunk(chunkX: number, chunkY: number): void {
-        this.chunks.delete(chunkX, chunkY);
+        this.chunkStreaming.unloadChunk(chunkX, chunkY);
     }
 
     /** Drops every loaded chunk and cancels any pending generation requests. */
     public reloadAllChunks(): void {
-        this.chunkWorkerClient.cancelPending();
-        this.chunks.clear();
+        this.chunkStreaming.reloadAll();
     }
 
     /** Whether new chunks may currently be generated. */
     public isGenerationEnabled(): boolean {
-        return this.generationEnabled;
+        return this.chunkStreaming.isGenerationEnabled();
     }
 
     /**
@@ -224,10 +176,7 @@ export class World {
      * generation queue.
      */
     public setGenerationEnabled(enabled: boolean): void {
-        this.generationEnabled = enabled;
-        if (!enabled) {
-            this.cancelPendingChunkGeneration();
-        }
+        this.chunkStreaming.setGenerationEnabled(enabled);
     }
 
     /** Whether the minimap is currently shown. */
@@ -242,15 +191,6 @@ export class World {
      */
     public setMinimapEnabled(enabled: boolean): void {
         this.minimapEnabled = enabled;
-    }
-
-    /** Cancels all pending chunk requests and drops any not-yet-ready chunks. */
-    private cancelPendingChunkGeneration(): void {
-        this.chunkWorkerClient.cancelPending();
-        const toDelete = [...this.chunks.values()].filter(c => !c.isReady());
-        for (const chunk of toDelete) {
-            this.chunks.delete(chunk.getChunkX(), chunk.getChunkY());
-        }
     }
 
     /** Enables or disables movement onto still-generating chunks. */
@@ -321,68 +261,10 @@ export class World {
         this.animationElapsedMs += deltaMs;
         const previousPositions = this.entityCollection.update(deltaMs);
         this.worldEffects.update(deltaMs);
-        const focus = this.getChunkGenerationFocus(camera, spectating);
-        this.updateLoadedChunks(camera, focus);
-        this.reorderChunkGenerationQueueIfFocusMoved(focus);
-        this.collisionSystem.update(previousPositions, this.generationEnabled);
-    }
-
-    /** Returns the world-pixel point new chunk requests are prioritised around. */
-    private getChunkGenerationFocus(camera: Camera, spectating: boolean): Vector2d {
-        return spectating ? camera.getCenter() : this.entityCollection.getMainEntity().getPosition();
-    }
-
-    /**
-     * Re-sorts the worker's pending queue by generation priority, but only
-     * when `focus` has crossed a chunk boundary since the last call.
-     */
-    private reorderChunkGenerationQueueIfFocusMoved(focus: Vector2d): void {
-        const tileX = Math.floor(focus.x / this.tileSize);
-        const tileY = Math.floor(focus.y / this.tileSize);
-        const chunk = tileToChunk(tileX, tileY);
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-
-        if (this.lastChunkGenerationFocusChunk && this.lastChunkGenerationFocusChunk.chunkX === chunk.chunkX && this.lastChunkGenerationFocusChunk.chunkY === chunk.chunkY) {
-            return;
-        }
-        this.lastChunkGenerationFocusChunk = chunk;
-
-        const order = [...this.chunkWorkerClient.getPendingChunks()].sort((a, b) =>
-            chunkGenerationPriority(a, focus.x, focus.y, chunkPixelSize)
-            - chunkGenerationPriority(b, focus.x, focus.y, chunkPixelSize)
-        );
-        this.chunkWorkerClient.reorderPending(order);
-    }
-
-    /**
-     * Loads/generates chunks within the camera view plus a buffer, and evicts
-     * any that have drifted beyond it. A no-op while generation is disabled.
-     */
-    private updateLoadedChunks(camera: Camera, focus: Vector2d): void {
-        if (!this.generationEnabled) {
-            return;
-        }
-
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const visible = visibleChunkRange(camera.getViewX(), camera.getViewY(), camera.getWidth(), camera.getHeight(), chunkPixelSize);
-        const buffered = bufferChunkRange(visible, DEFAULT_CHUNK_BUFFER);
-        const pending = [...coordinatesInRange(buffered)].filter(({chunkX, chunkY}) => !this.worldGrid.isChunkLoaded(chunkX, chunkY));
-
-        pending.sort((a, b) =>
-            chunkGenerationPriority(a, focus.x, focus.y, chunkPixelSize)
-            - chunkGenerationPriority(b, focus.x, focus.y, chunkPixelSize)
-        );
-        for (const {chunkX, chunkY} of pending) {
-            this.worldGrid.requestChunk(chunkX, chunkY);
-        }
-
-        for (const chunk of this.chunks.values()) {
-            const chunkX = chunk.getChunkX();
-            const chunkY = chunk.getChunkY();
-            if (isOutsideChunkRange(chunkX, chunkY, buffered)) {
-                this.unloadChunk(chunkX, chunkY);
-            }
-        }
+        const focus = this.chunkStreaming.getGenerationFocus(camera, spectating, () => this.entityCollection.getMainEntity().getPosition());
+        this.chunkStreaming.update(camera, focus);
+        this.chunkStreaming.reorderQueueIfFocusMoved(focus);
+        this.collisionSystem.update(previousPositions, this.chunkStreaming.isGenerationEnabled());
     }
 
     /** Renders the world: chunks, noise overlay, effects, entities, foreground props, debug, minimap, and HUDs. */
@@ -413,7 +295,7 @@ export class World {
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
 
-                if (!this.generationEnabled && !this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
+                if (!this.chunkStreaming.isGenerationEnabled() && !this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
                     ctx.fillStyle = World.VOID_COLOR;
                     ctx.fillRect(originX, originY, chunkPixelSize, chunkPixelSize);
                     continue;
@@ -526,7 +408,7 @@ export class World {
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
                 const chunk = this.worldGrid.requestChunk(chunkX, chunkY);
-                const queuePosition = chunk.isReady() ? undefined : this.chunkWorkerClient.getQueuePosition(chunkX, chunkY);
+                const queuePosition = chunk.isReady() ? undefined : this.chunkStreaming.getQueuePosition(chunkX, chunkY);
                 chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
             }
         }

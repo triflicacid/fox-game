@@ -12,7 +12,7 @@ import {
     TestChunkGenerationWorker,
     TestTerrainGenerationSource
 } from "./testing/create-test-world-dependencies";
-import {createTestChunk, createTestMovableEntity} from "./testing/world-test-helpers";
+import {createRecordingContext, createTestChunk, createTestMovableEntity} from "./testing/world-test-helpers";
 
 /** Restores globals replaced by individual characterization tests. */
 afterEach(() => {
@@ -34,12 +34,14 @@ describe("World construction", () => {
         };
         const dependencies = createTestWorldDependencies(42, {chunkSpriteSheetsFactory});
         const findSheet = vi.spyOn(dependencies.structureSheetRegistry, "findSheet");
+        const setMinGenerationDelayMs = vi.spyOn(dependencies.chunkWorkerClient, "setMinGenerationDelayMs");
 
         const world = new World(16, dependencies);
 
         expect(world.tileSize).toBe(16);
         expect(world.getWorldSeed()).toBe(42);
-        expect(world.getChunkWorkerClient()).toBe(dependencies.chunkWorkerClient);
+        world.getChunkStreamingManager().setMinGenerationDelayMs(500);
+        expect(setMinGenerationDelayMs).toHaveBeenCalledWith(500);
         expect(suppliedResolver).toBeInstanceOf(StructureResolver);
         void suppliedResolver?.getSpriteBitmap("some-sprite");
         expect(findSheet).toHaveBeenCalledWith("some-sprite");
@@ -77,6 +79,41 @@ describe("World construction", () => {
         expect(request).toHaveBeenCalledWith(3, -2);
         expect(chunkFactory).toHaveBeenCalledOnce();
         expect(chunkFactory).toHaveBeenCalledWith(3, -2, generation, expect.any(Object), 16);
+    });
+});
+
+describe("World drawing requests", () => {
+    it("includes the camera view's exact far chunk boundary", () => {
+        const worker = new TestChunkGenerationWorker(1);
+        const world = new World(16, createTestWorldDependencies(1, {
+            chunkWorkerClient: worker,
+            chunkFactory: (chunkX, chunkY) => createTestChunk(chunkX, chunkY),
+        }));
+        world.setMinimapEnabled(false);
+        const camera = new Camera(new Vector2d(128, 128), 256, 256);
+
+        world.draw(createRecordingContext([]), camera);
+
+        expect(worker.requests).toEqual([
+            {chunkX: 0, chunkY: 0},
+            {chunkX: 1, chunkY: 0},
+            {chunkX: 0, chunkY: 1},
+            {chunkX: 1, chunkY: 1},
+        ]);
+    });
+
+    it("draws void without requesting missing chunks when generation is disabled", () => {
+        const events: string[] = [];
+        const worker = new TestChunkGenerationWorker(1);
+        const world = new World(16, createTestWorldDependencies(1, {chunkWorkerClient: worker}));
+        world.setMinimapEnabled(false);
+        world.setGenerationEnabled(false);
+        const camera = new Camera(new Vector2d(128, 128), 256, 256);
+
+        world.draw(createRecordingContext(events), camera);
+
+        expect(worker.requests).toEqual([]);
+        expect(events.filter((event) => event === "context:fillRect")).toHaveLength(4);
     });
 });
 
