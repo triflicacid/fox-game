@@ -36,6 +36,16 @@ export interface TileHoverInfo {
 }
 
 /**
+ * Everything the debug hover tooltip shows about a hovered minimap region -
+ * gathered by `World.getMinimapHoverInfo`.
+ */
+export interface MinimapHoverInfo {
+    tileX: number;
+    tileY: number;
+    biomeTag: BiomeTag;
+}
+
+/**
  * Everything the debug hover tooltip shows about a hovered entity - gathered
  * by `World.getEntityHoverInfo`.
  */

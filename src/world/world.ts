@@ -27,7 +27,7 @@ import {Structure, StructurePieceInstance} from "./generation/structure/structur
 import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/convex-polygon";
 import {CollisionResponseKind} from "../geometry/collision-response";
 import {applyCollisionResponse, CollisionContext} from "./collision";
-import {EntityHoverInfo, TileHoverInfo} from "./hover-info";
+import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./hover-info";
 
 /** A chunk's position, in chunk units (not tiles/pixels). */
 export interface ChunkCoordinate {
@@ -95,6 +95,9 @@ export class World {
 
     /** Whether the minimap is currently shown - independent of {@link DebugController.isEnabled}, defaults to visible. See {@link getMinimapEnabled}/{@link setMinimapEnabled}. */
     private minimapEnabled = true;
+
+    /** This frame's minimap data, cached by {@link draw} for {@link getMinimapHoverInfo} to reuse - `undefined` while the minimap isn't shown. */
+    private lastMinimapData: MinimapData | undefined;
 
     /** Every currently active {@link Effect}, driven generically by {@link update}/{@link draw} - see {@link registerEffect}. */
     private effects: Effect[] = [];
@@ -577,6 +580,29 @@ export class World {
                 collision: piece.collision !== "none" ? piece.collision : undefined,
             },
         };
+    }
+
+    /**
+     * Everything the debug hover tooltip shows about the minimap region
+     * under a screen point, or `undefined` if the minimap isn't currently
+     * shown or the point falls outside its box.
+     *
+     * @param screenX - Cursor's X position, in canvas pixels.
+     * @param screenY - Cursor's Y position, in canvas pixels.
+     * @param canvasWidth - Canvas width, in canvas pixels - for locating the minimap box.
+     * @returns The hovered minimap region's info, or `undefined` if nothing's there to show.
+     */
+    public getMinimapHoverInfo(screenX: number, screenY: number, canvasWidth: number): MinimapHoverInfo | undefined {
+        if (!this.lastMinimapData) {
+            return undefined;
+        }
+        const tile = Minimap.screenToTile(screenX, screenY, canvasWidth, this.lastMinimapData);
+        if (!tile) {
+            return undefined;
+        }
+        const tileX = Math.floor(tile.x);
+        const tileY = Math.floor(tile.y);
+        return {tileX, tileY, biomeTag: this.chunkGenerator.resolveBiomeTagAt(tileX, tileY)};
     }
 
     /**
@@ -1343,6 +1369,7 @@ export class World {
             minimapData = this.buildMinimapData(center, spectating, camera, debugEnabled, noiseFieldName);
             this.minimap.draw(ctx, ctx.canvas.width, minimapData);
         }
+        this.lastMinimapData = minimapData;
 
         if (debugEnabled) {
             this.drawDebugHud(ctx, camera, {spectating, spectatorVelocity, actualFps, targetFps});
