@@ -2,11 +2,11 @@ import {InteractableDisplay} from "@display/interactable-display";
 import {FLAT_THEME} from "@display/flat-theme";
 import {DisplayLine, PieChartClass, PieChartInput} from "@display/input";
 import {hr, line} from "@display/builders";
-import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "../debug/debug-config";
+import {HudBase} from "../debug/hud-base";
 import {MINIMAP_CONFIG} from "./minimap-config";
 import {BIOME_COLORS} from "../world/generation/biome/biome-colors";
-import {BiomeTag, BIOME_TAGS} from "../world/generation/biome/biome";
+import {BIOME_TAGS, BiomeTag} from "../world/generation/biome/biome";
 
 /** Display label per {@link BiomeTag}, for the pie chart's legend. */
 const BIOME_LABELS: Record<BiomeTag, string> = {
@@ -29,8 +29,14 @@ export interface MinimapStatsHudData {
     biomeCounts: Record<BiomeTag, number>;
 }
 
+/** Renders one minimap statistics snapshot. */
+export interface MinimapStatsHudRenderer {
+    /** Draws the supplied statistics data. */
+    draw(ctx: CanvasRenderingContext2D, canvasWidth: number, data: MinimapStatsHudData): void;
+}
+
 /** A second, debug-only mini HUD anchored below the minimap. */
-export class MinimapStatsHud {
+export class MinimapStatsHud extends HudBase implements MinimapStatsHudRenderer {
     /** No keyboard/mouse wiring, `"click"` focus mode, and no focusables ever registered - this panel is a static, read-only readout, never interactive, so `InteractableDisplay`'s input-handling machinery just stays dormant. Used only for its `piechart` element support (`Display` alone can't lay one out). */
     private readonly display = new InteractableDisplay(
         {foreground: DEBUG_CONFIG.hudTextColor, fontFamily: DEBUG_CONFIG.hudFontFamily, fontSize: DEBUG_CONFIG.hudFontSize},
@@ -39,15 +45,6 @@ export class MinimapStatsHud {
         null,
     );
 
-    /** A plain top-level text segment. */
-    private text(content: string): TextSegment {
-        return {content};
-    }
-
-    /** A numeric-valued segment - `value` is pre-formatted (may include a unit suffix). */
-    private numberValue(value: string): TextSegment {
-        return {content: value, style: {foreground: DEBUG_CONFIG.hudNumberValueColor}};
-    }
 
     /**
      * Builds this frame's biome-distribution pie chart classes from
@@ -122,8 +119,7 @@ export class MinimapStatsHud {
      * @param data - This frame's stats data - see {@link MinimapStatsHudData}.
      */
     public draw(ctx: CanvasRenderingContext2D, canvasWidth: number, data: MinimapStatsHudData): void {
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
+        this.setupContext(ctx);
 
         const padding = DEBUG_CONFIG.hudPadding;
 
@@ -140,8 +136,7 @@ export class MinimapStatsHud {
         const boxTop = MINIMAP_CONFIG.margin + MINIMAP_CONFIG.boxSizePx + MINIMAP_CONFIG.statsHudGap;
         const boxLeft = boxRight - width;
 
-        ctx.fillStyle = DEBUG_CONFIG.hudBackgroundColor;
-        ctx.fillRect(boxLeft, boxTop, width, height);
+        this.drawBackground(ctx, boxLeft, boxTop, width, height);
 
         this.display.drawLines(ctx, rows, boxLeft + padding, boxTop + padding, DEBUG_CONFIG.hudLineSpacing);
     }

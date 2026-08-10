@@ -3,7 +3,7 @@ import {StructureManifest} from "./structure-manifest";
 import manifestJson from "./cactus-structures.json";
 import {BiomeTag} from "../biome/biome";
 import {NoiseField} from "../noise-field";
-import {DesertStructureSpriteType} from "../../../sprites/DesertStructureSpriteSheet";
+import {DesertStructureSpriteType} from "../../../sprites/desert-structure-sprite-sheet";
 
 const manifest = manifestJson as StructureManifest;
 

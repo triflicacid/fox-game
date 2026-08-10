@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vitest";
-import {CoordSet} from "../coord-set";
+import {CoordSet} from "../coordinates/coord-set";
 import {
     computeCappedRegionDepths,
     computeEdgeDistances,

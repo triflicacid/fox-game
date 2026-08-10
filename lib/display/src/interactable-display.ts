@@ -1,5 +1,23 @@
 import {DEFAULT_DISPLAY_DEFAULTS, Display, DisplayDefaults, MeasuredRun} from "./display";
-import {ButtonInput, CheckboxInput, DisplayLine, DisplayLineItem, HrInput, HrLength, Input, NumberInput, PieChartClass, PieChartInput, PieChartLegend, PieChartLegendSide, PieChartLegendValueDisplay, RadioInput, SelectInput, TextBoxInputBase, TextInput} from "./input";
+import {
+    ButtonInput,
+    CheckboxInput,
+    DisplayLine,
+    DisplayLineItem,
+    HrInput,
+    HrLength,
+    Input,
+    NumberInput,
+    PieChartClass,
+    PieChartInput,
+    PieChartLegend,
+    PieChartLegendSide,
+    PieChartLegendValueDisplay,
+    RadioInput,
+    SelectInput,
+    TextBoxInputBase,
+    TextInput
+} from "./input";
 import {ChromeTheme} from "./chrome-theme";
 import {ResolvedStateStyle, resolveStateStyle} from "./state-style";
 import {Alignment, TextSegment, TextStyle} from "./text-style";
@@ -1358,7 +1376,6 @@ export class InteractableDisplay extends Display {
         if (element.legend === null) {
             return {x: x + element.radius, y: y + element.radius};
         }
-        const pieSize = element.radius * 2;
         switch (element.legendSide) {
             case "left":
                 return {x: x + element.legendWidth + element.legendGap + element.radius, y: y + element.height / 2};

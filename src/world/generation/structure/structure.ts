@@ -1,10 +1,10 @@
-import {CHUNK_SIZE} from "../../chunk-size";
+import {CHUNK_SIZE} from "../../chunks/chunk-size";
 import {BiomeTag} from "../biome/biome";
 import {NoiseField} from "../noise-field";
-import {hashLatticePoint} from "../../noise";
-import {StructureLayer, StructureManifest, pickShape} from "./structure-manifest";
+import {hashLatticePoint} from "../noise";
+import {pickShape, StructureLayer, StructureManifest} from "./structure-manifest";
 import {CollisionResponseKind} from "../../../geometry/collision-response";
-import type {CollisionContext} from "../../collision";
+import type {CollisionContext} from "../../collision/collision";
 
 /** One resolved structure piece, stamped at an absolute world-tile position. */
 export interface StructurePieceInstance<TSpriteType extends string = string> {

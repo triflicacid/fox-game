@@ -1,6 +1,6 @@
 import descriptorJson from "../../static/fox-sprites.json";
 import {SpriteFrame} from "./sprite";
-import {AnimatedSpriteSheet} from "./AnimatedSpriteSheet";
+import {AnimatedSpriteSheet} from "./animated-sprite-sheet";
 import {SpriteSheetDescriptor} from "./sprite-sheet-descriptor";
 import {CompassDirection} from "../geometry/direction";
 

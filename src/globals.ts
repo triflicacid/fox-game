@@ -1,14 +1,14 @@
 import {WorldController} from "./world-controller";
-import {ChunkWorkerClient} from "./world/generation/chunk/chunk-worker-client";
-import {World} from "./world/world";
+import type {ChunkStreamingManager} from "./world/chunks/chunk-streaming-manager";
+import type {World} from "./world/world";
 import {FieldRegistry, fieldRegistry} from "./fields/field-registry";
 
 declare global {
     interface Window {
         /** The running game's {@link WorldController}, for inspection from the browser console. */
         worldController: WorldController;
-        /** The worker client driving chunk generation, for inspection/control from the browser console (e.g. `chunkGenerationQueue.setMinGenerationDelayMs(500)`). */
-        chunkGenerationQueue: ChunkWorkerClient;
+        /** The chunk-streaming manager, for inspection/control from the browser console (e.g. `chunkStreamingManager.setMinGenerationDelayMs(500)`). */
+        chunkStreamingManager: ChunkStreamingManager;
         /** The running game's {@link World}, for inspection/control from the browser console. */
         world: World;
         /** The tunable-field registry, for inspection/editing from the browser console (e.g. `fields.set("demo.plainValue", 100)`). */
@@ -24,7 +24,7 @@ declare global {
  */
 export function exposeGlobals(worldController: WorldController): void {
     window.worldController = worldController;
-    window.chunkGenerationQueue = worldController.getChunkWorkerClient();
+    window.chunkStreamingManager = worldController.getChunkStreamingManager();
     window.world = worldController.getWorld();
     window.fields = fieldRegistry;
 }

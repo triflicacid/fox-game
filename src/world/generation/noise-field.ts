@@ -1,4 +1,4 @@
-import {hashLatticePoint, sampleFbm2d, sampleGradientNoise2d, sampleNoise2d} from "../noise";
+import {hashLatticePoint, sampleFbm2d, sampleGradientNoise2d, sampleNoise2d} from "./noise";
 
 /**
  * A named, world-space noise channel. Every implementation normalizes its

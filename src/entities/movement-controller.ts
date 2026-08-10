@@ -6,7 +6,7 @@ import {KeyBinding} from "../help/key-binding";
 import {Debouncer} from "../input/debouncer";
 import {Keyboard} from "@keyboard";
 import {requireNonNull} from "../util";
-import {SPECTATOR_CONSTANTS} from '../world/spectator-constants';
+import {SPECTATOR_CONSTANTS} from './spectator-constants';
 
 /** Arrow keys mapped to the compass direction each one contributes to movement. */
 const KEY_DIRECTIONS: Record<string, CompassDirection> = {

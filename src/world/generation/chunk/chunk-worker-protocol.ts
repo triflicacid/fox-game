@@ -1,4 +1,4 @@
-import {TileData} from "../../tile";
+import {TileData} from "../../tiles/tile";
 import {BiomeSummary} from "../biome/biome";
 import {StructurePieceInstance} from "../structure/structure";
 

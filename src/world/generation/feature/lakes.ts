@@ -1,10 +1,16 @@
-import {CHUNK_SIZE} from "../../chunk-size";
-import {TileData} from "../../tile";
+import {CHUNK_SIZE} from "../../chunks/chunk-size";
+import {TileData} from "../../tiles/tile";
 import {BiomeTag} from "../biome/biome";
 import {BiomeTagResolver, Feature, TerrainResampler} from "./feature";
 import {FbmField, NoiseField} from "../noise-field";
-import {ReadonlyCoordSet, CoordMap, CoordSet} from "../../coord-set";
-import {computeEdgeDistances, computeOutwardDistances, erodeComponent, findCoreTiles, floodFill8} from "../grid-algorithms";
+import {CoordMap, CoordSet, ReadonlyCoordSet} from "../../coordinates/coord-set";
+import {
+    computeEdgeDistances,
+    computeOutwardDistances,
+    erodeComponent,
+    findCoreTiles,
+    floodFill8
+} from "../grid-algorithms";
 import {TerrainDepthConfig} from "../biome/terrain-depth";
 
 /** Every tunable lake-generation value, grouped so they're tuned in one place. */

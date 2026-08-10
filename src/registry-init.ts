@@ -1,9 +1,9 @@
 import {WorldController} from "./world-controller";
 import {CameraFollowMode} from "./entities/movement-controller";
 import {fieldRegistry, integerRange, nonNegativeInteger} from "./fields/field-registry";
-import {EntityLookupHandler} from "./world/entity-lookup-handler";
+import {EntityLookupHandler} from "./entities/entity-lookup-handler";
 import {keyboard} from './input/keyboard-instance';
-import {pixelToTile, tileToPixel} from "./world/tile-coordinates";
+import {pixelToTile, tileToPixel} from "./world/coordinates/world-grid-math";
 
 /**
  * Registers per-instance tunable fields that only exist once
@@ -22,7 +22,8 @@ export function registerDynamicFields(worldController: WorldController): void {
         }
     });
 
-    fieldRegistry.registerHandler("world.entities", new EntityLookupHandler(worldController.getWorld()));
+    const world = worldController.getWorld();
+    fieldRegistry.registerHandler("world.entities", new EntityLookupHandler(world.getEntityCollection(), world.tileSize));
 
     const movementController = worldController.getMovementController();
     const cameraFollow = movementController.getCameraFollow();
@@ -30,7 +31,7 @@ export function registerDynamicFields(worldController: WorldController): void {
         return;
     }
 
-    const tileSize = worldController.getWorld().tileSize;
+    const tileSize = world.tileSize;
     const cameraOptions = {
         get mode(): CameraFollowMode {
             return cameraFollow.mode;
@@ -60,8 +61,6 @@ export function registerDynamicFields(worldController: WorldController): void {
     fieldRegistry.registerFields("camera", cameraOptions, {
         edgeMargin: nonNegativeInteger(),
     });
-
-    const world = worldController.getWorld();
 
     // different from 'world.spectator.*' properties, see spectator-constants.ts.
     fieldRegistry.registerFields("world", {

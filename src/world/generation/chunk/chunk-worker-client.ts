@@ -1,6 +1,8 @@
 import ChunkGenerationWorker from "./chunk-worker?worker&inline";
 import {ChunkGenerationRequest, ChunkGenerationResult} from "./chunk-worker-protocol";
-import {CoordMap} from "../../coord-set";
+import {CoordMap} from "../../coordinates/coord-set";
+import type {ChunkCoordinate} from "../../coordinates/chunk-coordinate";
+import type {ChunkGenerationWorker as ChunkGenerationWorkerContract} from "./chunk-generation-worker";
 
 /** One pending {@link ChunkWorkerClient.requestChunk} call awaiting its response. */
 interface PendingRequest {
@@ -14,7 +16,7 @@ interface PendingRequest {
  * Runs chunk generation on a background Worker, so it doesn't stutter the
  * main thread.
  */
-export class ChunkWorkerClient {
+export class ChunkWorkerClient implements ChunkGenerationWorkerContract {
     private readonly worker: Worker = new ChunkGenerationWorker();
     private readonly pending = new CoordMap<PendingRequest>();
 
@@ -50,8 +52,7 @@ export class ChunkWorkerClient {
     }
 
     /**
-     * Sets the debug minimum-delay-between-chunks knob on the worker - see
-     * `World.setMinChunkGenerationDelayMs`.
+     * Sets the debug minimum-delay-between-chunks.
      *
      * @param delayMs - Minimum milliseconds to leave between finishing one chunk's generation and starting the next. `0` disables the delay.
      */
@@ -90,7 +91,7 @@ export class ChunkWorkerClient {
      *
      * @returns The pending chunk coordinates.
      */
-    public getPendingChunks(): readonly {chunkX: number; chunkY: number}[] {
+    public getPendingChunks(): readonly ChunkCoordinate[] {
         return [...this.pending.values()].map(({chunkX, chunkY}) => ({chunkX, chunkY}));
     }
 
@@ -122,7 +123,7 @@ export class ChunkWorkerClient {
      *
      * @param order - Desired chunk coordinate order, most urgent first.
      */
-    public reorderPending(order: readonly {chunkX: number; chunkY: number}[]): void {
+    public reorderPending(order: readonly ChunkCoordinate[]): void {
         for (const {chunkX, chunkY} of order) {
             const request = this.pending.get(chunkX, chunkY);
             if (request) {
