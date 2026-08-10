@@ -1,5 +1,5 @@
-import {BackgroundTileSpriteSheet} from "../../sprites/BackgroundTileSpriteSheet";
-import {AnimatedBackgroundTileSpriteSheet} from "../../sprites/AnimatedBackgroundTileSpriteSheet";
+import {BackgroundTileSpriteSheet} from "../../sprites/background-tile-sprite-sheet";
+import {AnimatedBackgroundTileSpriteSheet} from "../../sprites/animated-background-tile-sprite-sheet";
 import {ConvexPolygon} from "../../geometry/convex-polygon";
 import type {StructureResolver} from "../collision/structure-resolver";
 

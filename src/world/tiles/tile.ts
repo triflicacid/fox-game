@@ -1,4 +1,4 @@
-import {BackgroundTileType} from "../../sprites/BackgroundTileSpriteSheet";
+import {BackgroundTileType} from "../../sprites/background-tile-sprite-sheet";
 import {SpriteTile} from "../../sprites/sprite";
 import {ChunkSpriteSheets} from "../rendering/chunk-sprite-sheets";
 import {BiomeTag} from "../generation/biome/biome";
