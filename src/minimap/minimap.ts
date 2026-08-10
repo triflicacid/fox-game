@@ -77,6 +77,26 @@ export class Minimap {
     }
 
     /**
+     * The world tile position (fractional) under a screen point (on the minimap).
+     *
+     * @param screenX - Cursor's X position, in canvas pixels.
+     * @param screenY - Cursor's Y position, in canvas pixels.
+     * @param canvasWidth - Canvas width, in canvas pixels, for locating the minimap box.
+     * @param data - The frame's minimap data the box was last drawn with - see {@link MinimapData}.
+     * @returns The hovered world tile position, or `undefined` if `screenX`/`screenY` falls outside the minimap box.
+     */
+    public static screenToTile(screenX: number, screenY: number, canvasWidth: number, data: MinimapData): Vector2d | undefined {
+        const box = MINIMAP_CONFIG.boxSizePx;
+        const boxLeft = Minimap.getBoxLeft(canvasWidth);
+        const boxTop = MINIMAP_CONFIG.margin;
+        if (screenX < boxLeft || screenX >= boxLeft + box || screenY < boxTop || screenY >= boxTop + box) {
+            return undefined;
+        }
+        const offsetPx = new Vector2d(screenX - (boxLeft + box / 2), screenY - (boxTop + box / 2));
+        return data.centerTile.add(offsetPx.scale(data.worldTilesPerPixel));
+    }
+
+    /**
      * Draws the minimap: its cached colour-fill bitmap (rebuilt/shifted as
      * needed - see {@link updateBitmap}), border, and player marker.
      *

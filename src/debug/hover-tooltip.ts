@@ -1,21 +1,28 @@
 import {Display} from "@display/display";
 import {TextSegment} from "@display/text-style";
 import {DEBUG_CONFIG} from "./debug-config";
-import {EntityHoverInfo, TileHoverInfo} from "../world/hover-info";
+import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "../world/hover-info";
 import {CollisionResponseKind} from "../geometry/collision-response";
 
-/** Everything {@link HoverTooltip.draw} needs for one frame - gathered by `WorldController`. */
-export interface HoverTooltipData {
-    /** World-pixel point under the cursor. */
-    worldX: number;
-    worldY: number;
-    /** The hovered tile, or `undefined` if its containing chunk isn't ready yet. */
-    tile: TileHoverInfo | undefined;
-    /** The topmost entity under the cursor, if any. */
-    entity: EntityHoverInfo | undefined;
-    /** The currently-viewed noise field's name and its sample at the hovered tile, if a noise field overlay is on - see `World.getNoiseFieldSample`. */
-    noiseField: {name: string; value: number} | undefined;
-}
+/** Everything {@link HoverTooltip.draw} needs for one frame. */
+export type HoverTooltipData =
+    | {
+        kind: "world";
+        /** World-pixel point under the cursor. */
+        worldX: number;
+        worldY: number;
+        /** The hovered tile, or `undefined` if its containing chunk isn't ready yet. */
+        tile: TileHoverInfo | undefined;
+        /** The topmost entity under the cursor, if any. */
+        entity: EntityHoverInfo | undefined;
+        /** The currently-viewed noise field's name and its sample at the hovered tile, if a noise field overlay is on - see `World.getNoiseFieldSample`. */
+        noiseField: {name: string; value: number} | undefined;
+    }
+    | {
+        kind: "minimap";
+        /** The hovered minimap region - see `World.getMinimapHoverInfo`. */
+        minimap: MinimapHoverInfo;
+    };
 
 /**
  * Draws a small tooltip next to the cursor showing whatever tile/structure/
@@ -69,10 +76,18 @@ export class HoverTooltip {
         ];
     }
 
-    /**
-     * Builds this frame's tooltip lines from `data`.
-     */
+    /** Builds this frame's tooltip lines from `data`. */
     private buildLines(data: HoverTooltipData): TextSegment[][] {
+        if (data.kind === "minimap") {
+            return [
+                [
+                    this.text("region ("), this.numberValue(String(data.minimap.tileX)), this.text(", "),
+                    this.numberValue(String(data.minimap.tileY)), this.text(")"),
+                ],
+                [this.text("biome: "), this.stringValue(data.minimap.biomeTag)],
+            ];
+        }
+
         const lines: TextSegment[][] = [
             [
                 this.text("world ("), this.numberValue(data.worldX.toFixed(0)), this.text(", "),

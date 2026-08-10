@@ -284,19 +284,26 @@ export class WorldController {
         this.drawHoverTooltip();
     }
 
-    /**
-     * Draws the cursor-hover tooltip, if debug mode's hover-info toggle is on
-     * and the cursor is currently over the canvas.
-     */
+    /** Draws the cursor-hover tooltip, if enabled. */
     private drawHoverTooltip(): void {
         if (!this.debugController.isHoverInfoEnabled() || !this.mousePosition) {
             return;
         }
+        const minimapHover = this.world.getMinimapHoverInfo(this.mousePosition.x, this.mousePosition.y, this.canvas.width);
+        if (minimapHover) {
+            this.hoverTooltip.draw(this.ctx, this.mousePosition.x, this.mousePosition.y, this.canvas.width, this.canvas.height, {
+                kind: "minimap",
+                minimap: minimapHover,
+            });
+            return;
+        }
+
         const worldPoint = this.camera.screenToWorld(this.mousePosition.x, this.mousePosition.y);
         const tileX = Math.floor(worldPoint.x / WorldController.TILE_SIZE);
         const tileY = Math.floor(worldPoint.y / WorldController.TILE_SIZE);
         const noiseFieldValue = this.noiseFieldName ? this.world.getNoiseFieldSample(this.noiseFieldName, tileX, tileY) : undefined;
         this.hoverTooltip.draw(this.ctx, this.mousePosition.x, this.mousePosition.y, this.canvas.width, this.canvas.height, {
+            kind: "world",
             worldX: worldPoint.x,
             worldY: worldPoint.y,
             tile: this.world.getTileHoverInfo(tileX, tileY),
