@@ -4,7 +4,7 @@ import manifestJson from "./skeletal-tree-structures.json";
 import {BiomeTag} from "../biome/biome";
 import {TundraBiome} from "../biome/tundra-biome";
 import {NoiseField} from "../noise-field";
-import {SkeletalTreeSpriteType} from "../../../sprites/TundraStructureSpriteSheet";
+import {SkeletalTreeSpriteType} from "../../../sprites/tundra-structure-sprite-sheet";
 
 const manifest = manifestJson as StructureManifest;
 

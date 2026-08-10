@@ -1,5 +1,5 @@
 import {TileData} from "../../tiles/tile";
-import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
+import {BackgroundTileType} from "../../../sprites/background-tile-sprite-sheet";
 import {BiomeTag} from "../biome/biome";
 import {GenerationContext} from "../generation-context";
 import {NoiseField} from "../noise-field";

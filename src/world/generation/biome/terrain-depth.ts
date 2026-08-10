@@ -1,4 +1,4 @@
-import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
+import {BackgroundTileType} from "../../../sprites/background-tile-sprite-sheet";
 
 /** Explicit light-to-dark sprite ordering for one biome's base terrain. */
 export interface TerrainDepthVariants {

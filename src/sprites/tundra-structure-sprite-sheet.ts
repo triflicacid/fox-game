@@ -1,6 +1,6 @@
 import descriptorJson from "../../static/tundra-structures.json";
 import {SpriteSheetDescriptor, SpriteTileDescriptor} from "./sprite-sheet-descriptor";
-import {StaticSpriteSheet} from "./StaticSpriteSheet";
+import {StaticSpriteSheet} from "./static-sprite-sheet";
 
 /** Every dead-tree tile type `SkeletalTreeStructure` uses. */
 export type SkeletalTreeSpriteType = "skeletal_tree.1" | "skeletal_tree.2" | "skeletal_tree.3";

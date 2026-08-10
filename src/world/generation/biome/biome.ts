@@ -1,4 +1,4 @@
-import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
+import {BackgroundTileType} from "../../../sprites/background-tile-sprite-sheet";
 import {ClimateSample} from "./climate-fields";
 import {NoiseField} from "../noise-field";
 

@@ -1,6 +1,6 @@
 import {CHUNK_SIZE} from "../../chunks/chunk-size";
 import {TileData} from "../../tiles/tile";
-import {BackgroundTileType} from "../../../sprites/BackgroundTileSpriteSheet";
+import {BackgroundTileType} from "../../../sprites/background-tile-sprite-sheet";
 import {NoiseFieldRegistry} from "../field-registry";
 import {Biome, BiomeSummary, BiomeTag, resolveBiome} from "../biome/biome";
 import {DesertBiome} from "../biome/desert-biome";

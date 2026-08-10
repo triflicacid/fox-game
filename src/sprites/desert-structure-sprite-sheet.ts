@@ -1,6 +1,6 @@
 import descriptorJson from "../../static/desert-structures.json";
 import {SpriteSheetDescriptor, SpriteTileDescriptor} from "./sprite-sheet-descriptor";
-import {StaticSpriteSheet} from "./StaticSpriteSheet";
+import {StaticSpriteSheet} from "./static-sprite-sheet";
 
 /** Every cactus tile type in `static/desert-structures.png`/`.json` - the only structure family the desert biome has. */
 export type DesertStructureSpriteType =

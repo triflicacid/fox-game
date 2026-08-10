@@ -1,4 +1,4 @@
-import {AnimatedSpriteSheet} from "../sprites/AnimatedSpriteSheet";
+import {AnimatedSpriteSheet} from "../sprites/animated-sprite-sheet";
 import {SpriteFrame} from "../sprites/sprite";
 import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";

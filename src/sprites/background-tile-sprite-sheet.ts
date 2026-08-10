@@ -1,6 +1,6 @@
 import descriptorJson from "../../static/background-tile-sprites.json";
 import {SpriteSheetDescriptor, SpriteTileDescriptor} from "./sprite-sheet-descriptor";
-import {StaticSpriteSheet} from "./StaticSpriteSheet";
+import {StaticSpriteSheet} from "./static-sprite-sheet";
 
 /** Every ground tile type in `static/background-tile-sprites.png`/`.json`. */
 export type BackgroundTileType = "plains.grass1" | "plains.grass2" | "plains.grass3" | "plains.dirt" | "plains.gravel" | "water.light" | "water.dark"

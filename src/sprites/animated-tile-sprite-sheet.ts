@@ -1,6 +1,6 @@
 import {SpriteRect} from "./sprite";
 import {SpriteAnimatedTileDescriptor, SpriteSheetDescriptor, TileAnimationSync} from "./sprite-sheet-descriptor";
-import {SpriteSheet} from "./SpriteSheet";
+import {SpriteSheet} from "./sprite-sheet";
 
 /** {@link SpriteAnimatedTileDescriptor.sync} when a descriptor entry doesn't specify one. */
 const DEFAULT_SYNC: TileAnimationSync = "perTile";

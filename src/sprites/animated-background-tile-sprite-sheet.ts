@@ -1,6 +1,6 @@
 import descriptorJson from "../../static/animated-background-tile-sprites.json";
 import {SpriteAnimatedTileDescriptor, SpriteSheetDescriptor} from "./sprite-sheet-descriptor";
-import {AnimatedTileSpriteSheet} from "./AnimatedTileSpriteSheet";
+import {AnimatedTileSpriteSheet} from "./animated-tile-sprite-sheet";
 
 /** Every animated background-tile type in `static/animated-background-tile-sprites.png`/`.json`. */
 export type AnimatedBackgroundTileType = "water.light" | "water.dark" | "water.oasis.light" | "water.oasis.dark";

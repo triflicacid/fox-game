@@ -1,12 +1,12 @@
 import {Entity} from "./entity";
-import {AnimatedSpriteSheet} from "../sprites/AnimatedSpriteSheet";
+import {AnimatedSpriteSheet} from "../sprites/animated-sprite-sheet";
 import {SpriteFrame} from "../sprites/sprite";
 import {CompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
 import {DEBUG_CONFIG} from "../debug/debug-config";
 import {KeyBinding} from "../help/key-binding";
 import {drawArrow} from "../geometry/arrow";
-import type {DashableEntity} from './DashableEntity';
+import type {DashableEntity} from './dashable-entity';
 
 /**
  * An {@link Entity} that can move: it has a facing direction and a

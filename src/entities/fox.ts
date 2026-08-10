@@ -6,7 +6,7 @@ import {Vector2d} from "../geometry/vector2d";
 import {KeyBinding} from "../help/key-binding";
 import {DashEffectRequest} from "../effects/dash-effect";
 import {FOX_CONSTANTS} from './fox-constants';
-import type {DashableEntity} from './DashableEntity';
+import type {DashableEntity} from './dashable-entity';
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";

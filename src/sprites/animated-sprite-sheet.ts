@@ -1,6 +1,6 @@
 import {SpriteFrame} from "./sprite";
 import {SpriteRowDescriptor, SpriteSheetDescriptor} from "./sprite-sheet-descriptor";
-import {SpriteSheet} from "./SpriteSheet";
+import {SpriteSheet} from "./sprite-sheet";
 
 /**
  * A sprite sheet of multiple named, animated sprites.

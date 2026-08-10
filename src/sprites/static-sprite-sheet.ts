@@ -1,6 +1,6 @@
 import {SpriteTile} from "./sprite";
 import {SpriteSheetDescriptor, SpriteTileDescriptor} from "./sprite-sheet-descriptor";
-import {SpriteSheet} from "./SpriteSheet";
+import {SpriteSheet} from "./sprite-sheet";
 
 /**
  * A sprite sheet of multiple named, static tiles (no animations) laid out
