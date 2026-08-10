@@ -5,14 +5,15 @@ import {Vector2d} from "../geometry/vector2d";
 import type {Tile} from "./tiles/tile";
 import {World} from "./world";
 import {createTestWorldDependencies} from "./testing/create-test-world-dependencies";
-import {createTestChunk, createTestMovableEntity} from "./testing/world-test-helpers";
+import {createRecordingContext, createTestChunk, createTestMovableEntity} from "./testing/world-test-helpers";
 
 describe("World movement constraints", () => {
     it("returns an entity to ready ground when generation is disabled", () => {
         const world = new World(16, createTestWorldDependencies(1, {
             chunkFactory: (chunkX, chunkY) => createTestChunk(chunkX, chunkY, {ready: chunkX === 0 && chunkY === 0}),
         }));
-        world.getChunk(0, 0);
+        world.setMinimapEnabled(false);
+        world.draw(createRecordingContext([]), new Camera(new Vector2d(8, 8), 1, 1));
         world.setGenerationEnabled(false);
         const entity = createTestMovableEntity({position: new Vector2d(8, 8), nextPosition: new Vector2d(300, 8), moving: true});
         world.setMainEntity(entity);
@@ -83,5 +84,3 @@ describe("World collision sweep", () => {
         expect(events).toEqual(["tile:0,0"]);
     });
 });
-
-

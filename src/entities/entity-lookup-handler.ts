@@ -1,7 +1,7 @@
 import {Accessor, Field, FieldLookupHandler, FieldRegistryError} from "../fields/field-registry";
 import {Entity} from "./entity";
 import {World} from "../world/world";
-import {pixelToTile, tileToPixel} from "../world/coordinates/tile-coordinates";
+import {pixelToTile, tileToPixel} from "../world/coordinates/world-grid-math";
 
 /**
  * Exposes every live entity in `world` under the field registry at

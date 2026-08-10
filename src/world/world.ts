@@ -1,8 +1,18 @@
 import {Chunk, CHUNK_SIZE, ChunkSpriteSheets} from "./chunks/chunk";
+import {
+    bufferChunkRange,
+    chunkGenerationPriority,
+    coordinatesInRange,
+    DEFAULT_CHUNK_BUFFER,
+    isOutsideChunkRange,
+    visibleChunkRange,
+} from "./chunks/chunk-streaming-math";
 import {Tile} from "./tiles/tile";
+import {DefaultWorldGridView} from "./tiles/world-grid-view";
 import {Entity} from "../entities/entity";
 import {MovableEntity} from "../entities/movable-entity";
 import {Camera} from "../camera/camera";
+import {toCompassDirection} from "../geometry/direction";
 import {Vector2d} from "../geometry/vector2d";
 import {ChunkState, DebugHudRenderer} from "../debug/debug-hud";
 import {DEBUG_CONFIG} from "../debug/debug-config";
@@ -22,20 +32,14 @@ import {ConvexPolygon, convexPolygonsIntersect, rectPolygon} from "../geometry/c
 import {CollisionResponseKind} from "../geometry/collision-response";
 import {applyCollisionResponse, CollisionContext} from "./collision/collision";
 import {EntityHoverInfo, MinimapHoverInfo, TileHoverInfo} from "./inspection/hover-info";
+import {dominantNonNoneLabel} from "./inspection/dominant-label";
 import {ChunkCoordinate} from "./coordinates/chunk-coordinate";
+import {pixelRectToTileRange, tileToChunk} from "./coordinates/world-grid-math";
 import {randomWorldSeed} from "./generation/random-world-seed";
 import type {TerrainGenerationSource} from "./generation/terrain-generation-source";
 import type {ChunkGenerationWorker} from "./generation/chunk/chunk-generation-worker";
 import type {StructureSheetRegistry} from "./rendering/structure-sheet-dispatch";
 import type {ChunkFactory, WorldDependencies} from "./world-dependencies";
-
-/** A rectangular range of chunk coordinates, inclusive of both ends. */
-interface ChunkRange {
-    startChunkX: number;
-    startChunkY: number;
-    endChunkX: number;
-    endChunkY: number;
-}
 
 /** Everything {@link World.drawDebugHud} needs besides the canvas context and camera. */
 interface DebugHudOptions {
@@ -55,9 +59,6 @@ interface DebugHudOptions {
  * memory as they're needed.
  */
 export class World {
-    /** How many extra chunks to keep loaded beyond the camera's visible view, in every direction. */
-    private static readonly CHUNK_BUFFER = 2;
-
     /** Fill colour for the "void" - camera-visible area outside every loaded chunk. */
     private static readonly VOID_COLOR = "#000000";
 
@@ -68,6 +69,7 @@ export class World {
     private readonly structureSheetRegistry: StructureSheetRegistry;
     private readonly chunkSpriteSheets: ChunkSpriteSheets;
     private readonly chunkFactory: ChunkFactory;
+    private readonly worldGrid: DefaultWorldGridView;
 
     /** Total elapsed time on the shared clock animated background tiles (e.g. water) read their phase from - see {@link Tile.draw}. Advanced every {@link update}. */
     private animationElapsedMs = 0;
@@ -161,6 +163,10 @@ export class World {
             this.structureSheetRegistry,
             this.structureCollisionPolygonForSprite.bind(this),
         );
+        this.worldGrid = new DefaultWorldGridView(
+            this.requestChunk.bind(this),
+            (chunkX, chunkY) => this.chunks.get(chunkX, chunkY),
+        );
         this.debugHud = dependencies.debugHud;
         this.minimap = dependencies.minimap;
         this.minimapStatsHud = dependencies.minimapStatsHud;
@@ -230,21 +236,6 @@ export class World {
     }
 
     /**
-     * Converts a world tile position into the coordinate of the chunk that
-     * contains it.
-     *
-     * @param tileX - Tile's X position, in tiles from the world origin.
-     * @param tileY - Tile's Y position, in tiles from the world origin.
-     * @returns The containing chunk's coordinate, in chunk units.
-     */
-    public static tileToChunk(tileX: number, tileY: number): ChunkCoordinate {
-        return {
-            chunkX: Math.floor(tileX / CHUNK_SIZE),
-            chunkY: Math.floor(tileY / CHUNK_SIZE),
-        };
-    }
-
-    /**
      * Returns the chunk at the given chunk coordinate, generating and
      * caching it first if it hasn't been loaded yet.
      *
@@ -252,7 +243,7 @@ export class World {
      * @param chunkY - Chunk's Y coordinate, in chunk units.
      * @returns The loaded chunk.
      */
-    public getChunk(chunkX: number, chunkY: number): Chunk {
+    private requestChunk(chunkX: number, chunkY: number): Chunk {
         let chunk = this.chunks.get(chunkX, chunkY);
         if (!chunk) {
             const generation = this.chunkWorkerClient.requestChunk(chunkX, chunkY);
@@ -325,18 +316,6 @@ export class World {
      */
     public getLatestChunkGenerationTimeMs(): number {
         return this.latestChunkGenerationTimeMs;
-    }
-
-    /**
-     * Whether the chunk at the given chunk coordinate is currently loaded in
-     * memory, without generating it if it isn't.
-     *
-     * @param chunkX - Chunk's X coordinate, in chunk units.
-     * @param chunkY - Chunk's Y coordinate, in chunk units.
-     * @returns `true` if the chunk is loaded.
-     */
-    public isChunkLoaded(chunkX: number, chunkY: number): boolean {
-        return this.chunks.has(chunkX, chunkY);
     }
 
     /**
@@ -419,15 +398,6 @@ export class World {
     }
 
     /**
-     * Whether entities may currently move onto a still-generating chunk.
-     *
-     * @returns `true` if entities aren't constrained to already-generated ground.
-     */
-    public getCanMoveOntoGeneratingChunks(): boolean {
-        return this.canMoveOntoGeneratingChunks;
-    }
-
-    /**
      * Enables/disables movement onto still-generating chunks.
      *
      * @param canMove - Whether entities may move onto a still-generating chunk.
@@ -499,56 +469,21 @@ export class World {
     }
 
     /**
-     * Looks up the tile at the given world tile position, generating its
-     * containing chunk first if necessary.
-     *
-     * @param tileX - Tile's X position, in tiles from the world origin.
-     * @param tileY - Tile's Y position, in tiles from the world origin.
-     * @returns The tile at that position.
-     */
-    public getTile(tileX: number, tileY: number): Tile {
-        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunk = this.getChunk(chunkX, chunkY);
-        return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
-    }
-
-    /** Returns a tile only when its containing chunk is already loaded and ready. */
-    private getReadyTile(tileX: number, tileY: number): Tile | undefined {
-        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunk = this.chunks.get(chunkX, chunkY);
-        if (!chunk?.isReady()) {
-            return undefined;
-        }
-        return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE);
-    }
-
-    /** Returns the structure piece anchored at a world tile position only when its containing chunk is already loaded and ready. */
-    private getReadyStructurePieceAt(tileX: number, tileY: number): StructurePieceInstance | undefined {
-        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunk = this.chunks.get(chunkX, chunkY);
-        if (!chunk?.isReady()) {
-            return undefined;
-        }
-        return chunk.getStructurePieceAt(tileX, tileY);
-    }
-
-    /**
      * Everything the debug hover tooltip (see `HoverTooltip`) shows about the
      * tile at a world tile position - ground/biome/feature, its own
      * collidability, and any structure piece occupying it. Never triggers
-     * generation - see {@link getReadyTile}/{@link getReadyStructurePieceAt} -
-     * since the tooltip only reads from chunks already loaded/rendered.
+     * generation - it reads only from chunks already loaded/rendered.
      *
      * @param tileX - Tile's X position, in tiles from the world origin.
      * @param tileY - Tile's Y position, in tiles from the world origin.
      * @returns The tile's hover info, or `undefined` if its containing chunk isn't ready yet.
      */
     public getTileHoverInfo(tileX: number, tileY: number): TileHoverInfo | undefined {
-        const tile = this.getReadyTile(tileX, tileY);
+        const tile = this.worldGrid.getReadyTile(tileX, tileY);
         if (!tile) {
             return undefined;
         }
-        const piece = this.getReadyStructurePieceAt(tileX, tileY);
+        const piece = this.worldGrid.getReadyStructurePieceAt(tileX, tileY);
         return {
             tileX,
             tileY,
@@ -720,7 +655,7 @@ export class World {
             }
 
             if (foundCount > 0) {
-                return {distance, direction: World.toCompassDirection(sumDx / foundCount, sumDy / foundCount)};
+                return {distance, direction: toCompassDirection(sumDx / foundCount, sumDy / foundCount)};
             }
             if (nextRing.length === 0) {
                 break;
@@ -728,40 +663,6 @@ export class World {
             currentRing = nextRing;
         }
         return undefined;
-    }
-
-    /**
-     * Maps a displacement vector to one of the eight compass directions.
-     * Positive Y is down (screen space), so N is negative Y.
-     *
-     * @param dx - Horizontal displacement.
-     * @param dy - Vertical displacement (positive = south).
-     * @returns One of N, NE, E, SE, S, SW, W, NW.
-     */
-    private static toCompassDirection(dx: number, dy: number): string {
-        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-        const normalized = (angle + 360) % 360;
-        const index = Math.round(normalized / 45) % 8;
-        return ["E", "SE", "S", "SW", "W", "NW", "N", "NE"][index];
-    }
-
-    /**
-     * Looks up the feature tag at the given world tile position, generating
-     * its containing chunk first if necessary. Unlike {@link getTile}, safe
-     * to call on a chunk that's still generating - returns `"none"` instead
-     * of throwing.
-     *
-     * @param tileX - Tile's X position, in tiles from the world origin.
-     * @param tileY - Tile's Y position, in tiles from the world origin.
-     * @returns The feature tag at that position, or `"none"` if the containing chunk isn't ready yet.
-     */
-    private getFeatureTag(tileX: number, tileY: number): FeatureTag {
-        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunk = this.getChunk(chunkX, chunkY);
-        if (!chunk.isReady()) {
-            return "none";
-        }
-        return chunk.getTile(tileX - chunkX * CHUNK_SIZE, tileY - chunkY * CHUNK_SIZE).featureTag;
     }
 
     /**
@@ -777,52 +678,12 @@ export class World {
      * @param h - Rectangle height, in world pixels.
      * @returns The most-represented feature tag among the tiles the rectangle overlaps, breaking ties in favour of whichever qualifying tag is encountered first (reading tiles left-to-right, top-to-bottom).
      */
-    public getDominantFeatureLabel(x: number, y: number, w: number, h: number): string {
-        const startTileX = Math.floor(x / this.tileSize);
-        const startTileY = Math.floor(y / this.tileSize);
-        const endTileX = Math.floor((x + w - 1) / this.tileSize);
-        const endTileY = Math.floor((y + h - 1) / this.tileSize);
+    public getDominantFeatureLabel(x: number, y: number, w: number, h: number): FeatureTag {
+        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(x, y, w, h, this.tileSize);
 
-        const counts = new Map<string, number>();
-        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
-            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const tag = this.getFeatureTag(tileX, tileY);
-                if (tag != 'none') {
-                    counts.set(tag, (counts.get(tag) ?? 0) + 1);
-                }
-            }
-        }
-
-        let dominantLabel = "none";
-        let dominantCount = 0;
-        for (const [label, count] of counts) {
-            if (count > dominantCount) {
-                dominantLabel = label;
-                dominantCount = count;
-            }
-        }
-        return dominantLabel;
-    }
-
-    /**
-     * Looks up the structure sprite(s) at the given world tile position,
-     * generating its containing chunk first if necessary. Safe to call on a
-     * chunk that's still generating - returns `"none"` instead of throwing.
-     * A piece with more than one sprite stacked on it reports them joined with
-     * `", "`, so it still reads as one dominance-grouping tag - see
-     * {@link getDominantStructureLabel}.
-     *
-     * @param tileX - Tile's X position, in tiles from the world origin.
-     * @param tileY - Tile's Y position, in tiles from the world origin.
-     * @returns The structure piece sprite name(s) at that position, or `"none"` if there's no piece there (or the containing chunk isn't ready yet).
-     */
-    private getStructureTag(tileX: number, tileY: number): string {
-        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunk = this.getChunk(chunkX, chunkY);
-        if (!chunk.isReady()) {
-            return "none";
-        }
-        return chunk.getStructurePieceAt(tileX, tileY)?.sprites.join(", ") ?? "none";
+        return dominantNonNoneLabel({startTileX, startTileY, endTileX, endTileY}, (tileX, tileY) =>
+            this.worldGrid.requestFeatureTag(tileX, tileY)
+        );
     }
 
     /**
@@ -836,30 +697,11 @@ export class World {
      * @returns The most-represented structure sprite among the tiles the rectangle overlaps, breaking ties in favour of whichever qualifying sprite is encountered first (reading tiles left-to-right, top-to-bottom).
      */
     public getDominantStructureLabel(x: number, y: number, w: number, h: number): string {
-        const startTileX = Math.floor(x / this.tileSize);
-        const startTileY = Math.floor(y / this.tileSize);
-        const endTileX = Math.floor((x + w - 1) / this.tileSize);
-        const endTileY = Math.floor((y + h - 1) / this.tileSize);
+        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(x, y, w, h, this.tileSize);
 
-        const counts = new Map<string, number>();
-        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
-            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const tag = this.getStructureTag(tileX, tileY);
-                if (tag != 'none') {
-                    counts.set(tag, (counts.get(tag) ?? 0) + 1);
-                }
-            }
-        }
-
-        let dominantLabel = "none";
-        let dominantCount = 0;
-        for (const [label, count] of counts) {
-            if (count > dominantCount) {
-                dominantLabel = label;
-                dominantCount = count;
-            }
-        }
-        return dominantLabel;
+        return dominantNonNoneLabel({startTileX, startTileY, endTileX, endTileY}, (tileX, tileY) =>
+            this.worldGrid.requestStructureTag(tileX, tileY)
+        );
     }
 
     /**
@@ -1011,14 +853,11 @@ export class World {
      */
     private handleEntityCollisions(entity: MovableEntity, previousPosition: Vector2d): void {
         const rect = entity.getBoundingRect();
-        const startTileX = Math.floor(rect.x / this.tileSize);
-        const startTileY = Math.floor(rect.y / this.tileSize);
-        const endTileX = Math.floor((rect.x + rect.w - 1) / this.tileSize);
-        const endTileY = Math.floor((rect.y + rect.h - 1) / this.tileSize);
+        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(rect.x, rect.y, rect.w, rect.h, this.tileSize);
 
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const tile = this.getReadyTile(tileX, tileY);
+                const tile = this.worldGrid.getReadyTile(tileX, tileY);
                 const tileCollision = tile?.getCollision(tileX, tileY, this.tileSize);
                 if (tile && tileCollision) {
                     if (this.resolveObstacleCollision(entity, previousPosition, tileCollision.polygon, tileCollision.response, "tile", tile.groundType, tileX, tileY, undefined)) {
@@ -1026,7 +865,7 @@ export class World {
                     }
                 }
 
-                const piece = this.getReadyStructurePieceAt(tileX, tileY);
+                const piece = this.worldGrid.getReadyStructurePieceAt(tileX, tileY);
                 if (piece && piece.collision !== "none") {
                     const piecePolygon = this.structurePiecePolygon(piece, tileX, tileY);
                     const structure = this.findStructure(piece.structureId);
@@ -1171,7 +1010,7 @@ export class World {
 
     /**
      * Re-sorts the worker's still-queued (not yet started) chunk requests by
-     * {@link getChunkGenerationPriority}, but only once `focus` has moved
+     * {@link chunkGenerationPriority}, but only once `focus` has moved
      * into a different chunk since the last call - the relative priority
      * order only changes meaningfully then, so there's no need to re-sort
      * every tick.
@@ -1181,59 +1020,31 @@ export class World {
     private reorderChunkGenerationQueueIfFocusMoved(focus: Vector2d): void {
         const tileX = Math.floor(focus.x / this.tileSize);
         const tileY = Math.floor(focus.y / this.tileSize);
-        const chunk = World.tileToChunk(tileX, tileY);
+        const chunk = tileToChunk(tileX, tileY);
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
 
         if (this.lastChunkGenerationFocusChunk && this.lastChunkGenerationFocusChunk.chunkX === chunk.chunkX && this.lastChunkGenerationFocusChunk.chunkY === chunk.chunkY) {
             return;
         }
         this.lastChunkGenerationFocusChunk = chunk;
 
-        const order = [...this.chunkWorkerClient.getPendingChunks()].sort((a, b) => this.getChunkGenerationPriority(a, focus) - this.getChunkGenerationPriority(b, focus));
+        const order = [...this.chunkWorkerClient.getPendingChunks()].sort((a, b) =>
+            chunkGenerationPriority(a, focus.x, focus.y, chunkPixelSize)
+            - chunkGenerationPriority(b, focus.x, focus.y, chunkPixelSize)
+        );
         this.chunkWorkerClient.reorderPending(order);
     }
 
     /**
-     * The range of chunk coordinates that overlap the camera's view.
-     *
-     * @param camera - Camera to compute the visible chunk range for.
-     * @returns The visible chunk range.
-     */
-    private getVisibleChunkRange(camera: Camera): ChunkRange {
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        return {
-            startChunkX: Math.floor(camera.getViewX() / chunkPixelSize),
-            startChunkY: Math.floor(camera.getViewY() / chunkPixelSize),
-            endChunkX: Math.floor((camera.getViewX() + camera.getWidth()) / chunkPixelSize),
-            endChunkY: Math.floor((camera.getViewY() + camera.getHeight()) / chunkPixelSize),
-        };
-    }
-
-    /**
-     * How urgently a chunk should be generated: lower comes first. Manhattan
-     * distance from `focus`, in chunk units - chunks radiate outward from
-     * `focus` as a diamond, equally in every direction.
-     *
-     * @param coordinate - Chunk coordinate to prioritise.
-     * @param focus - World-pixel point to prioritise around - see {@link getChunkGenerationFocus}.
-     * @returns The priority (lower is more urgent).
-     */
-    private getChunkGenerationPriority(coordinate: ChunkCoordinate, focus: Vector2d): number {
-        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const dx = (coordinate.chunkX + 0.5) - focus.x / chunkPixelSize;
-        const dy = (coordinate.chunkY + 0.5) - focus.y / chunkPixelSize;
-        return Math.abs(dx) + Math.abs(dy);
-    }
-
-    /**
      * Generates/loads every chunk within the camera's view plus a buffer of
-     * {@link CHUNK_BUFFER} chunks, then unloads any loaded chunk that's
+     * {@link DEFAULT_CHUNK_BUFFER} chunks, then unloads any loaded chunk that's
      * drifted further than that buffer outside the view. Keeps memory
      * bounded as the camera pans, while still keeping a margin of chunks
      * pre-generated just outside the visible area. A no-op while
      * {@link generationEnabled} is off, freezing the currently loaded chunks
      * as "the map" instead of streaming more in/out.
      *
-     * Not-yet-loaded chunks are requested in {@link getChunkGenerationPriority}
+     * Not-yet-loaded chunks are requested in {@link chunkGenerationPriority}
      * order. Chunks already queued keep their existing position in the
      * worker's queue.
      *
@@ -1245,30 +1056,21 @@ export class World {
             return;
         }
 
-        const visible = this.getVisibleChunkRange(camera);
-        const bufferedStartX = visible.startChunkX - World.CHUNK_BUFFER;
-        const bufferedStartY = visible.startChunkY - World.CHUNK_BUFFER;
-        const bufferedEndX = visible.endChunkX + World.CHUNK_BUFFER;
-        const bufferedEndY = visible.endChunkY + World.CHUNK_BUFFER;
+        const chunkPixelSize = CHUNK_SIZE * this.tileSize;
+        const visible = visibleChunkRange(camera.getViewX(), camera.getViewY(), camera.getWidth(), camera.getHeight(), chunkPixelSize);
+        const buffered = bufferChunkRange(visible, DEFAULT_CHUNK_BUFFER);
+        const pending = [...coordinatesInRange(buffered)].filter(({chunkX, chunkY}) => !this.worldGrid.isChunkLoaded(chunkX, chunkY));
 
-        const pending: ChunkCoordinate[] = [];
-        for (let chunkY = bufferedStartY; chunkY <= bufferedEndY; chunkY++) {
-            for (let chunkX = bufferedStartX; chunkX <= bufferedEndX; chunkX++) {
-                if (!this.isChunkLoaded(chunkX, chunkY)) {
-                    pending.push({chunkX, chunkY});
-                }
-            }
-        }
-
-        pending.sort((a, b) => this.getChunkGenerationPriority(a, focus) - this.getChunkGenerationPriority(b, focus));
+        pending.sort((a, b) =>
+            chunkGenerationPriority(a, focus.x, focus.y, chunkPixelSize)
+            - chunkGenerationPriority(b, focus.x, focus.y, chunkPixelSize)
+        );
         for (const {chunkX, chunkY} of pending) {
-            this.getChunk(chunkX, chunkY);
+            this.worldGrid.requestChunk(chunkX, chunkY);
         }
 
         for (const chunk of this.chunks.values()) {
-            const outsideBuffer = chunk.chunkX < bufferedStartX || chunk.chunkX > bufferedEndX
-                || chunk.chunkY < bufferedStartY || chunk.chunkY > bufferedEndY;
-            if (outsideBuffer) {
+            if (isOutsideChunkRange(chunk.chunkX, chunk.chunkY, buffered)) {
                 this.unloadChunk(chunk.chunkX, chunk.chunkY);
             }
         }
@@ -1285,6 +1087,7 @@ export class World {
      * @param bordersEnabled - Whether to also draw chunk/tile/biome/feature/structure border outlines. Defaults to `false`.
      * @param hitboxesEnabled - Whether to also draw entity bounding boxes/facing arrows. Defaults to `false`.
      * @param spectating - Whether spectator mode is currently active, shown as an indicator in the debug HUD. Defaults to `false`.
+     * @param spectatorVelocity - Camera pan velocity while spectating; ignored otherwise.
      * @param actualFps - Currently measured rendering FPS, shown in the debug HUD. Defaults to `0`.
      * @param targetFps - Configured FPS cap, shown alongside `actualFps` in the debug HUD, or `undefined` when uncapped.
      * @param noiseFieldName - Name of a registered `NoiseField` to render as a heatmap (with a colour-scale key) over the visible area, or `undefined` for none. Only drawn while `debugEnabled`.
@@ -1304,7 +1107,7 @@ export class World {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = visibleChunkRange(viewX, viewY, camera.getWidth(), camera.getHeight(), chunkPixelSize);
 
         ctx.save();
         ctx.scale(camera.getZoom(), camera.getZoom());
@@ -1316,13 +1119,13 @@ export class World {
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
 
-                if (!this.generationEnabled && !this.isChunkLoaded(chunkX, chunkY)) {
+                if (!this.generationEnabled && !this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
                     ctx.fillStyle = World.VOID_COLOR;
                     ctx.fillRect(originX, originY, chunkPixelSize, chunkPixelSize);
                     continue;
                 }
 
-                const chunk = this.getChunk(chunkX, chunkY);
+                const chunk = this.worldGrid.requestChunk(chunkX, chunkY);
                 chunk.draw(ctx, originX, originY, this.tileSize, this.animationElapsedMs);
                 this.lastVisibleChunkCount++;
             }
@@ -1455,16 +1258,16 @@ export class World {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = visibleChunkRange(viewX, viewY, camera.getWidth(), camera.getHeight(), chunkPixelSize);
 
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                if (!this.isChunkLoaded(chunkX, chunkY)) {
+                if (!this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
                     continue;
                 }
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
-                this.getChunk(chunkX, chunkY).drawProps(ctx, originX, originY, this.tileSize);
+                this.worldGrid.requestChunk(chunkX, chunkY).drawProps(ctx, originX, originY, this.tileSize);
             }
         }
     }
@@ -1484,16 +1287,16 @@ export class World {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = visibleChunkRange(viewX, viewY, camera.getWidth(), camera.getHeight(), chunkPixelSize);
 
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                if (!this.isChunkLoaded(chunkX, chunkY)) {
+                if (!this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
                     continue;
                 }
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
-                const chunk = this.getChunk(chunkX, chunkY);
+                const chunk = this.worldGrid.requestChunk(chunkX, chunkY);
                 const queuePosition = chunk.isReady() ? undefined : this.chunkWorkerClient.getQueuePosition(chunkX, chunkY);
                 chunk.drawDebug(ctx, originX, originY, this.tileSize, queuePosition);
             }
@@ -1504,10 +1307,7 @@ export class World {
     private drawBiomeOutlines(ctx: CanvasRenderingContext2D, camera: Camera): void {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
-        const startTileX = Math.floor(viewX / this.tileSize);
-        const startTileY = Math.floor(viewY / this.tileSize);
-        const endTileX = Math.floor((viewX + camera.getWidth() - 1) / this.tileSize);
-        const endTileY = Math.floor((viewY + camera.getHeight() - 1) / this.tileSize);
+        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(viewX, viewY, camera.getWidth(), camera.getHeight(), this.tileSize);
 
         ctx.strokeStyle = DEBUG_CONFIG.biomeOutlineColor;
         ctx.lineWidth = DEBUG_CONFIG.biomeOutlineWidth;
@@ -1516,7 +1316,7 @@ export class World {
 
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-                const tile = this.getReadyTile(tileX, tileY);
+                const tile = this.worldGrid.getReadyTile(tileX, tileY);
                 if (!tile) {
                     continue;
                 }
@@ -1525,14 +1325,14 @@ export class World {
                 const top = tileY * this.tileSize - viewY;
                 const right = left + this.tileSize;
                 const bottom = top + this.tileSize;
-                const rightTile = this.getReadyTile(tileX + 1, tileY);
+                const rightTile = this.worldGrid.getReadyTile(tileX + 1, tileY);
                 if (rightTile && rightTile.biomeTag !== tile.biomeTag) {
                     ctx.moveTo(right, top);
                     ctx.lineTo(right, bottom);
                     hasBoundary = true;
                 }
 
-                const bottomTile = this.getReadyTile(tileX, tileY + 1);
+                const bottomTile = this.worldGrid.getReadyTile(tileX, tileY + 1);
                 if (bottomTile && bottomTile.biomeTag !== tile.biomeTag) {
                     ctx.moveTo(left, bottom);
                     ctx.lineTo(right, bottom);
@@ -1586,16 +1386,16 @@ export class World {
         const viewX = camera.getViewX();
         const viewY = camera.getViewY();
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
-        const {startChunkX, startChunkY, endChunkX, endChunkY} = this.getVisibleChunkRange(camera);
+        const {startChunkX, startChunkY, endChunkX, endChunkY} = visibleChunkRange(viewX, viewY, camera.getWidth(), camera.getHeight(), chunkPixelSize);
 
         for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
             for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
-                if (!this.isChunkLoaded(chunkX, chunkY)) {
+                if (!this.worldGrid.isChunkLoaded(chunkX, chunkY)) {
                     continue;
                 }
                 const originX = chunkX * chunkPixelSize - viewX;
                 const originY = chunkY * chunkPixelSize - viewY;
-                this.getChunk(chunkX, chunkY).drawNoiseOverlay(ctx, originX, originY, this.tileSize, field, gradient);
+                this.worldGrid.requestChunk(chunkX, chunkY).drawNoiseOverlay(ctx, originX, originY, this.tileSize, field, gradient);
             }
         }
     }
@@ -1729,17 +1529,17 @@ export class World {
         const speed = Math.hypot(velocity.x, velocity.y);
         const tileX = Math.floor(position.x / this.tileSize);
         const tileY = Math.floor(position.y / this.tileSize);
-        const {chunkX, chunkY} = World.tileToChunk(tileX, tileY);
-        const chunk = this.getChunk(chunkX, chunkY);
+        const {chunkX, chunkY} = tileToChunk(tileX, tileY);
+        const chunk = this.worldGrid.requestChunk(chunkX, chunkY);
         const chunkBiome = chunk.isReady() ? chunk.biomeSummary : "generating...";
         const chunkCacheState = chunk.isReady() ? chunk.getCacheState() : "pending";
         const biomeRegion = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"
             ? this.getBiomeRegionSize(chunkX, chunkY, chunk.biomeSummary)
             : undefined;
-        const exactFeature = this.getFeatureTag(tileX, tileY);
+        const exactFeature = this.worldGrid.requestFeatureTag(tileX, tileY);
         const rect = mainEntity.getBoundingRect();
         const nearbyFeature = this.getDominantFeatureLabel(rect.x, rect.y, rect.w, rect.h);
-        const exactStructure = this.getStructureTag(tileX, tileY);
+        const exactStructure = this.worldGrid.requestStructureTag(tileX, tileY);
         const nearbyStructure = this.getDominantStructureLabel(rect.x, rect.y, rect.w, rect.h);
 
         const distanceToBiomeEdge = chunk.isReady() && chunk.biomeSummary !== "" && chunk.biomeSummary !== "mixed"

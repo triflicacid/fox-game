@@ -51,9 +51,26 @@ describe("World construction", () => {
         const chunkFactory = vi.fn(() => chunk);
         const dependencies = createTestWorldDependencies(1, {chunkWorkerClient: worker, chunkFactory});
         const world = new World(16, dependencies);
+        const camera = new Camera(new Vector2d(1023, -257), 1, 1);
+        world.setMinimapEnabled(false);
 
-        expect(world.getChunk(3, -2)).toBe(chunk);
-        expect(world.getChunk(3, -2)).toBe(chunk);
+        world.draw({
+            canvas: {width: 1, height: 1},
+            save: () => undefined,
+            restore: () => undefined,
+            scale: () => undefined,
+            fillRect: () => undefined,
+            drawImage: () => undefined,
+        } as unknown as CanvasRenderingContext2D, camera);
+        world.draw({
+            canvas: {width: 1, height: 1},
+            save: () => undefined,
+            restore: () => undefined,
+            scale: () => undefined,
+            fillRect: () => undefined,
+            drawImage: () => undefined,
+        } as unknown as CanvasRenderingContext2D, camera);
+
         expect(request).toHaveBeenCalledOnce();
         expect(request).toHaveBeenCalledWith(3, -2);
         expect(chunkFactory).toHaveBeenCalledOnce();
@@ -67,7 +84,15 @@ describe("World seed", () => {
         const worker = new TestChunkGenerationWorker(10);
         const dependencies = createTestWorldDependencies(10, {chunkGenerator: generator, chunkWorkerClient: worker});
         const world = new World(16, dependencies);
-        world.getChunk(0, 0);
+        world.setMinimapEnabled(false);
+        world.draw({
+            canvas: {width: 1, height: 1},
+            save: () => undefined,
+            restore: () => undefined,
+            scale: () => undefined,
+            fillRect: () => undefined,
+            drawImage: () => undefined,
+        } as unknown as CanvasRenderingContext2D, new Camera(new Vector2d(8, 8), 1, 1));
 
         world.setWorldSeed(99);
 
@@ -126,19 +151,6 @@ describe("World update orchestration", () => {
     });
 });
 
-describe("World.tileToChunk", () => {
-    it.each([
-        [-1, -1, -1, -1],
-        [-16, -16, -1, -1],
-        [-17, -17, -2, -2],
-        [0, 0, 0, 0],
-        [15, 15, 0, 0],
-        [16, 16, 1, 1],
-    ])("maps tile (%i, %i) to chunk (%i, %i)", (tileX, tileY, chunkX, chunkY) => {
-        expect(World.tileToChunk(tileX, tileY)).toEqual({chunkX, chunkY});
-    });
-});
-
 describe("World dominant labels", () => {
     it("breaks equal counts in favor of the first tile encountered", () => {
         const world = new World(16, createTestWorldDependencies(1, {
@@ -156,6 +168,10 @@ describe("World dominant labels", () => {
         expect(world.getDominantStructureLabel(0, 0, 32, 16)).toBe("first structure");
     });
 });
+
+
+
+
 
 
 

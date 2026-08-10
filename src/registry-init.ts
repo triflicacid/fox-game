@@ -3,7 +3,7 @@ import {CameraFollowMode} from "./entities/movement-controller";
 import {fieldRegistry, integerRange, nonNegativeInteger} from "./fields/field-registry";
 import {EntityLookupHandler} from "./entities/entity-lookup-handler";
 import {keyboard} from './input/keyboard-instance';
-import {pixelToTile, tileToPixel} from "./world/coordinates/tile-coordinates";
+import {pixelToTile, tileToPixel} from "./world/coordinates/world-grid-math";
 
 /**
  * Registers per-instance tunable fields that only exist once
