@@ -7,6 +7,7 @@ import {KeyBinding} from "../help/key-binding";
 import {DashEffectRequest} from "../effects/dash-effect";
 import {FOX_CONSTANTS} from './fox-constants';
 import type {DashableEntity} from './dashable-entity';
+import type {SwimmableEntity} from './swimmable-entity';
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -19,7 +20,7 @@ const CURL_ART_FACING: CompassDirection = "NW";
 const CURL_ART_ANGLE = Vector2d.fromDirection(CURL_ART_FACING).angleRadians();
 
 /** The fox entity: a {@link MovableEntity} that can be driven around by a {@link MovementController}. */
-export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements DashableEntity {
+export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements DashableEntity, SwimmableEntity {
     /**
      * Same sheet instance as the base class's `spriteSheet` field, kept here
      * too so {@link locateFrameForFacing} can reach `FoxSpriteSheet`-specific
@@ -107,6 +108,15 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
 
     override canDash(): this is DashableEntity {
         return true;
+    }
+
+    public override canSwim(): this is SwimmableEntity {
+        return true;
+    }
+
+    // TODO
+    public isSwimming(): boolean {
+        return false;
     }
 
     /**

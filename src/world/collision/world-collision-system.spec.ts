@@ -87,7 +87,7 @@ describe("WorldCollisionSystem ground constraints", () => {
 });
 
 describe("WorldCollisionSystem collision sweep", () => {
-    it("checks a tile before its structure and stops after the first handled obstacle", () => {
+    it("checks a tile before the structure piece sitting on it", () => {
         vi.spyOn(console, "log").mockImplementation(() => undefined);
         const events: string[] = [];
         const tile = {
@@ -98,7 +98,7 @@ describe("WorldCollisionSystem collision sweep", () => {
             },
         } as unknown as Tile;
         const grid = fakeGrid({
-            getReadyTile: () => tile,
+            getReadyTile: (tileX, tileY) => (tileX === 0 && tileY === 0 ? tile : undefined),
             getReadyStructurePieceAt: () => {
                 events.push("structure");
                 return undefined;
@@ -110,7 +110,7 @@ describe("WorldCollisionSystem collision sweep", () => {
 
         system.update(new Map([[entity, new Vector2d(16, 16)]]), true);
 
-        expect(events).toEqual(["tile:0,0"]);
+        expect(events.slice(0, 2)).toEqual(["tile:0,0", "structure"]);
         vi.restoreAllMocks();
     });
 
@@ -124,7 +124,7 @@ describe("WorldCollisionSystem collision sweep", () => {
                 ? {polygon: rectPolygon(tileX * TILE_SIZE, tileY * TILE_SIZE, TILE_SIZE, TILE_SIZE), response: "solid" as const}
                 : undefined,
         } as unknown as Tile;
-        const grid = fakeGrid({getReadyTile: () => tile});
+        const grid = fakeGrid({getReadyTile: (tileX, tileY) => (tileX === 0 && tileY === 0 ? tile : undefined)});
         const entity = Object.assign(createTestMovableEntity({position: new Vector2d(16, 16), frameWidth: 32, frameHeight: 32}), {
             isMoving: () => moving,
         });

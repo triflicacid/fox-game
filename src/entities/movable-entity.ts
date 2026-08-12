@@ -7,6 +7,7 @@ import {DEBUG_CONFIG} from "../debug/debug-config";
 import {KeyBinding} from "../help/key-binding";
 import {drawArrow} from "../geometry/arrow";
 import type {DashableEntity} from './dashable-entity';
+import type {SwimmableEntity} from './swimmable-entity';
 
 /**
  * An {@link Entity} that can move: it has a facing direction and a
@@ -218,6 +219,13 @@ export abstract class MovableEntity<TSpriteType extends string = string, TStatus
      * Can this entity dash? If yes, we extend a {@link DashableEntity}.
      */
     public canDash(): this is DashableEntity {
+        return false;
+    }
+
+    /**
+     * Can this entity swim? If yes, we extend a {@link SwimmableEntity}.
+     */
+    public canSwim(): this is SwimmableEntity {
         return false;
     }
 }
