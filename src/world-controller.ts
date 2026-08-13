@@ -9,6 +9,7 @@ import {Fox} from "./entities/fox";
 import {DashEffect, DashEffectRequest} from "./effects/dash-effect";
 import {Vector2d} from "./geometry/vector2d";
 import {DebugController} from "./debug/debug-controller";
+import {MinimapController} from "./minimap/minimap-controller";
 import {HoverTooltip} from "./debug/hover-tooltip";
 import {FrameLoopController} from "@frames";
 import {requireNonNull} from "./util";
@@ -40,6 +41,7 @@ export class WorldController {
     private readonly cameraZoomController: CameraZoomController;
     private readonly movementController: MovementController;
     private readonly debugController: DebugController;
+    private readonly minimapController: MinimapController;
     private readonly hoverTooltip: HoverTooltip;
     private readonly helpController: HelpController;
     private readonly settingsController: SettingsController;
@@ -94,6 +96,11 @@ export class WorldController {
                 this.world.teleportMainEntityTo(this.camera.getCenter());
             },
             () => this.movementController.isSpectating(),
+        );
+        this.minimapController = new MinimapController(
+            keyboard,
+            () => this.world.getMinimapEnabled(),
+            (enabled) => this.world.setMinimapEnabled(enabled),
         );
         this.helpController = new HelpController(keyboard, this.handlePopupOpenChange, () => this.getKeyBindings());
         this.settingsController = new SettingsController(
@@ -328,6 +335,7 @@ export class WorldController {
             ...this.cameraZoomController.getKeyBindings(),
             ...this.movementController.getKeyBindings(),
             ...this.debugController.getKeyBindings(),
+            ...this.minimapController.getKeyBindings(),
             ...this.keyBindingPopupControllers.flatMap((source) => source.getKeyBindings()),
             ...(this.world.getMainEntity().getKeyBindings?.() ?? []),
         ];
