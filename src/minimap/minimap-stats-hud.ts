@@ -75,7 +75,7 @@ export class MinimapStatsHud extends HudBase implements MinimapStatsHudRenderer 
 
         return [
             line()
-                .content(this.text("showing ("))
+                .content(this.text("("))
                 .content(this.numberValue(data.minTileX.toFixed(0)))
                 .content(this.text(", "))
                 .content(this.numberValue(data.minTileY.toFixed(0)))
