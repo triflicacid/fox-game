@@ -2,6 +2,7 @@ import type {ReadonlyEntityCollection} from "../../entities/entity-collection";
 import {MovableEntity} from "../../entities/movable-entity";
 import {CollisionResponseKind} from "../../geometry/collision-response";
 import {ConvexPolygon, convexPolygonsIntersect, polygonBoundingRect, rectPolygon} from "../../geometry/convex-polygon";
+import {rectIntersectionArea} from "../../geometry/rect";
 import {Vector2d} from "../../geometry/vector2d";
 import type {BackgroundTileType} from "../../sprites/background-tile-sprite-sheet";
 import type {SpriteFrame} from "../../sprites/sprite";
@@ -35,6 +36,13 @@ type SweepOutcome = "clear" | "pushed" | "handled";
  * The cap stops a hull wedged in a concave corner from ping-ponging forever.
  */
 const MAX_PUSH_PASSES = 4;
+
+/**
+ * Fraction of a swim-capable entity's hull (by bounding-rect area) that must
+ * sit over water before {@link WorldCollisionSystem.updateSwimState} counts
+ * it as swimming.
+ */
+const SWIM_COVERAGE_THRESHOLD = 0.75;
 
 // Note: only supports `MovableEntity` for colisison etc. Will need to expand later.
 
@@ -152,22 +160,9 @@ export class WorldCollisionSystem {
         };
     }
 
-    /**
-     * Whether `groundType` is water `entity` isn't currently allowed onto, and
-     * so should be blocked by {@link tileObstacle} as if it were solid ground.
-     * Every entity is kept off water for now, even a `SwimmableEntity` one -
-     * swim movement itself isn't implemented yet.
-     *
-     * TODO: once swim movement exists, let a `SwimmableEntity` (`entity.canSwim()`) onto water instead of blocking it here too.
-     */
+    /** Whether the entity is over water and cannot swim. */
     private isWaterOffLimits(entity: MovableEntity, groundType: BackgroundTileType): boolean {
-        if (!groundType.startsWith("water.")) {
-            return false;
-        }
-        if (entity.canSwim()) {
-            console.log(`${entity.getDisplayName()} can swim but water is still blocked pending swim movement support`);
-        }
-        return true;
+        return groundType.startsWith("water.") && !entity.canSwim();
     }
 
     /**
@@ -219,7 +214,38 @@ export class WorldCollisionSystem {
                 this.lastCollision = undefined;
             }
             this.resolveEntityCollisions(entity, previousPosition);
+            this.updateSwimState(entity);
         }
+    }
+
+    /**
+     * Updates a `SwimmableEntity`'s `isSwimming` flag for this tick: `true`
+     * once at least {@link SWIM_COVERAGE_THRESHOLD} of its hull's bounding
+     * rect sits over water.
+     */
+    private updateSwimState(entity: MovableEntity): void {
+        if (!entity.canSwim()) {
+            return;
+        }
+        const rect = polygonBoundingRect(entity.getCollisionPolygon());
+        const totalArea = rect.w * rect.h;
+        if (totalArea <= 0) {
+            entity.setSwimming(false);
+            return;
+        }
+
+        const {startTileX, startTileY, endTileX, endTileY} = this.polygonTileRange(entity.getCollisionPolygon());
+        let waterArea = 0;
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                const tile = this.worldGrid.getReadyTile(tileX, tileY);
+                if (!tile?.groundType.startsWith("water.")) {
+                    continue;
+                }
+                waterArea += rectIntersectionArea(rect, {x: tileX * this.tileSize, y: tileY * this.tileSize, w: this.tileSize, h: this.tileSize});
+            }
+        }
+        entity.setSwimming(waterArea / totalArea > SWIM_COVERAGE_THRESHOLD);
     }
 
     /**

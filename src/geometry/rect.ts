@@ -27,3 +27,17 @@ export function rectsEqual(a: Rect, b: Rect): boolean {
     return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
 
+/**
+ * The area, in square pixels, where `a` and `b` overlap - `0` if they don't
+ * touch at all.
+ *
+ * @param a - First rect.
+ * @param b - Second rect.
+ * @returns Overlap area.
+ */
+export function rectIntersectionArea(a: Rect, b: Rect): number {
+    const overlapW = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+    const overlapH = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    return overlapW * overlapH;
+}
+

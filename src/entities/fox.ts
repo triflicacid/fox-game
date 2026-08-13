@@ -58,6 +58,9 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
     /** Milliseconds left before another dash may start, counted down once the previous one ends. */
     private dashCooldownRemainingMs = 0;
 
+    /** Whether the fox is currently over water. */
+    private swimming = false;
+
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
         super(spriteSheet, "idle", INITIAL_FACING, spriteSheet.locateIdleSprite(INITIAL_FACING), FOX_CONSTANTS.walkFrameMs);
@@ -114,9 +117,19 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
         return true;
     }
 
-    // TODO
     public isSwimming(): boolean {
-        return false;
+        return this.swimming;
+    }
+
+    public setSwimming(swimming: boolean): void {
+        if (swimming === this.swimming) {
+            return;
+        }
+        this.swimming = swimming;
+        if (this.isRestState() || this.status === "dashing") {
+            return;
+        }
+        this.setCurrentFrame(this.locateFrameForFacing(this.facing, this.isMoving()));
     }
 
     /**
@@ -183,10 +196,14 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
      */
     protected override shouldAnimateWhileStationary(): boolean {
         return this.status === "curling" || this.status === "uncurling" || this.status === "sleepTurning"
-            || this.status === "dashing";
+            || this.status === "dashing" || this.isSwimming();
     }
 
     protected override locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame {
+        if (this.isSwimming()) {
+            // TODO idle paddling water sprite
+            return this.foxSpriteSheet.locateSprite(`swim${direction}`);
+        }
         return moving ? this.foxSpriteSheet.locateSprite(direction) : this.foxSpriteSheet.locateIdleSprite(direction);
     }
 
