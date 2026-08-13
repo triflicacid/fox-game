@@ -175,9 +175,8 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
     }
 
     public override getSpeed(): number {
-        return this.running
-            ? FOX_CONSTANTS.speed * FOX_CONSTANTS.runMultiplier
-            : FOX_CONSTANTS.speed;
+        const speed = this.isSwimming() ? FOX_CONSTANTS.speed * FOX_CONSTANTS.swim.speedMultiplier : FOX_CONSTANTS.speed;
+        return this.running ? speed * FOX_CONSTANTS.runMultiplier : speed;
     }
 
     /**
