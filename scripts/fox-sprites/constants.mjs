@@ -120,6 +120,36 @@ const LEAP_STRETCH = {
 // the cell edge
 const LEAP_EXTENT_PADDING = 1;
 
+// swimming: only the head, upper back and tail float above the waterline, so
+// the body reads shorter and narrower than the standing pose
+const SWIM_HEAD_DIST = 7;
+
+// how far a front paw sweeps fore/aft on the stride wave as it paddles, and
+// how far it splays out from the body on the forward reach. Both paws keep a
+// fixed radius and stay clear of the body all cycle: shrinking one to sink it
+// only makes the rasterised blob flicker between shapes
+const SWIM_PAW_REACH = 1.8;
+const SWIM_PAW_SPLAY = 0.5;
+
+// cycle time, in [0, 1), at which each paw punches back into the water: the
+// stride wave's downward zero crossing, which its splash expands from
+const SWIM_SPLASH_ENTRY_A = 0.5;
+const SWIM_SPLASH_ENTRY_B = 0;
+
+// the droplets one paw's water entry throws: angle in degrees off the spray
+// direction, with size and drift scales that keep the spray from reading as a
+// tidy arc
+const SWIM_SPLASH_DROPLETS = [
+    { deg: -14, size: 1, drift: 0.55 },
+    { deg: 20, size: 0.6, drift: 1.15 },
+];
+
+// droplets are stamped as whole cells so they stay square instead of
+// rasterising into ragged half-cell fragments: a droplet covers a 2x2 block
+// while its remaining life is above `double`, a single cell down to `single`,
+// and nothing below that
+const SWIM_SPLASH_CELLS = { double: 0.72, single: 0.3 };
+
 // fraction of the tail's base-to-tip length, in [0, 1], where the cyan tip
 // accent starts blending in; below this the tail stays plain orange.
 const DASH_TAIL_FADE_START = 0.1;
@@ -167,6 +197,32 @@ export const constants = {
         nose: { dist: STAND_HEAD_DIST + 3.0, r: 0.65 },
         leg: { forward: STAND_LEG_FORWARD, side: STAND_LEG_SIDE, r: STAND_LEG_R, stride: 1.2 },
         tail: { base: STAND_TAIL_BASE, tip: STAND_TAIL_TIP, r: 1.6, tipR: 2.0, sway: 2 },
+    },
+
+    swim: {
+        body: { a: 5.6, b: 2.6 },
+        head: { dist: SWIM_HEAD_DIST, r: 2.4 },
+        ear: { back: 1.2, spread: 1.5, r: 0.95 },
+        snout: { dist: SWIM_HEAD_DIST + 1.6, r: 1.1 },
+        nose: { dist: SWIM_HEAD_DIST + 2.7, r: 0.6 },
+        paw: {
+            forward: 2.6,
+            side: 3.4,
+            r: 1.5,
+            reach: SWIM_PAW_REACH,
+            splay: SWIM_PAW_SPLAY,
+        },
+        tail: { base: 4.6, tip: 8, r: 1.3, tipR: 1.5, sway: 1.8 },
+        // bob amplitudes, applied twice per paddle cycle: a fraction of the
+        // body's size, and grid units of head reach
+        bob: { body: 0.06, head: 0.3 },
+        splash: {
+            entry: { a: SWIM_SPLASH_ENTRY_A, b: SWIM_SPLASH_ENTRY_B },
+            drift: { near: 2.2, far: 4.2 }, // how far from the paw a droplet sits over its life
+            backTilt: 28,                   // degrees the spray leans back from straight out
+            droplets: SWIM_SPLASH_DROPLETS,
+            cells: SWIM_SPLASH_CELLS,
+        },
     },
 
     curl: {

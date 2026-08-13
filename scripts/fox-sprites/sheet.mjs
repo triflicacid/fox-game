@@ -6,11 +6,19 @@ import { buildCurlFrame } from "./curl.mjs";
 import { buildUncurlFrame } from "./uncurl.mjs";
 import { buildSleepTurnFrame } from "./sleep-turn.mjs";
 import { buildLeapFrame, getLeapCanvasSize } from "./leap.mjs";
+import { buildSwimFrame } from "./swim.mjs";
 
 const { grid: GRID, block: BLOCK, cellPx: CELL_PX, phases: PHASES } = constants;
 const DIR_ORDER = constants.dirs.order;
 
-export const ROWS = [...DIR_ORDER, ...DIR_ORDER.map((dirName) => `DASH_${dirName}`), "CURL", "UNCURL", "SLEEPTURN"];
+export const ROWS = [
+    ...DIR_ORDER,
+    ...DIR_ORDER.map((dirName) => `DASH_${dirName}`),
+    ...DIR_ORDER.map((dirName) => `SWIM_${dirName}`),
+    "CURL",
+    "UNCURL",
+    "SLEEPTURN",
+];
 
 // NW-facing one-shot/looping rows: no idle column. "curl"/"uncurl" are
 // one-shot transitions (see SpriteFrame.loops), "sleepTurn" loops since it
@@ -23,8 +31,9 @@ const CURL_FAMILY_ROWS = [
 
 /**
  * builds the full fox sprite sheet: the 8 direction walk-cycle rows (each
- * with a leading idle column), the 8 per-direction dash rows, then the
- * curl-family rows, plus a `SpriteSheetDescriptor`-shaped json descriptor for
+ * with a leading idle column), the 8 per-direction dash rows, the 8
+ * per-direction swim rows, then the curl-family rows, plus a
+ * `SpriteSheetDescriptor`-shaped json descriptor for
  * each row's layout and collision bounds. Rows are stacked with a running Y
  * cursor rather than a fixed per-row height, since the dash rows use a
  * larger cell size than the rest (the leap's stretched tail doesn't fit the
@@ -47,8 +56,9 @@ export function buildSheet() {
     const dashRowWidth = Math.max(...dashRowSizes.map((size) => size.width * PHASES));
     const curlRowWidth = CELL_PX * PHASES;
     const sheetW = Math.max(movementRowWidth, dashRowWidth, curlRowWidth);
-    const sheetH = CELL_PX * DIR_ORDER.length
+    const sheetH = CELL_PX * DIR_ORDER.length // walk rows
         + dashRowSizes.reduce((sum, size) => sum + size.height, 0)
+        + CELL_PX * DIR_ORDER.length // swim rows
         + CELL_PX * CURL_FAMILY_ROWS.length;
     const sheet = Buffer.alloc(sheetW * sheetH * 4, 0);
     const rowDescriptors = [];
@@ -97,6 +107,24 @@ export function buildSheet() {
             bounds: hullToBounds(convexHull(hullPoints), width, height),
         });
         y += height;
+    });
+
+    DIR_ORDER.forEach((dirName) => {
+        const hullPoints = [];
+        for (let phase = 0; phase < PHASES; phase++) {
+            blitGrid(sheet, sheetW, buildSwimFrame(dirName, phase), GRID, BLOCK, phase * CELL_PX, y);
+            // the splash spray is scenery, so it stays out of the collision hull
+            collectOpaquePoints(buildSwimFrame(dirName, phase, false), hullPoints);
+        }
+        rowDescriptors.push({
+            type: `swim${dirName}`,
+            x: 0,
+            y,
+            phases: PHASES,
+            loops: true, // the paddle cycle repeats indefinitely
+            bounds: hullToBounds(convexHull(hullPoints)),
+        });
+        y += CELL_PX;
     });
 
     CURL_FAMILY_ROWS.forEach(({ type, build, loops }) => {
