@@ -7,6 +7,7 @@ import {KeyBinding} from "../help/key-binding";
 import {DashEffectRequest} from "../effects/dash-effect";
 import {FOX_CONSTANTS} from './fox-constants';
 import type {DashableEntity} from './dashable-entity';
+import type {SwimmableEntity} from './swimmable-entity';
 
 /** Behavioural states a {@link Fox} entity can be in. */
 export type FoxStatus = "idle" | "walking" | "curling" | "sleeping" | "sleepTurning" | "uncurling" | "dashing";
@@ -19,7 +20,7 @@ const CURL_ART_FACING: CompassDirection = "NW";
 const CURL_ART_ANGLE = Vector2d.fromDirection(CURL_ART_FACING).angleRadians();
 
 /** The fox entity: a {@link MovableEntity} that can be driven around by a {@link MovementController}. */
-export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements DashableEntity {
+export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements DashableEntity, SwimmableEntity {
     /**
      * Same sheet instance as the base class's `spriteSheet` field, kept here
      * too so {@link locateFrameForFacing} can reach `FoxSpriteSheet`-specific
@@ -56,6 +57,9 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
 
     /** Milliseconds left before another dash may start, counted down once the previous one ends. */
     private dashCooldownRemainingMs = 0;
+
+    /** Whether the fox is currently over water. */
+    private swimming = false;
 
     public constructor() {
         const spriteSheet = new FoxSpriteSheet();
@@ -109,6 +113,25 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
         return true;
     }
 
+    public override canSwim(): this is SwimmableEntity {
+        return true;
+    }
+
+    public isSwimming(): boolean {
+        return this.swimming;
+    }
+
+    public setSwimming(swimming: boolean): void {
+        if (swimming === this.swimming) {
+            return;
+        }
+        this.swimming = swimming;
+        if (this.isRestState() || this.status === "dashing") {
+            return;
+        }
+        this.setCurrentFrame(this.locateFrameForFacing(this.facing, this.isMoving()));
+    }
+
     /**
      * While asleep (or resting), movement input
      * doesn't move the fox yet, but cached it.
@@ -152,9 +175,8 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
     }
 
     public override getSpeed(): number {
-        return this.running
-            ? FOX_CONSTANTS.speed * FOX_CONSTANTS.runMultiplier
-            : FOX_CONSTANTS.speed;
+        const speed = this.isSwimming() ? FOX_CONSTANTS.speed * FOX_CONSTANTS.swim.speedMultiplier : FOX_CONSTANTS.speed;
+        return this.running ? speed * FOX_CONSTANTS.runMultiplier : speed;
     }
 
     /**
@@ -173,10 +195,14 @@ export class Fox extends MovableEntity<FoxSpriteType, FoxStatus> implements Dash
      */
     protected override shouldAnimateWhileStationary(): boolean {
         return this.status === "curling" || this.status === "uncurling" || this.status === "sleepTurning"
-            || this.status === "dashing";
+            || this.status === "dashing" || this.isSwimming();
     }
 
     protected override locateFrameForFacing(direction: CompassDirection, moving: boolean): SpriteFrame {
+        if (this.isSwimming()) {
+            // TODO idle paddling water sprite
+            return this.foxSpriteSheet.locateSprite(`swim${direction}`);
+        }
         return moving ? this.foxSpriteSheet.locateSprite(direction) : this.foxSpriteSheet.locateIdleSprite(direction);
     }
 

@@ -4,7 +4,13 @@ import {AnimatedSpriteSheet} from "./animated-sprite-sheet";
 import {SpriteSheetDescriptor} from "./sprite-sheet-descriptor";
 import {CompassDirection} from "../geometry/direction";
 
-export type FoxSpriteType = CompassDirection | "curl" | "uncurl" | "sleepTurn" | `dash${CompassDirection}`;
+export type FoxSpriteType =
+    CompassDirection
+    | "curl"
+    | "uncurl"
+    | "sleepTurn"
+    | `dash${CompassDirection}`
+    | `swim${CompassDirection}`;
 
 const descriptor = descriptorJson as SpriteSheetDescriptor<FoxSpriteType>;
 

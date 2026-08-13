@@ -25,6 +25,11 @@ export const FOX_CONSTANTS = {
         burstEndRadius: 16,
         trailFadeTailMs: 100,
     },
+
+    /** Tuning values for the swim mechanic. */
+    swim: {
+        speedMultiplier: 1.6 / 3.75,
+    },
 };
 
 fieldRegistry.registerFields(`world.entities.fox`, FOX_CONSTANTS, {
@@ -42,5 +47,8 @@ fieldRegistry.registerFields(`world.entities.fox`, FOX_CONSTANTS, {
         burstStartRadius: nonNegativeInteger(),
         burstEndRadius: nonNegativeInteger(),
         trailFadeTailMs: nonNegativeInteger(),
+    },
+    swim: {
+        speedMultiplier: nonNegativeNumber(),
     },
 });

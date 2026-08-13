@@ -1,7 +1,29 @@
+import type {Rect} from "./rect";
 import {Vector2d} from "./vector2d";
 
 /** A convex polygon's vertices, in world pixels, in either winding order. */
 export type ConvexPolygon = readonly Vector2d[];
+
+/**
+ * The smallest axis-aligned rectangle containing `polygon` - the broad phase
+ * for anything that then tests the polygon itself.
+ *
+ * @param polygon - Polygon to measure.
+ * @returns The bounding rectangle, empty and at the origin if `polygon` has no vertices.
+ */
+export function polygonBoundingRect(polygon: ConvexPolygon): Rect {
+    if (polygon.length === 0) {
+        return {x: 0, y: 0, w: 0, h: 0};
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const point of polygon) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+    }
+    return {x: minX, y: minY, w: maxX - minX, h: maxY - minY};
+}
 
 /**
  * Builds the four-corner polygon for an axis-aligned rectangle.

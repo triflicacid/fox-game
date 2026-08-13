@@ -1,13 +1,16 @@
 import type {ReadonlyEntityCollection} from "../../entities/entity-collection";
 import {MovableEntity} from "../../entities/movable-entity";
 import {CollisionResponseKind} from "../../geometry/collision-response";
-import {ConvexPolygon, convexPolygonsIntersect} from "../../geometry/convex-polygon";
+import {ConvexPolygon, convexPolygonsIntersect, polygonBoundingRect, rectPolygon} from "../../geometry/convex-polygon";
+import {rectIntersectionArea} from "../../geometry/rect";
 import {Vector2d} from "../../geometry/vector2d";
+import type {BackgroundTileType} from "../../sprites/background-tile-sprite-sheet";
 import type {SpriteFrame} from "../../sprites/sprite";
 import type {Chunk} from "../chunks/chunk";
 import {CHUNK_SIZE} from "../chunks/chunk-size";
-import {pixelRectToTileRange} from "../coordinates/world-grid-math";
+import {pixelRectToTileRange, type TileRange} from "../coordinates/world-grid-math";
 import type {Structure} from "../generation/structure/structure";
+import type {Tile, TileCollision} from "../tiles/tile";
 import type {ReadyWorldGrid} from "../tiles/world-grid-view";
 import {applyCollisionResponse, CollisionContext} from "./collision";
 import type {StructureResolver} from "./structure-resolver";
@@ -17,6 +20,29 @@ export interface WorldCollisionDebugState {
     readonly entityLabel: string;
     readonly obstacleLabel: string;
 }
+
+/**
+ * What one obstacle test did:-
+ * `clear`: nothing overlapped.
+ * `pushed`: an entity was pushed out of an overlap
+ * `handled`: a structure took the collision over itself and the sweep must leave the
+ * entity wherever that put it.
+ */
+type SweepOutcome = "clear" | "pushed" | "handled";
+
+/**
+ * How many times one tick re-sweeps an entity's surroundings after pushing it out of something.
+ * 2 passes cover the common case - a push out of one obstacle sliding the hull into a neighbour.
+ * The cap stops a hull wedged in a concave corner from ping-ponging forever.
+ */
+const MAX_PUSH_PASSES = 4;
+
+/**
+ * Fraction of a swim-capable entity's hull (by bounding-rect area) that must
+ * sit over water before {@link WorldCollisionSystem.updateSwimState} counts
+ * it as swimming.
+ */
+const SWIM_COVERAGE_THRESHOLD = 0.75;
 
 // Note: only supports `MovableEntity` for colisison etc. Will need to expand later.
 
@@ -81,8 +107,19 @@ export class WorldCollisionSystem {
     }
 
     /**
+     * The inclusive tile range `polygon`'s bounding rect spans: the broad
+     * phase for callers that then test tiles against the polygon itself.
+     */
+    private polygonTileRange(polygon: ConvexPolygon): TileRange {
+        const rect = polygonBoundingRect(polygon);
+        return pixelRectToTileRange(rect.x, rect.y, rect.w, rect.h, this.tileSize);
+    }
+
+    /**
      * Whether every chunk overlapped by a `frame`-sized rectangle at `position`
-     * is both loaded and satisfies `predicate`.
+     * is both loaded and satisfies `predicate`. Deliberately the drawn sprite
+     * rather than its collision hull: no part of an entity may hang over
+     * ground that doesn't exist yet.
      */
     private isPositionOnValidGround(position: Vector2d, frame: SpriteFrame, predicate: (chunk: Chunk) => boolean): boolean {
         const chunkPixelSize = CHUNK_SIZE * this.tileSize;
@@ -104,6 +141,39 @@ export class WorldCollisionSystem {
 
     /** Slides or pushes back every {@link MovableEntity} that ended the tick on invalid ground. */
     private constrainEntitiesToChunks(previousPositions: ReadonlyMap<MovableEntity, Vector2d>, predicate: (chunk: Chunk) => boolean): void {
+        this.constrainEntities(previousPositions, (entity, position) => this.isPositionOnValidGround(position, entity.getCurrentFrame(), predicate));
+    }
+
+    /**
+     * The obstacle `tile` presents to `entity`, if any: its own authored
+     * collision, or - for water `entity` can't enter - the whole tile square,
+     * since a water ground type carries no bounds of its own.
+     */
+    private tileObstacle(entity: MovableEntity, tile: Tile, tileX: number, tileY: number): TileCollision | undefined {
+        const collision = tile.getCollision(tileX, tileY, this.tileSize);
+        if (collision || !this.isWaterOffLimits(entity, tile.groundType)) {
+            return collision;
+        }
+        return {
+            polygon: rectPolygon(tileX * this.tileSize, tileY * this.tileSize, this.tileSize, this.tileSize),
+            response: "solid",
+        };
+    }
+
+    /** Whether the entity is over water and cannot swim. */
+    private isWaterOffLimits(entity: MovableEntity, groundType: BackgroundTileType): boolean {
+        return groundType.startsWith("water.") && !entity.canSwim();
+    }
+
+    /**
+     * Slides or pushes back every {@link MovableEntity} that ended the tick
+     * somewhere `isValid` rejects: first tries sliding along just the axis
+     * that stayed valid, then falls all the way back to last tick's position.
+     */
+    private constrainEntities(
+        previousPositions: ReadonlyMap<MovableEntity, Vector2d>,
+        isValid: (entity: MovableEntity, position: Vector2d) => boolean,
+    ): void {
         for (const entity of this.entities.getEntities()) {
             if (!(entity instanceof MovableEntity)) {
                 continue;
@@ -114,16 +184,15 @@ export class WorldCollisionSystem {
             }
 
             const current = entity.getPosition();
-            const frame = entity.getCurrentFrame();
-            if (this.isPositionOnValidGround(current, frame, predicate)) {
+            if (isValid(entity, current)) {
                 continue;
             }
 
             const slideX = new Vector2d(current.x, previous.y);
             const slideY = new Vector2d(previous.x, current.y);
-            if (this.isPositionOnValidGround(slideX, frame, predicate)) {
+            if (isValid(entity, slideX)) {
                 entity.teleportTo(slideX);
-            } else if (this.isPositionOnValidGround(slideY, frame, predicate)) {
+            } else if (isValid(entity, slideY)) {
                 entity.teleportTo(slideY);
             } else {
                 entity.teleportTo(previous);
@@ -145,21 +214,69 @@ export class WorldCollisionSystem {
                 this.lastCollision = undefined;
             }
             this.resolveEntityCollisions(entity, previousPosition);
+            this.updateSwimState(entity);
         }
     }
 
-    /** Tests `entity` against every tile and structure piece in its bounding rect, stopping at the first handled collision. */
+    /**
+     * Updates a `SwimmableEntity`'s `isSwimming` flag for this tick: `true`
+     * once at least {@link SWIM_COVERAGE_THRESHOLD} of its hull's bounding
+     * rect sits over water.
+     */
+    private updateSwimState(entity: MovableEntity): void {
+        if (!entity.canSwim()) {
+            return;
+        }
+        const rect = polygonBoundingRect(entity.getCollisionPolygon());
+        const totalArea = rect.w * rect.h;
+        if (totalArea <= 0) {
+            entity.setSwimming(false);
+            return;
+        }
+
+        const {startTileX, startTileY, endTileX, endTileY} = this.polygonTileRange(entity.getCollisionPolygon());
+        let waterArea = 0;
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                const tile = this.worldGrid.getReadyTile(tileX, tileY);
+                if (!tile?.groundType.startsWith("water.")) {
+                    continue;
+                }
+                waterArea += rectIntersectionArea(rect, {x: tileX * this.tileSize, y: tileY * this.tileSize, w: this.tileSize, h: this.tileSize});
+            }
+        }
+        entity.setSwimming(waterArea / totalArea > SWIM_COVERAGE_THRESHOLD);
+    }
+
+    /**
+     * Pushes `entity` out of everything its collision hull overlaps, re-sweeping
+     * until a pass finds nothing left (or {@link MAX_PUSH_PASSES} runs out),
+     * since one push can bring another obstacle into contact.
+     */
     private resolveEntityCollisions(entity: MovableEntity, previousPosition: Vector2d): void {
-        const rect = entity.getBoundingRect();
-        const {startTileX, startTileY, endTileX, endTileY} = pixelRectToTileRange(rect.x, rect.y, rect.w, rect.h, this.tileSize);
+        for (let pass = 0; pass < MAX_PUSH_PASSES; pass++) {
+            if (this.resolveOverlappingObstacles(entity, previousPosition) !== "pushed") {
+                return;
+            }
+        }
+    }
+
+    /** Pushes `entity` out of every tile and structure piece its hull currently overlaps, one sweep of the tiles it spans. */
+    private resolveOverlappingObstacles(entity: MovableEntity, previousPosition: Vector2d): SweepOutcome {
+        const {startTileX, startTileY, endTileX, endTileY} = this.polygonTileRange(entity.getCollisionPolygon());
+        let outcome: SweepOutcome = "clear";
 
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
                 const tile = this.worldGrid.getReadyTile(tileX, tileY);
-                const tileCollision = tile?.getCollision(tileX, tileY, this.tileSize);
+                const tileCollision = tile && this.tileObstacle(entity, tile, tileX, tileY);
                 if (tile && tileCollision) {
-                    if (this.resolveObstacleCollision(entity, previousPosition, tileCollision.polygon, tileCollision.response, "tile", tile.groundType, tileX, tileY, undefined)) {
-                        return;
+                    const result = this.resolveObstacleCollision(entity, previousPosition, tileCollision.polygon, tileCollision.response, "tile", tile.groundType, tileX, tileY, undefined);
+                    if (result === "handled") {
+                        return "handled"; // a handler took the collision over: leave the entity where it put it
+                    }
+                    if (result === "pushed") {
+                        outcome = "pushed";
                     }
                 }
 
@@ -167,18 +284,22 @@ export class WorldCollisionSystem {
                 if (piece && piece.collision !== "none") {
                     const piecePolygon = this.structureResolver.structurePiecePolygon(piece, tileX, tileY, this.tileSize);
                     const structure = this.structureResolver.findStructure(piece.structureId);
-                    if (this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprites.join(", "), tileX, tileY, structure)) {
-                        return;
+                    const result = this.resolveObstacleCollision(entity, previousPosition, piecePolygon, piece.collision, "structure", piece.sprites.join(", "), tileX, tileY, structure);
+                    if (result === "handled") {
+                        return "handled";
+                    }
+                    if (result === "pushed") {
+                        outcome = "pushed";
                     }
                 }
             }
         }
+        return outcome;
     }
 
     /**
      * Tests `entity`'s current polygon against `obstaclePolygon` and on overlap
      * gives `structure` first refusal, then applies `response` generically.
-     * Returns `true` if a collision was found and handled.
      */
     private resolveObstacleCollision(
         entity: MovableEntity,
@@ -190,9 +311,9 @@ export class WorldCollisionSystem {
         tileX: number,
         tileY: number,
         structure: Structure | undefined,
-    ): boolean {
+    ): SweepOutcome {
         if (!convexPolygonsIntersect(entity.getCollisionPolygon(), obstaclePolygon)) {
-            return false;
+            return "clear";
         }
         this.lastCollision = {
             entityLabel: entity.getDisplayName(),
@@ -200,9 +321,9 @@ export class WorldCollisionSystem {
         };
         const context: CollisionContext = {entity, previousPosition, obstaclePolygon, obstacleKind, obstacleName, tileX, tileY};
         if (structure?.handleCollision && !structure.handleCollision(context)) {
-            return true;
+            return "handled";
         }
         applyCollisionResponse(response, context);
-        return true;
+        return "pushed";
     }
 }
